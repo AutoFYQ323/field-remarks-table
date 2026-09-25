@@ -2,7 +2,7 @@
 name=Field Remarks Table
 qgisMinimumVersion=3.34
 description=Complementary attribute table with field-remark packs, batch editing, quick naming from symbology, and KMZ export
-version=1.18.1
+version=1.18.2
 author=有余
 email=jd_sys_xx@163.com
 about=Field Remarks Table is a complementary attribute editor for vector layers. It does not replace QGIS built-in Attribute Table (F6) and does not intercept the default table shortcut.
@@ -27,7 +27,12 @@ tags=attribute table, field remarks, aliases, editing, kmz, batch edit
 homepage=https://yuyouhui.online/tools/qgis/field-remarks-table/
 tracker=https://github.com/AutoFYQ323/field-remarks-table/issues
 repository=https://github.com/AutoFYQ323/field-remarks-table
-changelog=1.18.1
+changelog=1.18.2
+    - Clear Bandit findings for plugins.qgis.org security scan
+    - KMZ text escape via html.escape (no xml.sax)
+    - HTTPS Google Maps icon href in KMZ
+    - Bundle .bandit skips for intentional try/except guards (B110)
+    1.18.1
     - Public packaging for plugins.qgis.org
     - English metadata, About, and README
     - GPL-2.0-or-later LICENSE
@@ -36,4 +41,3 @@ changelog=1.18.1
 experimental=False
 deprecated=False
 hasProcessingProvider=False
-supportsQt6=False

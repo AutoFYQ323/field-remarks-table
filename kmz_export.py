@@ -3,7 +3,7 @@
 
 import os
 import zipfile
-from xml.sax.saxutils import escape
+from html import escape
 
 from qgis.core import (
     NULL,
@@ -113,7 +113,7 @@ def _symbol_style_xml(symbol, geom_type):
     if geom_type == QgsWkbTypes.PointGeometry:
         return (
             f"<IconStyle><color>{_kml_color(color, 255)}</color><scale>1.0</scale>"
-            "<Icon><href>http://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon>"
+            "<Icon><href>https://maps.google.com/mapfiles/kml/shapes/placemark_circle.png</href></Icon>"
             "</IconStyle>"
         )
     if geom_type == QgsWkbTypes.LineGeometry:
