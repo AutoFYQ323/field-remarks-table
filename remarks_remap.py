@@ -33,13 +33,16 @@ def project_vector_layers():
         return out
     for layer in layers:
         try:
-            if layer is None or not hasattr(layer, "type"):
-                continue
-            if layer.type() != QgsMapLayer.VectorLayer:
-                continue
-            out.append(layer)
+            ok = (
+                layer is not None
+                and hasattr(layer, "type")
+                and layer.type() == QgsMapLayer.VectorLayer
+            )
         except Exception:
+            ok = False
+        if not ok:
             continue
+        out.append(layer)
     out.sort(key=lambda item: item.name())
     return out
 
