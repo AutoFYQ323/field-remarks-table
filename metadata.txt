@@ -1,0 +1,39 @@
+[general]
+name=Field Remarks Table
+qgisMinimumVersion=3.34
+description=Complementary attribute table with field-remark packs, batch editing, quick naming from symbology, and KMZ export
+version=1.18.1
+author=有余
+email=jd_sys_xx@163.com
+about=Field Remarks Table is a complementary attribute editor for vector layers. It does not replace QGIS built-in Attribute Table (F6) and does not intercept the default table shortcut.
+    Unique features compared with the built-in table and other attribute-table plugins:
+    - Field-remark packs: alias names, hover notes, and insert meanings stored per named pack (shared across projects, not bound to one .qgz file)
+    - Pack variables such as {{title}} resolved when inserting values
+    - Quick naming from categorized or rule-based symbology
+    - Batch fill: constants, padded sequences, expressions, find/replace, fill blanks only
+    - Copy a filtered column and paste values back by feature id
+    - KMZ export with optional layer symbology colors
+    - Field manager, unique-value statistics, CSV export
+    How to use:
+    1. Select a vector layer in the Layers panel.
+    2. Click the toolbar button, choose Vector > Field Remarks Table, or right-click the layer.
+    3. Edit in the plugin window. Save and rollback use the layer edit buffer.
+    Requirements: QGIS 3.34 or later. No extra Python packages. Works on Windows, Linux, and macOS.
+    The current user interface is Simplified Chinese; metadata and this About text are English.
+    This plugin does not include binaries and has no external Python dependencies.
+icon=icon.png
+category=Vector
+tags=attribute table, field remarks, aliases, editing, kmz, batch edit
+homepage=https://yuyouhui.online/tools/qgis/field-remarks-table/
+tracker=https://github.com/AutoFYQ323/field-remarks-table/issues
+repository=https://github.com/AutoFYQ323/field-remarks-table
+changelog=1.18.1
+    - Public packaging for plugins.qgis.org
+    - English metadata, About, and README
+    - GPL-2.0-or-later LICENSE
+    - Vector menu entry
+    - Clarified that this is complementary to the built-in attribute table
+experimental=False
+deprecated=False
+hasProcessingProvider=False
+supportsQt6=False
