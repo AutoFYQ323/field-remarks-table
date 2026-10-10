@@ -17,6 +17,7 @@ from qgis.PyQt.QtWidgets import (
     QTableWidgetItem,
     QVBoxLayout,
 )
+from .i18n import tr
 from qgis.core import NULL
 
 from .model import try_parse_number
@@ -50,7 +51,7 @@ def parse_row_ranges(text, row_count):
     rows = set()
     parts = [p.strip() for p in re.split(r"[,，;；\s]+", text or "") if p.strip()]
     if not parts:
-        raise ValueError("请输入行号，例如 10-50 或 1-20,35")
+        raise ValueError(tr("请输入行号，例如 10-50 或 1-20,35"))
     for part in parts:
         m = re.fullmatch(r"(\d*)\s*[-~–—至到]\s*(\d*)", part)
         if m:
@@ -59,7 +60,7 @@ def parse_row_ranges(text, row_count):
         elif part.isdigit():
             a = b = int(part)
         else:
-            raise ValueError("看不懂「%s」，请写成 10-50 这样的形式" % part)
+            raise ValueError(tr("看不懂「%s」，请写成 10-50 这样的形式") % part)
         if a > b:
             a, b = b, a
         a = max(a, 1)
@@ -67,7 +68,7 @@ def parse_row_ranges(text, row_count):
         if a <= b:
             rows.update(range(a - 1, b))
     if not rows:
-        raise ValueError("行号超出范围（当前共 %d 行）" % row_count)
+        raise ValueError(tr("行号超出范围（当前共 %d 行）") % row_count)
     return sorted(rows)
 
 
@@ -95,7 +96,7 @@ class UniqueValuesDialog(QDialog):
 
     def __init__(self, parent, field_title, groups, label_for, on_filter, on_select):
         super().__init__(parent)
-        self.setWindowTitle("唯一值统计 - %s" % field_title)
+        self.setWindowTitle(tr("唯一值统计 - %s") % field_title)
         self.resize(560, 520)
         self._groups = groups
         self._on_filter = on_filter
@@ -105,20 +106,20 @@ class UniqueValuesDialog(QDialog):
         total = sum(len(slot[1]) for slot in groups.values())
         lay = QVBoxLayout(self)
         info = QLabel(
-            "范围：当前表格里的 %d 行（受范围/过滤/筛选影响），共 %d 个不同值。"
-            "勾选后可筛选或选中。" % (total, len(groups))
+            tr("范围：当前表格里的 %d 行（受范围/过滤/筛选影响），共 %d 个不同值。"
+            "勾选后可筛选或选中。") % (total, len(groups))
         )
         info.setWordWrap(True)
         lay.addWidget(info)
 
         self.ed_find = QLineEdit()
-        self.ed_find.setPlaceholderText("在列表里查找…")
+        self.ed_find.setPlaceholderText(tr("在列表里查找…"))
         self.ed_find.setClearButtonEnabled(True)
         self.ed_find.textChanged.connect(self._apply_find)
         lay.addWidget(self.ed_find)
 
         self.table = QTableWidget(0, 4)
-        self.table.setHorizontalHeaderLabels(["值", "含义", "条数", "占比"])
+        self.table.setHorizontalHeaderLabels([tr("值"), tr("含义"), tr("条数"), tr("占比")])
         self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
         self.table.verticalHeader().setVisible(False)
@@ -159,10 +160,10 @@ class UniqueValuesDialog(QDialog):
         self.table.sortItems(self.COL_COUNT, Qt.DescendingOrder)
 
         pick = QHBoxLayout()
-        btn_all = QPushButton("全勾")
-        btn_none = QPushButton("全不勾")
-        btn_dup = QPushButton("勾重复值")
-        btn_dup.setToolTip("勾选出现 2 次及以上的非空值")
+        btn_all = QPushButton(tr("全勾"))
+        btn_none = QPushButton(tr("全不勾"))
+        btn_dup = QPushButton(tr("勾重复值"))
+        btn_dup.setToolTip(tr("勾选出现 2 次及以上的非空值"))
         btn_all.clicked.connect(lambda: self._check_where(lambda _k, _n: True))
         btn_none.clicked.connect(lambda: self._check_where(lambda _k, _n: False))
         btn_dup.clicked.connect(
@@ -174,12 +175,12 @@ class UniqueValuesDialog(QDialog):
         lay.addLayout(pick)
 
         acts = QHBoxLayout()
-        btn_filter = QPushButton("按勾选筛选")
-        btn_filter.setToolTip("把勾选的值填到顶栏「筛选」（字段取值模式）")
-        btn_select = QPushButton("选中勾选要素")
-        btn_select.setToolTip("在图层上选中勾选值对应的要素（替换当前选择）")
-        btn_copy = QPushButton("复制列表")
-        btn_close = QPushButton("关闭")
+        btn_filter = QPushButton(tr("按勾选筛选"))
+        btn_filter.setToolTip(tr("把勾选的值填到顶栏「筛选」（字段取值模式）"))
+        btn_select = QPushButton(tr("选中勾选要素"))
+        btn_select.setToolTip(tr("在图层上选中勾选值对应的要素（替换当前选择）"))
+        btn_copy = QPushButton(tr("复制列表"))
+        btn_close = QPushButton(tr("关闭"))
         btn_filter.clicked.connect(self._do_filter)
         btn_select.clicked.connect(self._do_select)
         btn_copy.clicked.connect(self._copy_table)

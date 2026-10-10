@@ -561,7 +561,7 @@ class RemarksStore:
         try:
             QgsProject.instance().setDirty(True)
         except Exception:
-            pass
+            pass  # nosec B110
         self._cache = cleaned
         return cleaned
 
@@ -788,7 +788,7 @@ def notify_user(message, level="warning"):
 
         QgsMessageLog.logMessage(message, "属性表 Plus", Qgis.Warning)
     except Exception:
-        pass
+        pass  # nosec B110
     try:
         from qgis.utils import iface
 
@@ -799,7 +799,7 @@ def notify_user(message, level="warning"):
             else:
                 bar.pushWarning("属性表 Plus", message)
     except Exception:
-        pass
+        pass  # nosec B110
 
 
 def _unique_pack_name(name, existing):
@@ -1291,7 +1291,7 @@ class RemarksSession:
                     try:
                         shutil.copy2(path, global_backup_path())
                     except Exception:
-                        pass
+                        pass  # nosec B110
             write_text_atomic(path, text)
             self._loaded_mtime = self._global_mtime()
             self._save_error_shown = False

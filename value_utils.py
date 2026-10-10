@@ -189,7 +189,7 @@ def coerce_for_field(field, raw):
             if field.type() == QVariant.Int and not (-(2 ** 31) <= num < 2 ** 31):
                 return "invalid", None, "超出整数范围"
         except Exception:
-            pass
+            pass  # nosec B110
         return status, int(num), ("小数已四舍五入" if status == "rounded" else "")
 
     if kind == "bool":

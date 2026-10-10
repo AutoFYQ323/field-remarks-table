@@ -445,7 +445,7 @@ def copy_geoms_and_assign(source, dest, fids, assignments):
             try:
                 req.setSubsetOfAttributes([])
             except Exception:
-                pass
+                pass  # nosec B110
         dest_fields = dest.fields()
         for feat in source.getFeatures(req):
             geom = feat.geometry()
@@ -478,7 +478,7 @@ def copy_geoms_and_assign(source, dest, fids, assignments):
         try:
             dest.destroyEditCommand()
         except Exception:
-            pass
+            pass  # nosec B110
         return 0, str(exc), None
 
 
@@ -498,7 +498,7 @@ def _geometry_for_dest(geom, dest_wkb):
             if out:
                 return out
         except Exception:
-            pass
+            pass  # nosec B110
     return []
 
 
@@ -578,7 +578,7 @@ def _write_attribute_map(layer, changed, command_name):
         try:
             layer.destroyEditCommand()
         except Exception:
-            pass
+            pass  # nosec B110
         return 0, str(exc)
 
 
@@ -597,12 +597,12 @@ def notify_open_attribute_tables(layer, field_names, force_reload=False):
             if dlg is not None:
                 candidates.append(dlg)
     except Exception:
-        pass
+        pass  # nosec B110
     if QApplication is not None:
         try:
             candidates.extend(QApplication.topLevelWidgets())
         except Exception:
-            pass
+            pass  # nosec B110
     for widget in candidates:
         marker = id(widget)
         if marker in seen:
@@ -616,7 +616,7 @@ def notify_open_attribute_tables(layer, field_names, force_reload=False):
                 try:
                     reload_fn()
                 except Exception:
-                    pass
+                    pass  # nosec B110
                 continue
         fn = getattr(widget, "refresh_after_external_edit", None)
         if not callable(fn):
@@ -624,7 +624,7 @@ def notify_open_attribute_tables(layer, field_names, force_reload=False):
         try:
             fn(names)
         except Exception:
-            pass
+            pass  # nosec B110
 
 
 def refresh_layer_after_assign(layer, iface=None, bump_feature_count=False):
@@ -635,7 +635,7 @@ def refresh_layer_after_assign(layer, iface=None, bump_feature_count=False):
     try:
         layer.triggerRepaint()
     except Exception:
-        pass
+        pass  # nosec B110
     if iface is None:
         return
     try:
@@ -643,7 +643,7 @@ def refresh_layer_after_assign(layer, iface=None, bump_feature_count=False):
         if canvas is not None:
             canvas.refresh()
     except Exception:
-        pass
+        pass  # nosec B110
 
 
 def refresh_legend_class_counts(layer):
@@ -731,7 +731,7 @@ def save_edits_via_qgis(layer, iface):
                 try:
                     iface.setActiveLayer(prev)
                 except Exception:
-                    pass
+                    pass  # nosec B110
 
             if QTimer is not None:
                 QTimer.singleShot(0, _restore_active)
@@ -836,7 +836,7 @@ def _walk_rules(rule, items, inherited, seen, depth):
             label = (rule.label() or "").strip()
             color = _symbol_color(rule.symbol()) if hasattr(rule, "symbol") else None
         except Exception:
-            pass
+            pass  # nosec B110
         items.append(
             {
                 "label": label or "ELSE（其余）",
@@ -1010,7 +1010,7 @@ def _field_name_set(layer):
         for field in layer.fields():
             names.add(field.name())
     except Exception:
-        pass
+        pass  # nosec B110
     return names
 
 

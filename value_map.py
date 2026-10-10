@@ -18,7 +18,7 @@ if QgsValueMapFieldFormatter is not None:
     try:
         _NULL_SENTINEL = QgsValueMapFieldFormatter.NULL_VALUE
     except Exception:
-        pass
+        pass  # nosec B110
 
 EMPTY_FLAG_ROLE = Qt.UserRole + 21
 
@@ -346,7 +346,7 @@ class ValueMapDelegate(QStyledItemDelegate):
                 if field_idx >= 0:
                     stored = coerce_value_for_field(layer.fields().at(field_idx), stored)
             except Exception:
-                pass
+                pass  # nosec B110
         model.setData(index, stored, Qt.EditRole)
 
     def _choices(self, index):

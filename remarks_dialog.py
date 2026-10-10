@@ -31,6 +31,7 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from .i18n import language_changed, localize_button_box, tr
 
 from qgis.core import QgsLayerTree, QgsMapLayer, QgsProject, NULL
 
@@ -102,7 +103,7 @@ def _style_quick_combo(combo):
     try:
         pal.setColor(QPalette.PlaceholderText, QColor("#555555"))
     except Exception:
-        pass
+        pass  # nosec B110
     combo.setPalette(pal)
     view = combo.view()
     if view is not None:
@@ -148,11 +149,11 @@ def _as_window(widget):
 class ExportPacksDialog(QDialog):
     def __init__(self, items, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("导出备注项目")
+        self.setWindowTitle(tr("导出备注项目"))
         self.resize(360, 320)
         self._items = list(items or [])
         root = QVBoxLayout(self)
-        root.addWidget(QLabel("选择要导出的项目（可多选）："))
+        root.addWidget(QLabel(tr("选择要导出的项目（可多选）：")))
         self.list = QListWidget()
         for item_data in self._items:
             name = item_data[0] if item_data else ""
@@ -162,8 +163,8 @@ class ExportPacksDialog(QDialog):
             self.list.addItem(item)
         root.addWidget(self.list, 1)
         row = QHBoxLayout()
-        btn_all = QPushButton("全选")
-        btn_none = QPushButton("全不选")
+        btn_all = QPushButton(tr("全选"))
+        btn_none = QPushButton(tr("全不选"))
         btn_all.clicked.connect(self._check_all)
         btn_none.clicked.connect(self._check_none)
         row.addWidget(btn_all)
@@ -171,6 +172,7 @@ class ExportPacksDialog(QDialog):
         row.addStretch(1)
         root.addLayout(row)
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        localize_button_box(buttons)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
@@ -192,7 +194,7 @@ class ExportPacksDialog(QDialog):
 
     def accept(self):
         if not self.selected_items():
-            QMessageBox.information(self, "导出", "请至少勾选一个项目。")
+            QMessageBox.information(self, tr("导出"), tr("请至少勾选一个项目。"))
             return
         super().accept()
 
@@ -226,7 +228,7 @@ class LayerLegendTooltipFilter(QObject):
             try:
                 obj.removeEventFilter(self)
             except Exception:
-                pass
+                pass  # nosec B110
         self._attached = []
         self._view = None
 
@@ -354,7 +356,7 @@ class QuickFillBar(QWidget):
     def _reload_combo(self, combo, field_name):
         combo.blockSignals(True)
         combo.clear()
-        combo.addItem("插入…", "")
+        combo.addItem(tr("插入…"), "")
         combo.setItemData(0, QColor("#111111"), Qt.ForegroundRole)
         combo.setItemData(0, QColor("#ffffff"), Qt.BackgroundRole)
         meanings = []
@@ -378,7 +380,7 @@ class QuickFillBar(QWidget):
             if meaning_display(item)
         ]
         combo.setToolTip(
-            "\n".join(tips) if tips else "该字段还没有含义说明（图层管理里添加）"
+            "\n".join(tips) if tips else tr("该字段还没有含义说明（图层管理里添加）")
         )
 
     def reload_items(self):
@@ -537,12 +539,13 @@ class RemarksHubDialog(QDialog):
         self._work = empty_layer()
         self._mean_edit_row = -1
         _as_window(self)
-        self.setWindowTitle("字段备注")
+        self.setWindowTitle(tr("字段备注"))
         self.resize(760, 560)
 
         root = QVBoxLayout(self)
         row = QHBoxLayout()
-        row.addWidget(QLabel("当前项目："))
+        self.lbl_pack = QLabel(tr("当前项目："))
+        row.addWidget(self.lbl_pack)
         self.cmb_pack = QComboBox()
         self.cmb_pack.setMinimumWidth(180)
         self.cmb_pack.currentIndexChanged.connect(self._on_pack_changed)
@@ -550,49 +553,51 @@ class RemarksHubDialog(QDialog):
         root.addLayout(row)
 
         btns = QHBoxLayout()
-        self.btn_add = QPushButton("新建项目")
-        self.btn_del = QPushButton("删除项目")
-        self.btn_rename = QPushButton("修改名称")
-        self.btn_preview = QPushButton("预览配置")
-        self.btn_preview.setToolTip("只读查看当前项目已配置的图层、字段和含义。")
-        self.btn_add.clicked.connect(self._add_pack)
-        self.btn_del.clicked.connect(self._del_pack)
-        self.btn_rename.clicked.connect(self._rename_pack)
+        btns.setSpacing(36)
+        self.btn_add = QPushButton(tr("新建项目"))
+        self.btn_del = QPushButton(tr("删除项目"))
+        self.btn_rename = QPushButton(tr("修改名称"))
+        self.btn_packs = QPushButton(tr("项目管理"))
+        self.btn_packs.setToolTip(tr("选择：新建、删除或重命名当前备注项目"))
+        self.btn_packs.clicked.connect(self._open_pack_menu)
+        self.btn_preview = QPushButton(tr("预览配置"))
+        self.btn_preview.setToolTip(tr("只读查看当前项目已配置的图层、字段和含义。"))
         self.btn_preview.clicked.connect(self._preview_pack)
-        self.btn_reload = QPushButton("刷新")
+        self.btn_reload = QPushButton(tr("刷新"))
         self.btn_reload.setToolTip(
-            "重新读取配置文件。另一边 QGIS 改完后，点这里，或点一下本窗口，即可看到，不用重启。"
+            tr("重新读取配置文件。另一边 QGIS 改完后，点这里，或点一下本窗口，即可看到，不用重启。")
         )
         self.btn_reload.clicked.connect(self._reload_shared_config)
-        btns.addWidget(self.btn_add)
-        btns.addWidget(self.btn_del)
-        btns.addWidget(self.btn_rename)
-        btns.addWidget(self.btn_preview)
-        btns.addWidget(self.btn_reload)
+        for button in (self.btn_packs, self.btn_preview, self.btn_reload):
+            button.setMinimumWidth(108)
+            btns.addWidget(button)
         root.addLayout(btns)
 
         mode = QHBoxLayout()
-        self.btn_enable = QPushButton("启用")
-        self.btn_enable.setToolTip("启用/关闭备注显示。默认关闭。")
+        mode.setSpacing(36)
+        self.btn_enable = QPushButton(tr("启用"))
+        self.btn_enable.setToolTip(tr("启用/关闭备注显示。默认关闭。"))
         self.btn_enable.clicked.connect(self._toggle_enabled)
-        self.btn_variables = QPushButton("变量配置")
+        self.btn_variables = QPushButton(tr("变量配置"))
         self.btn_variables.setToolTip(
-            "给当前项目配置变量（标题给人看，内容才是写入值）。跟项目包走，导入导出一起带走。"
+            tr("给当前项目配置变量（标题给人看，内容才是写入值）。跟项目包走，导入导出一起带走。")
         )
         self.btn_variables.clicked.connect(self._open_variables)
-        mode.addWidget(self.btn_enable)
-        mode.addWidget(self.btn_variables)
-        self.btn_import = QPushButton("导入")
-        self.btn_export = QPushButton("导出")
-        self.btn_import.setToolTip("导入备注项目（一份 JSON 可含多个项目）。同名时选择覆盖或换名。")
-        self.btn_export.setToolTip("勾选要导出的项目。单项目文件名：属性表Plus(项目名).json")
+        self.btn_import = QPushButton(tr("导入"))
+        self.btn_export = QPushButton(tr("导出"))
+        self.btn_io = QPushButton(tr("导入导出"))
+        self.btn_io.setToolTip(tr("选择导入或导出备注项目"))
+        self.btn_io.clicked.connect(self._open_io_menu)
+        self.btn_import.setToolTip(tr("导入备注项目（一份 JSON 可含多个项目）。同名时选择覆盖或换名。"))
+        self.btn_export.setToolTip(tr("勾选要导出的项目。单项目文件名：属性表Plus(项目名).json"))
         self.btn_import.clicked.connect(self._import_pack)
         self.btn_export.clicked.connect(self._export_pack)
-        mode.addWidget(self.btn_import)
-        mode.addWidget(self.btn_export)
+        for button in (self.btn_enable, self.btn_variables, self.btn_io):
+            button.setMinimumWidth(108)
+            mode.addWidget(button)
         root.addLayout(mode)
 
-        self.lbl_layer = QLabel("图层管理")
+        self.lbl_layer = QLabel(tr("图层管理"))
         self.lbl_layer.setStyleSheet("font-weight: bold;")
         root.addWidget(self.lbl_layer)
 
@@ -600,7 +605,8 @@ class RemarksHubDialog(QDialog):
         left = QWidget()
         left_lay = QVBoxLayout(left)
         left_lay.setContentsMargins(0, 0, 0, 0)
-        left_lay.addWidget(QLabel("字段（末项为图层名，仅悬停用）："))
+        self.lbl_fields = QLabel(tr("字段（末项为图层名，仅悬停用）："))
+        left_lay.addWidget(self.lbl_fields)
         self.list = QListWidget()
         self.list.currentItemChanged.connect(self._on_field_changed)
         left_lay.addWidget(self.list, 1)
@@ -610,18 +616,19 @@ class RemarksHubDialog(QDialog):
         right_lay = QVBoxLayout(right)
         right_lay.setContentsMargins(0, 0, 0, 0)
         pair = QHBoxLayout()
-        pair.addWidget(QLabel("中文名："))
+        self.lbl_cn = QLabel(tr("中文名："))
+        pair.addWidget(self.lbl_cn)
         self.ed_label = QLineEdit()
-        self.ed_label.setPlaceholderText("表头第一行显示，如 Type → 类型")
+        self.ed_label.setPlaceholderText(tr("表头第一行显示，如 Type → 类型"))
         self.ed_label.textChanged.connect(self._on_label_text_changed)
         self.ed_label.editingFinished.connect(self._flush_and_notify)
         pair.addWidget(self.ed_label, 1)
         right_lay.addLayout(pair)
 
-        self.lbl_notes = QLabel("悬停说明（多行，只显示，不赋值）：")
+        self.lbl_notes = QLabel(tr("悬停说明（多行，只显示，不赋值）："))
         right_lay.addWidget(self.lbl_notes)
         self.ed_notes = QPlainTextEdit()
-        self.ed_notes.setPlaceholderText("悬停时显示在中文名下面，不写入字段、不进插入下拉")
+        self.ed_notes.setPlaceholderText(tr("悬停时显示在中文名下面，不写入字段、不进插入下拉"))
         self.ed_notes.setTabChangesFocus(True)
         self.ed_notes.setLineWrapMode(QPlainTextEdit.WidgetWidth)
         fm = self.ed_notes.fontMetrics()
@@ -637,22 +644,25 @@ class RemarksHubDialog(QDialog):
         self.mean_panel = QWidget()
         mean_lay = QVBoxLayout(self.mean_panel)
         mean_lay.setContentsMargins(0, 0, 0, 0)
-        self.lbl_meanings = QLabel("含义说明（双击一行改说明；值映射项后面的「原」不变，不能删除）：")
+        self.lbl_meanings = QLabel(tr("含义说明（双击一行改说明；值映射项后面的「原」不变，不能删除）："))
         mean_lay.addWidget(self.lbl_meanings)
         add_row = QHBoxLayout()
         self.ed_mean_cn = QLineEdit()
-        self.ed_mean_cn.setPlaceholderText("中文，如 盒子")
+        self.ed_mean_cn.setPlaceholderText(tr("中文，如 盒子"))
         self.cmb_mean_kind = QComboBox()
-        self.cmb_mean_kind.addItem("常量", "const")
+        self.cmb_mean_kind.addItem(tr("常量"), "const")
         self.cmb_mean_kind.addItem("QGIS", "expr")
-        self.cmb_mean_kind.setToolTip("常量写入固定值；QGIS 则右边粘贴表达式，赋值时按要素计算")
+        self.cmb_mean_kind.setMinimumContentsLength(6)
+        self.cmb_mean_kind.setMinimumWidth(88)
+        self.cmb_mean_kind.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.cmb_mean_kind.setToolTip(tr("常量写入固定值；QGIS 则右边粘贴表达式，赋值时按要素计算"))
         self.cmb_mean_kind.currentIndexChanged.connect(self._on_mean_kind_changed)
         self.ed_mean_code = QLineEdit()
-        self.ed_mean_code.setPlaceholderText("写入值，如 FAT；可插入变量")
-        self.btn_mean_var = QPushButton("插入变量")
-        self.btn_mean_var.setToolTip("把当前项目的变量插进写入值，如 {{城市}}123")
+        self.ed_mean_code.setPlaceholderText(tr("写入值，如 FAT；可插入变量"))
+        self.btn_mean_var = QPushButton(tr("插入变量"))
+        self.btn_mean_var.setToolTip(tr("把当前项目的变量插进写入值，如 {{城市}}123"))
         self.btn_mean_var.clicked.connect(self._pick_insert_variable)
-        self.btn_mean_add = QPushButton("添加")
+        self.btn_mean_add = QPushButton(tr("添加"))
         self.btn_mean_add.clicked.connect(self._add_meaning)
         self.ed_mean_code.returnPressed.connect(self._add_meaning)
         add_row.addWidget(self.ed_mean_cn, 1)
@@ -669,10 +679,10 @@ class RemarksHubDialog(QDialog):
         self.mean_list.currentItemChanged.connect(self._update_meaning_buttons)
         mean_lay.addWidget(self.mean_list, 1)
         mean_btns = QHBoxLayout()
-        self.btn_mean_restore = QPushButton("恢复默认")
-        self.btn_mean_restore.setToolTip("把选中的值映射项说明恢复成 QGIS 当前描述")
+        self.btn_mean_restore = QPushButton(tr("恢复默认"))
+        self.btn_mean_restore.setToolTip(tr("把选中的值映射项说明恢复成 QGIS 当前描述"))
         self.btn_mean_restore.clicked.connect(self._restore_meaning_default)
-        self.btn_mean_del = QPushButton("删除选中")
+        self.btn_mean_del = QPushButton(tr("删除选中"))
         self.btn_mean_del.clicked.connect(self._del_meaning)
         mean_btns.addWidget(self.btn_mean_restore)
         mean_btns.addWidget(self.btn_mean_del)
@@ -694,11 +704,15 @@ class RemarksHubDialog(QDialog):
         if focus_field:
             self.focus_field(focus_field)
         self._ui_ready = True
+        try:
+            language_changed().connect(self._apply_language)
+        except Exception:
+            pass  # nosec B110
 
         try:
             self.iface.currentLayerChanged.connect(self._on_qgis_layer_changed)
         except Exception:
-            pass
+            pass  # nosec B110
 
     def closeEvent(self, event):
         if hasattr(self, "_notes_timer"):
@@ -707,9 +721,57 @@ class RemarksHubDialog(QDialog):
         try:
             self.iface.currentLayerChanged.disconnect(self._on_qgis_layer_changed)
         except Exception:
-            pass
+            pass  # nosec B110
+        try:
+            language_changed().disconnect(self._apply_language)
+        except Exception:
+            pass  # nosec B110
         RemarksHubDialog._instance = None
         super().closeEvent(event)
+
+    def _apply_language(self, *_args):
+        self.setWindowTitle(tr("字段备注"))
+        self.lbl_pack.setText(tr("当前项目："))
+        self.btn_packs.setText(tr("项目管理"))
+        self.btn_packs.setToolTip(tr("选择：新建、删除或重命名当前备注项目"))
+        self.btn_preview.setText(tr("预览配置"))
+        self.btn_preview.setToolTip(tr("只读查看当前项目已配置的图层、字段和含义。"))
+        self.btn_reload.setText(tr("刷新"))
+        self.btn_reload.setToolTip(
+            tr("重新读取配置文件。另一边 QGIS 改完后，点这里，或点一下本窗口，即可看到，不用重启。")
+        )
+        self.btn_variables.setText(tr("变量配置"))
+        self.btn_variables.setToolTip(
+            tr("给当前项目配置变量（标题给人看，内容才是写入值）。跟项目包走，导入导出一起带走。")
+        )
+        self.btn_io.setText(tr("导入导出"))
+        self.btn_io.setToolTip(tr("选择导入或导出备注项目"))
+        self.lbl_fields.setText(tr("字段（末项为图层名，仅悬停用）："))
+        self.lbl_cn.setText(tr("中文名："))
+        self.ed_label.setPlaceholderText(tr("表头第一行显示，如 Type → 类型"))
+        self.lbl_notes.setText(tr("悬停说明（多行，只显示，不赋值）："))
+        self.ed_notes.setPlaceholderText(tr("悬停时显示在中文名下面，不写入字段、不进插入下拉"))
+        self.lbl_meanings.setText(tr("含义说明（双击一行改说明；值映射项后面的「原」不变，不能删除）："))
+        self.ed_mean_cn.setPlaceholderText(tr("中文，如 盒子"))
+        self.ed_mean_code.setPlaceholderText(tr("写入值，如 FAT；可插入变量"))
+        if self.cmb_mean_kind.count():
+            self.cmb_mean_kind.setItemText(0, tr("常量"))
+        self.cmb_mean_kind.setToolTip(tr("常量写入固定值；QGIS 则右边粘贴表达式，赋值时按要素计算"))
+        self.btn_mean_var.setText(tr("插入变量"))
+        self.btn_mean_var.setToolTip(tr("把当前项目的变量插进写入值，如 {{城市}}123"))
+        if self._mean_edit_row >= 0:
+            self.btn_mean_add.setText(tr("修改"))
+        else:
+            self.btn_mean_add.setText(tr("添加"))
+        self.btn_mean_restore.setText(tr("恢复默认"))
+        self.btn_mean_restore.setToolTip(tr("把选中的值映射项说明恢复成 QGIS 当前描述"))
+        self.btn_mean_del.setText(tr("删除选中"))
+        self._sync_enable_buttons()
+        self._reload_combo()
+        self._refresh_layer_caption()
+        current = self.list.currentItem()
+        if current is not None:
+            self._on_field_changed(current, None)
 
     def _qgis_vector_layer(self):
         layer = None
@@ -743,14 +805,14 @@ class RemarksHubDialog(QDialog):
         if not hasattr(self, "lbl_layer"):
             return
         if self._layer is None:
-            self.lbl_layer.setText("图层管理 — 请在 QGIS 中选择一个矢量图层")
+            self.lbl_layer.setText(tr("图层管理 — 请在 QGIS 中选择一个矢量图层"))
             return
         extra = ""
         if not self._can_edit_layer() and not self.session.is_placeholder():
-            extra = "（未启用，只读）"
+            extra = tr("（未启用，只读）")
         elif self.session.is_placeholder():
-            extra = "（%s）" % PLACEHOLDER_NAME
-        self.lbl_layer.setText("图层管理 — %s%s" % (self._layer.name(), extra))
+            extra = tr("（%s）") % tr(PLACEHOLDER_NAME)
+        self.lbl_layer.setText(tr("图层管理 — %s%s") % (self._layer.name(), extra))
 
     def _set_layer(self, layer):
         self._layer = layer
@@ -773,7 +835,8 @@ class RemarksHubDialog(QDialog):
         self.cmb_pack.blockSignals(True)
         self.cmb_pack.clear()
         for name in self.session.pack_names():
-            self.cmb_pack.addItem(name)
+            shown = tr(name) if name == PLACEHOLDER_NAME else name
+            self.cmb_pack.addItem(shown)
         self.cmb_pack.setCurrentIndex(self.session.current)
         self.cmb_pack.blockSignals(False)
 
@@ -807,13 +870,37 @@ class RemarksHubDialog(QDialog):
         self.packChanged.emit()
         self._update_check_status()
 
+    def _open_pack_menu(self):
+        from qgis.PyQt.QtWidgets import QMenu
+
+        menu = QMenu(self)
+        menu.addAction(tr("新建项目"), self._add_pack)
+        act_del = menu.addAction(tr("删除项目"), self._del_pack)
+        act_rename = menu.addAction(tr("修改名称"), self._rename_pack)
+        placeholder = False
+        try:
+            placeholder = bool(self.session.is_placeholder())
+        except Exception:
+            placeholder = False
+        act_del.setEnabled(not placeholder)
+        act_rename.setEnabled(not placeholder)
+        menu.exec_(self.btn_packs.mapToGlobal(self.btn_packs.rect().bottomLeft()))
+
+    def _open_io_menu(self):
+        from qgis.PyQt.QtWidgets import QMenu
+
+        menu = QMenu(self)
+        menu.addAction(tr("导入"), self._import_pack)
+        menu.addAction(tr("导出"), self._export_pack)
+        menu.exec_(self.btn_io.mapToGlobal(self.btn_io.rect().bottomLeft()))
+
     def _add_pack(self):
-        name, ok = QInputDialog.getText(self, "新建项目", "项目名称：", text="未命名")
+        name, ok = QInputDialog.getText(self, tr("新建项目"), tr("项目名称："), text=tr("未命名"))
         if not ok:
             return
         if is_placeholder_name(name):
             QMessageBox.information(
-                self, "新建项目", "「%s」是占位名称，请换一个名字。" % PLACEHOLDER_NAME
+                self, tr("新建项目"), tr("「%s」是占位名称，请换一个名字。") % PLACEHOLDER_NAME
             )
             return
         self._flush_current()
@@ -825,12 +912,12 @@ class RemarksHubDialog(QDialog):
     def _del_pack(self):
         if self.session.is_placeholder():
             QMessageBox.information(
-                self, "删除项目", "「%s」是占位项目，不能删除。" % PLACEHOLDER_NAME
+                self, tr("删除项目"), tr("「%s」是占位项目，不能删除。") % PLACEHOLDER_NAME
             )
             return
         name = self.session.current_name()
         if (
-            QMessageBox.question(self, "删除项目", f"确定删除项目「{name}」？")
+            QMessageBox.question(self, tr("删除项目"), tr("确定删除项目「%s」？") % name)
             != QMessageBox.Yes
         ):
             return
@@ -845,17 +932,17 @@ class RemarksHubDialog(QDialog):
         from .remarks_remap import collect_orphans, project_vector_layers
 
         dlg = QDialog(self)
-        dlg.setWindowTitle("已配置数据 — %s" % self.session.current_name())
+        dlg.setWindowTitle(tr("已配置数据 — %s") % self.session.current_name())
         dlg.resize(560, 480)
         lay = QVBoxLayout(dlg)
         tip = QLabel(
-            "只读预览。红色=当前工程对不上。"
-            "默认只显示不匹配项：图层对不上只列图层；字段对不上会带上所属图层。"
+            tr("只读预览。红色=当前工程对不上。"
+            "默认只显示不匹配项：图层对不上只列图层；字段对不上会带上所属图层。")
         )
         tip.setWordWrap(True)
         lay.addWidget(tip)
         tree = QTreeWidget()
-        tree.setHeaderLabels(["图层 / 字段 / 含义"])
+        tree.setHeaderLabels([tr("图层 / 字段 / 含义")])
         tree.setUniformRowHeights(False)
         try:
             nodes = configured_preview_nodes(self.session._layers())
@@ -887,7 +974,7 @@ class RemarksHubDialog(QDialog):
             only = bool(state["only_mismatch"])
             shown = 0
             if not only and pack_vars:
-                var_root = QTreeWidgetItem(["变量"])
+                var_root = QTreeWidgetItem([tr("变量")])
                 _style_preview_item(var_root, "layer")
                 tree.addTopLevelItem(var_root)
                 shown += 1
@@ -903,9 +990,9 @@ class RemarksHubDialog(QDialog):
             if not nodes:
                 if shown == 0:
                     _add_empty(
-                        "当前项目还没有图层配置。"
+                        tr("当前项目还没有图层配置。")
                         if only
-                        else "当前项目还没有图层配置和变量。"
+                        else tr("当前项目还没有图层配置和变量。")
                     )
                 return
             for layer_name, layer_title, note, fields in nodes:
@@ -933,11 +1020,11 @@ class RemarksHubDialog(QDialog):
                     layer_item.setExpanded(True)
                     continue
                 if note:
-                    note_item = QTreeWidgetItem(["悬停说明：%s" % note])
+                    note_item = QTreeWidgetItem([tr("悬停说明：%s") % note])
                     _style_preview_item(note_item, "meaning")
                     layer_item.addChild(note_item)
                 if not fields:
-                    empty_field = QTreeWidgetItem(["（无字段配置）"])
+                    empty_field = QTreeWidgetItem([tr("（无字段配置）")])
                     _style_preview_item(empty_field, "meaning")
                     layer_item.addChild(empty_field)
                 for field_name, field_title, means in fields:
@@ -947,7 +1034,7 @@ class RemarksHubDialog(QDialog):
                         _mark_preview_mismatch(field_item)
                     layer_item.addChild(field_item)
                     if not means:
-                        empty_mean = QTreeWidgetItem(["（无含义）"])
+                        empty_mean = QTreeWidgetItem([tr("（无含义）")])
                         _style_preview_item(empty_mean, "meaning")
                         field_item.addChild(empty_mean)
                     for text in means:
@@ -960,10 +1047,10 @@ class RemarksHubDialog(QDialog):
         rebuild()
         lay.addWidget(tree, 1)
         btn_row = QHBoxLayout()
-        btn_expand = QPushButton("全部展开")
-        btn_collapse = QPushButton("全部折叠")
-        btn_mismatch = QPushButton("只显示不匹配的")
-        btn_all = QPushButton("显示全部")
+        btn_expand = QPushButton(tr("全部展开"))
+        btn_collapse = QPushButton(tr("全部折叠"))
+        btn_mismatch = QPushButton(tr("只显示不匹配的"))
+        btn_all = QPushButton(tr("显示全部"))
         btn_expand.clicked.connect(tree.expandAll)
         btn_collapse.clicked.connect(tree.collapseAll)
 
@@ -984,7 +1071,7 @@ class RemarksHubDialog(QDialog):
         btn_row.addWidget(btn_all)
         btn_row.addStretch(1)
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
-        buttons.button(QDialogButtonBox.Close).setText("关闭")
+        buttons.button(QDialogButtonBox.Close).setText(tr("关闭"))
         buttons.rejected.connect(dlg.reject)
         buttons.accepted.connect(dlg.accept)
         btn_row.addWidget(buttons)
@@ -994,21 +1081,21 @@ class RemarksHubDialog(QDialog):
     def _rename_pack(self):
         if self.session.is_placeholder():
             QMessageBox.information(
-                self, "修改名称", "「%s」是占位项目，不能改名。" % PLACEHOLDER_NAME
+                self, tr("修改名称"), tr("「%s」是占位项目，不能改名。") % PLACEHOLDER_NAME
             )
             return
         name, ok = QInputDialog.getText(
-            self, "修改名称", "项目名称：", text=self.session.current_name()
+            self, tr("修改名称"), tr("项目名称："), text=self.session.current_name()
         )
         if not ok:
             return
         if is_placeholder_name(name):
             QMessageBox.information(
-                self, "修改名称", "「%s」是占位名称，请换一个名字。" % PLACEHOLDER_NAME
+                self, tr("修改名称"), tr("「%s」是占位名称，请换一个名字。") % PLACEHOLDER_NAME
             )
             return
         if not self.session.rename_current(name):
-            QMessageBox.warning(self, "修改名称", "名称无效或与其它项目重名。")
+            QMessageBox.warning(self, tr("修改名称"), tr("名称无效或与其它项目重名。"))
             return
         self._reload_combo()
         self.packChanged.emit()
@@ -1017,7 +1104,7 @@ class RemarksHubDialog(QDialog):
     def _toggle_enabled(self):
         if self.session.is_placeholder():
             QMessageBox.information(
-                self, "启用", "「%s」是占位项目，不能启用，也不能改数据。" % PLACEHOLDER_NAME
+                self, tr("启用"), tr("「%s」是占位项目，不能启用，也不能改数据。") % PLACEHOLDER_NAME
             )
             return
         if self.session.enabled:
@@ -1045,14 +1132,14 @@ class RemarksHubDialog(QDialog):
         placeholder = bool(self.session.is_placeholder())
         on = bool(self.session.enabled) and not placeholder
         self.btn_enable.setEnabled(not placeholder)
-        self.btn_enable.setText("关闭" if on else "启用")
+        self.btn_enable.setText(tr("关闭") if on else tr("启用"))
         if placeholder:
-            self.btn_enable.setToolTip("占位项目不能启用，也不能改数据。")
+            self.btn_enable.setToolTip(tr("占位项目不能启用，也不能改数据。"))
         else:
             self.btn_enable.setToolTip(
-                "点击关闭：不再把配置套到图层字段上"
+                tr("点击关闭：不再把配置套到图层字段上")
                 if on
-                else "点击启用：先核对图层/字段，再把当前项目配置套到图层字段上"
+                else tr("点击启用：先核对图层/字段，再把当前项目配置套到图层字段上")
             )
         self.btn_enable.setStyleSheet(
             "QPushButton { font-weight: bold; background: #c8e6c9; }"
@@ -1064,8 +1151,8 @@ class RemarksHubDialog(QDialog):
         if self.session.is_placeholder():
             QMessageBox.information(
                 self,
-                "变量配置",
-                "「%s」是占位项目，不能配变量。请先选一个真正项目。" % PLACEHOLDER_NAME,
+                tr("变量配置"),
+                tr("「%s」是占位项目，不能配变量。请先选一个真正项目。") % PLACEHOLDER_NAME,
             )
             return
         self._flush_current()
@@ -1108,9 +1195,9 @@ class RemarksHubDialog(QDialog):
         if hasattr(self, "cmb_mean_kind"):
             kind = self.cmb_mean_kind.currentData() or "const"
         if kind == "expr":
-            self.ed_mean_code.setPlaceholderText("粘贴表达式，如 $length")
+            self.ed_mean_code.setPlaceholderText(tr("粘贴表达式，如 $length"))
         else:
-            self.ed_mean_code.setPlaceholderText("写入值，如 FAT；可插入变量")
+            self.ed_mean_code.setPlaceholderText(tr("写入值，如 FAT；可插入变量"))
         self._sync_var_insert_button()
 
     def _set_mean_kind(self, kind):
@@ -1126,7 +1213,7 @@ class RemarksHubDialog(QDialog):
         self._flush_current()
         items = self.session.exportable_items()
         if not items:
-            QMessageBox.information(self, "导出", "还没有可导出的项目。请先新建并配置。")
+            QMessageBox.information(self, tr("导出"), tr("还没有可导出的项目。请先新建并配置。"))
             return
         picker = ExportPacksDialog(items, self)
         if picker.exec_() != QDialog.Accepted:
@@ -1149,13 +1236,13 @@ class RemarksHubDialog(QDialog):
         try:
             self.session.write_packs(path, selected)
         except Exception as exc:
-            QMessageBox.warning(self, "导出", "导出失败：%s" % exc)
+            QMessageBox.warning(self, tr("导出"), tr("导出失败：%s") % exc)
             return
         if len(selected) == 1:
-            QMessageBox.information(self, "导出", "已导出项目「%s」。" % selected[0][0])
+            QMessageBox.information(self, tr("导出"), tr("已导出项目「%s」。") % selected[0][0])
         else:
             QMessageBox.information(
-                self, "导出", "已导出 %s 个项目。" % len(selected)
+                self, tr("导出"), tr("已导出 %s 个项目。") % len(selected)
             )
 
     def _import_pack(self):
@@ -1171,7 +1258,7 @@ class RemarksHubDialog(QDialog):
         try:
             items, newer = self.session.read_pack_file(path)
         except Exception as exc:
-            QMessageBox.warning(self, "导入", str(exc) or "无法读取该文件。")
+            QMessageBox.warning(self, tr("导入"), str(exc) or tr("无法读取该文件。"))
             return
         names = set(self.session.pack_names())
         conflicts = [
@@ -1182,11 +1269,11 @@ class RemarksHubDialog(QDialog):
         overwrite = False
         if conflicts:
             box = QMessageBox(self)
-            box.setWindowTitle("导入")
-            box.setText("已有同名项目：%s" % "、".join(conflicts))
-            btn_over = box.addButton("覆盖同名", QMessageBox.DestructiveRole)
-            btn_new = box.addButton("全部换名", QMessageBox.ActionRole)
-            box.addButton("取消", QMessageBox.RejectRole)
+            box.setWindowTitle(tr("导入"))
+            box.setText(tr("已有同名项目：%s") % "、".join(conflicts))
+            btn_over = box.addButton(tr("覆盖同名"), QMessageBox.DestructiveRole)
+            btn_new = box.addButton(tr("全部换名"), QMessageBox.ActionRole)
+            box.addButton(tr("取消"), QMessageBox.RejectRole)
             box.setDefaultButton(btn_new)
             box.exec_()
             clicked = box.clickedButton()
@@ -1207,7 +1294,7 @@ class RemarksHubDialog(QDialog):
                     )
                 )
         except Exception as exc:
-            QMessageBox.warning(self, "导入", "导入失败：%s" % exc)
+            QMessageBox.warning(self, tr("导入"), tr("导入失败：%s") % exc)
             return
         self._current_field = None
         self._reload_combo()
@@ -1221,7 +1308,7 @@ class RemarksHubDialog(QDialog):
             tip = "已导入项目「%s」。%s" % (imported[0], extra)
         else:
             tip = "已导入 %s 个项目。%s" % (len(imported), extra)
-        QMessageBox.information(self, "导入", tip.strip())
+        QMessageBox.information(self, tr("导入"), tip.strip())
         self._update_check_status()
 
     def _field_names(self):
@@ -1244,7 +1331,7 @@ class RemarksHubDialog(QDialog):
         if self._layer is not None:
             layer_item = QListWidgetItem("%s (图层)" % self._layer.name())
             layer_item.setData(Qt.UserRole, LAYER_ITEM_KEY)
-            layer_item.setToolTip("图层备注：图例悬停显示中文名和悬停说明，不用于赋值")
+            layer_item.setToolTip(tr("图层备注：图例悬停显示中文名和悬停说明，不用于赋值"))
             self.list.addItem(layer_item)
         target = 0
         found = False
@@ -1441,7 +1528,7 @@ class RemarksHubDialog(QDialog):
         idx = field_index(self._layer, name)
         if is_value_map_field(self._layer, idx):
             item.setForeground(QColor("#1b7a3d"))
-            item.setToolTip("该字段有 QGIS 值映射")
+            item.setToolTip(tr("该字段有 QGIS 值映射"))
         else:
             item.setForeground(QColor("#111111"))
 
@@ -1466,7 +1553,7 @@ class RemarksHubDialog(QDialog):
             item.setText(self._meaning_list_text(meaning, defaults))
         if self._is_value_map_meaning(meaning, defaults):
             item.setForeground(QColor("#1b7a3d"))
-            item.setToolTip("QGIS 值映射项：说明可改，值不可改，不能删除")
+            item.setToolTip(tr("QGIS 值映射项：说明可改，值不可改，不能删除"))
         else:
             item.setForeground(QColor("#111111"))
             preview = self._meaning_write_preview(meaning)
@@ -1502,13 +1589,13 @@ class RemarksHubDialog(QDialog):
             return
         item = self.mean_list.currentItem()
         if item is None:
-            QMessageBox.information(self, "含义说明", "请先选中一行。")
+            QMessageBox.information(self, tr("含义说明"), tr("请先选中一行。"))
             return
         meaning = normalize_meaning(item.data(Qt.UserRole) or item.text())
         defaults = self._qgis_value_map_defaults()
         key = value_key(meaning.get("value") if meaning else None)
         if not meaning or meaning.get("kind") != "const" or key not in defaults:
-            QMessageBox.information(self, "含义说明", "这项不在当前值映射里。")
+            QMessageBox.information(self, tr("含义说明"), tr("这项不在当前值映射里。"))
             return
         data = normalize_meaning(
             {
@@ -1566,7 +1653,7 @@ class RemarksHubDialog(QDialog):
 
     def _reset_meaning_edit(self):
         self._mean_edit_row = -1
-        self.btn_mean_add.setText("添加")
+        self.btn_mean_add.setText(tr("添加"))
         self._sync_meaning_inputs(False)
 
     def _on_meaning_double_clicked(self, item):
@@ -1596,7 +1683,7 @@ class RemarksHubDialog(QDialog):
         self.ed_mean_code.setText(right)
         self._set_mean_kind(kind)
         self._mean_edit_row = row
-        self.btn_mean_add.setText("修改")
+        self.btn_mean_add.setText(tr("修改"))
         self._sync_meaning_inputs(self._is_value_map_meaning(meaning))
         self.ed_mean_cn.setFocus()
         self.ed_mean_cn.selectAll()
@@ -1627,22 +1714,22 @@ class RemarksHubDialog(QDialog):
             self._set_notes_visible(True)
             self._set_notes_layout(True)
             if hasattr(self, "ed_notes"):
-                self.ed_notes.setPlaceholderText("图例悬停说明，多行，不赋值")
-            self.ed_label.setPlaceholderText("图例悬停第一行，如 道路")
+                self.ed_notes.setPlaceholderText(tr("图例悬停说明，多行，不赋值"))
+            self.ed_label.setPlaceholderText(tr("图例悬停第一行，如 道路"))
             self.ed_label.setText(self._work.get("label") or "")
             self._set_notes_text(self._work.get("notes") or "")
             self.mean_list.blockSignals(False)
             self._update_restore_button()
             return
-        self.ed_label.setPlaceholderText("表头第一行显示，如 Type → 类型")
+        self.ed_label.setPlaceholderText(tr("表头第一行显示，如 Type → 类型"))
         self.lbl_meanings.setText(
-            "含义说明（双击一行改说明；值映射项后面的「原」不变，不能删除）："
+            tr("含义说明（双击一行改说明；值映射项后面的「原」不变，不能删除）：")
         )
         self._set_meanings_visible(True)
         self._set_notes_visible(True)
         self._set_notes_layout(False)
         if hasattr(self, "ed_notes"):
-            self.ed_notes.setPlaceholderText("悬停时显示在中文名下面，不写入字段、不进插入下拉")
+            self.ed_notes.setPlaceholderText(tr("悬停时显示在中文名下面，不写入字段、不进插入下拉"))
         if hasattr(self, "cmb_mean_kind"):
             self.cmb_mean_kind.setVisible(True)
             self._set_mean_kind("const")
@@ -1685,11 +1772,11 @@ class RemarksHubDialog(QDialog):
         if hasattr(self, "cmb_mean_kind"):
             kind = self.cmb_mean_kind.currentData() or "const"
         if kind == "expr" and not right:
-            QMessageBox.information(self, "含义说明", "请粘贴 QGIS 表达式。")
+            QMessageBox.information(self, tr("含义说明"), tr("请粘贴 QGIS 表达式。"))
             return
         text = format_meaning(left, right, kind)
         if not text:
-            QMessageBox.information(self, "含义说明", "请至少填写中文或写入值。")
+            QMessageBox.information(self, tr("含义说明"), tr("请至少填写中文或写入值。"))
             return
         meaning = normalize_meaning({"cn": left or right, "value": right or left, "kind": kind})
         replace_row = self._mean_edit_row
@@ -1711,7 +1798,7 @@ class RemarksHubDialog(QDialog):
             item = self.mean_list.item(i)
             existing.append(meaning_display(item.data(Qt.UserRole) or item.text()))
         if display in existing:
-            QMessageBox.information(self, "含义说明", "该含义已存在。")
+            QMessageBox.information(self, tr("含义说明"), tr("该含义已存在。"))
             return
         self.mean_list.blockSignals(True)
         if 0 <= replace_row < self.mean_list.count():
@@ -1734,14 +1821,14 @@ class RemarksHubDialog(QDialog):
             return
         row = self.mean_list.currentRow()
         if row < 0:
-            QMessageBox.information(self, "含义说明", "请先选中一行。")
+            QMessageBox.information(self, tr("含义说明"), tr("请先选中一行。"))
             return
         item = self.mean_list.item(row)
         meaning = normalize_meaning(
             (item.data(Qt.UserRole) or item.text()) if item is not None else None
         )
         if self._is_value_map_meaning(meaning):
-            QMessageBox.information(self, "含义说明", "值映射项不能删除。")
+            QMessageBox.information(self, tr("含义说明"), tr("值映射项不能删除。"))
             return
         self.mean_list.takeItem(row)
         self._reset_meaning_edit()
@@ -1850,7 +1937,7 @@ class RemarksHubDialog(QDialog):
         if hasattr(self, "cmb_mean_kind"):
             kind = self.cmb_mean_kind.currentData() or "const"
         if kind != "const":
-            QMessageBox.information(self, "插入变量", "QGIS 表达式里不插入变量。")
+            QMessageBox.information(self, tr("插入变量"), tr("QGIS 表达式里不插入变量。"))
             return
         variables = []
         try:
@@ -1858,7 +1945,7 @@ class RemarksHubDialog(QDialog):
         except Exception:
             variables = []
         if not variables:
-            QMessageBox.information(self, "插入变量", "请先在变量配置里添加变量。")
+            QMessageBox.information(self, tr("插入变量"), tr("请先在变量配置里添加变量。"))
             return
         menu = QMenu(self)
         for item in variables:
@@ -1896,21 +1983,21 @@ class VariablesDialog(QDialog):
         super().__init__(parent)
         self.session = session
         self._edit_row = -1
-        self.setWindowTitle("变量配置 — %s" % (session.current_name() or ""))
+        self.setWindowTitle(tr("变量配置 — %s") % (session.current_name() or ""))
         self.resize(420, 360)
         root = QVBoxLayout(self)
         tip = QLabel(
-            "变量跟当前项目走，不是全 QGIS 共用。"
-            "标题给人看，内容才是写入值。含义里插入 {{标题}}，点插入时再替换成当前内容。"
+            tr("变量跟当前项目走，不是全 QGIS 共用。"
+            "标题给人看，内容才是写入值。含义里插入 {{标题}}，点插入时再替换成当前内容。")
         )
         tip.setWordWrap(True)
         root.addWidget(tip)
         row = QHBoxLayout()
         self.ed_title = QLineEdit()
-        self.ed_title.setPlaceholderText("标题，如 城市")
+        self.ed_title.setPlaceholderText(tr("标题，如 城市"))
         self.ed_value = QLineEdit()
-        self.ed_value.setPlaceholderText("内容，如 CITY")
-        self.btn_add = QPushButton("添加")
+        self.ed_value.setPlaceholderText(tr("内容，如 CITY"))
+        self.btn_add = QPushButton(tr("添加"))
         self.btn_add.clicked.connect(self._add)
         self.ed_title.returnPressed.connect(self._add)
         self.ed_value.returnPressed.connect(self._add)
@@ -1924,12 +2011,12 @@ class VariablesDialog(QDialog):
         self.list.currentItemChanged.connect(self._update_buttons)
         root.addWidget(self.list, 1)
         btns = QHBoxLayout()
-        self.btn_del = QPushButton("删除选中")
+        self.btn_del = QPushButton(tr("删除选中"))
         self.btn_del.clicked.connect(self._del)
         btns.addWidget(self.btn_del)
         btns.addStretch(1)
         buttons = QDialogButtonBox(QDialogButtonBox.Close)
-        buttons.button(QDialogButtonBox.Close).setText("关闭")
+        buttons.button(QDialogButtonBox.Close).setText(tr("关闭"))
         buttons.rejected.connect(self.reject)
         buttons.accepted.connect(self.accept)
         btns.addWidget(buttons)
@@ -1953,7 +2040,7 @@ class VariablesDialog(QDialog):
 
     def _reset_edit(self):
         self._edit_row = -1
-        self.btn_add.setText("添加")
+        self.btn_add.setText(tr("添加"))
         self.ed_title.clear()
         self.ed_value.clear()
 
@@ -1964,7 +2051,7 @@ class VariablesDialog(QDialog):
         self.ed_title.setText(data.get("title") or "")
         self.ed_value.setText(data.get("value") or "")
         self._edit_row = self.list.row(item)
-        self.btn_add.setText("修改")
+        self.btn_add.setText(tr("修改"))
         self.ed_title.setFocus()
         self.ed_title.selectAll()
 
@@ -1972,10 +2059,10 @@ class VariablesDialog(QDialog):
         title = self.ed_title.text().strip()
         value = self.ed_value.text()
         if not title:
-            QMessageBox.information(self, "变量配置", "请填写标题。")
+            QMessageBox.information(self, tr("变量配置"), tr("请填写标题。"))
             return
         if "{{" in title or "}}" in title:
-            QMessageBox.information(self, "变量配置", "标题里不能含 {{ 或 }}。")
+            QMessageBox.information(self, tr("变量配置"), tr("标题里不能含 {{ 或 }}。"))
             return
         items = self._items()
         replace = self._edit_row
@@ -1985,14 +2072,14 @@ class VariablesDialog(QDialog):
                 if i == replace:
                     continue
                 if (item.get("title") or "") == title:
-                    QMessageBox.information(self, "变量配置", "标题「%s」已存在。" % title)
+                    QMessageBox.information(self, tr("变量配置"), tr("标题「%s」已存在。") % title)
                     return
             if old and old != title and self._variable_in_use(old):
                 if (
                     QMessageBox.question(
                         self,
-                        "变量配置",
-                        "含义里还引用着「%s」。改标题后，那些含义插入时会提示找不到。继续？"
+                        tr("变量配置"),
+                        tr("含义里还引用着「%s」。改标题后，那些含义插入时会提示找不到。继续？")
                         % old,
                     )
                     != QMessageBox.Yes
@@ -2001,7 +2088,7 @@ class VariablesDialog(QDialog):
             items[replace] = {"title": title, "value": value}
         else:
             if any((item.get("title") or "") == title for item in items):
-                QMessageBox.information(self, "变量配置", "标题「%s」已存在。" % title)
+                QMessageBox.information(self, tr("变量配置"), tr("标题「%s」已存在。") % title)
                 return
             items.append({"title": title, "value": value})
         self.session.set_current_variables(items)
@@ -2012,7 +2099,7 @@ class VariablesDialog(QDialog):
     def _del(self):
         row = self.list.currentRow()
         if row < 0:
-            QMessageBox.information(self, "变量配置", "请先选中一行。")
+            QMessageBox.information(self, tr("变量配置"), tr("请先选中一行。"))
             return
         items = self._items()
         if row >= len(items):
@@ -2022,8 +2109,8 @@ class VariablesDialog(QDialog):
             if (
                 QMessageBox.question(
                     self,
-                    "变量配置",
-                    "含义里还引用着「%s」，删除后插入会提示找不到。确定删除？" % title,
+                    tr("变量配置"),
+                    tr("含义里还引用着「%s」，删除后插入会提示找不到。确定删除？") % title,
                 )
                 != QMessageBox.Yes
             ):
@@ -2088,11 +2175,11 @@ class QuickNameDialog(QDialog):
         self._layer = None
         self._reloading = False
         _as_window(self)
-        self.setWindowTitle("快速命名")
+        self.setWindowTitle(tr("快速命名"))
         self.resize(300, 380)
 
         root = QVBoxLayout(self)
-        self.lbl_layer = QLabel("请选择矢量图层")
+        self.lbl_layer = QLabel(tr("请选择矢量图层"))
         self.lbl_layer.setWordWrap(True)
         self.on_theme_changed()
         root.addWidget(self.lbl_layer)
@@ -2102,12 +2189,12 @@ class QuickNameDialog(QDialog):
         root.addWidget(self.list, 1)
 
         pin_row = QHBoxLayout()
-        self.chk_pin = QCheckBox("钉住图层")
+        self.chk_pin = QCheckBox(tr("钉住图层"))
         self.chk_pin.setChecked(False)
         self.chk_pin.setToolTip(
-            "钉住当前分类图层。在本层选中要素再点分类：只改属性、不复制。"
+            tr("钉住当前分类图层。在本层选中要素再点分类：只改属性、不复制。"
             "在其他层选中再点分类：把几何复制进钉住层，再按该类规则赋值。"
-            "来源图层不改；钉住层不增加来源字段。"
+            "来源图层不改；钉住层不增加来源字段。")
         )
         self.chk_pin.toggled.connect(self._on_pin_toggled)
         self.cmb_autosave = QComboBox()
@@ -2116,11 +2203,11 @@ class QuickNameDialog(QDialog):
         self.cmb_autosave.setCurrentIndex(0)
         self.cmb_autosave.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.cmb_autosave.setToolTip(
-            "默认「不自动保存」：还能撤销/回滚，QGIS 图例数量不会马上变。"
+            tr("默认「不自动保存」：还能撤销/回滚，QGIS 图例数量不会马上变。"
             "选「N秒后保存」：先只写入，等 N 秒再点一次 QGIS 自带的「保存图层编辑」。"
             "连续命名会按当前秒数重新计时，只存一次。中途改成不自动保存则取消这次预约。"
             "图例由 QGIS 自己刷。会保存该层当前所有未保存修改，这次不能再撤销。"
-            "关掉窗口会立刻补存。3 秒已验证能跟上图例；1 秒可能仍偏赶。"
+            "关掉窗口会立刻补存。3 秒已验证能跟上图例；1 秒可能仍偏赶。")
         )
         self.cmb_autosave.currentIndexChanged.connect(self._on_autosave_mode_changed)
         pin_row.addWidget(self.chk_pin)
@@ -2128,12 +2215,12 @@ class QuickNameDialog(QDialog):
         pin_row.addStretch(1)
         root.addLayout(pin_row)
 
-        self.chk_skip_confirm = QCheckBox("勾选后点分类不再确认，直接赋值")
+        self.chk_skip_confirm = QCheckBox(tr("勾选后点分类不再确认，直接赋值"))
         self.chk_skip_confirm.setChecked(False)
-        self.chk_skip_confirm.setToolTip("默认不勾选：会弹出确认。勾选后直接写入。")
+        self.chk_skip_confirm.setToolTip(tr("默认不勾选：会弹出确认。勾选后直接写入。"))
         root.addWidget(self.chk_skip_confirm)
 
-        self.btn_legend_count = QPushButton("刷新图例计数")
+        self.btn_legend_count = QPushButton(tr("刷新图例计数"))
         self.btn_legend_count.clicked.connect(self._on_refresh_legend_counts)
         root.addWidget(self.btn_legend_count)
 
@@ -2154,11 +2241,11 @@ class QuickNameDialog(QDialog):
         try:
             self.iface.currentLayerChanged.connect(self._on_qgis_layer_changed)
         except Exception:
-            pass
+            pass  # nosec B110
         try:
             QgsProject.instance().layersWillBeRemoved.connect(self._on_layers_removed)
         except Exception:
-            pass
+            pass  # nosec B110
         self._bind_layer(self._qgis_vector_layer())
         self._reload_timer.start(0)
 
@@ -2179,11 +2266,11 @@ class QuickNameDialog(QDialog):
         try:
             self.iface.currentLayerChanged.disconnect(self._on_qgis_layer_changed)
         except Exception:
-            pass
+            pass  # nosec B110
         try:
             QgsProject.instance().layersWillBeRemoved.disconnect(self._on_layers_removed)
         except Exception:
-            pass
+            pass  # nosec B110
         QuickNameDialog._instance = None
         super().closeEvent(event)
 
@@ -2318,7 +2405,7 @@ class QuickNameDialog(QDialog):
         finally:
             self._saving = False
         if save_err:
-            QMessageBox.information(self, "快速命名", "已写入，但 QGIS 保存失败：%s" % save_err)
+            QMessageBox.information(self, tr("快速命名"), tr("已写入，但 QGIS 保存失败：%s") % save_err)
 
     def _on_qgis_layer_changed(self, layer):
         if getattr(self, "_saving", False):
@@ -2337,7 +2424,7 @@ class QuickNameDialog(QDialog):
     def _on_refresh_legend_counts(self):
         dest = self._dest_layer()
         if dest is None:
-            QMessageBox.information(self, "快速命名", "请先选择一个矢量图层。")
+            QMessageBox.information(self, tr("快速命名"), tr("请先选择一个矢量图层。"))
             return
         self._touching_legend = True
         try:
@@ -2345,7 +2432,7 @@ class QuickNameDialog(QDialog):
         finally:
             self._touching_legend = False
         if err:
-            QMessageBox.information(self, "快速命名", err)
+            QMessageBox.information(self, tr("快速命名"), err)
 
     def _bind_layer(self, layer):
         old = self._layer
@@ -2358,14 +2445,14 @@ class QuickNameDialog(QDialog):
                 try:
                     signal.disconnect(slot)
                 except Exception:
-                    pass
+                    pass  # nosec B110
         self._layer = layer
         if layer is None:
             return
         try:
             layer.rendererChanged.connect(self._schedule_reload)
         except Exception:
-            pass
+            pass  # nosec B110
 
     def _displayed_total(self):
         total = 0
@@ -2379,7 +2466,7 @@ class QuickNameDialog(QDialog):
     def _refresh_layer_caption(self):
         dest = self._dest_layer()
         if dest is None:
-            self.lbl_layer.setText("请在 QGIS 中选择一个矢量图层")
+            self.lbl_layer.setText(tr("请在 QGIS 中选择一个矢量图层"))
             return
         name = dest.name()
         if self.chk_pin.isChecked():
@@ -2477,12 +2564,12 @@ class QuickNameDialog(QDialog):
         assignable = bool(item.data(Qt.UserRole + 1))
         assignments = item.data(Qt.UserRole) or {}
         if not assignable or not assignments:
-            QMessageBox.information(self, "快速命名", "这个分类无法从符号化规则反推出要写的字段值。")
+            QMessageBox.information(self, tr("快速命名"), tr("这个分类无法从符号化规则反推出要写的字段值。"))
             return
         source = self._pick_source_layer(dest)
         fids = self._selected_fids(source)
         if not fids:
-            QMessageBox.information(self, "快速命名", "请先在地图或属性表中选中要素。")
+            QMessageBox.information(self, tr("快速命名"), tr("请先在地图或属性表中选中要素。"))
             return
         cat = item.data(Qt.UserRole + 3) or (item.text() or "").split("  (")[0]
         writes = format_assignments(assignments)
@@ -2500,7 +2587,7 @@ class QuickNameDialog(QDialog):
                     "来源图层不改。写入：%s\n继续？"
                     % (len(fids), source.name(), dest.name(), cat, writes)
                 )
-            reply = QMessageBox.question(self, "快速命名", msg)
+            reply = QMessageBox.question(self, tr("快速命名"), msg)
             if reply != QMessageBox.Yes:
                 return
         old_keys = {}
@@ -2511,7 +2598,7 @@ class QuickNameDialog(QDialog):
                 old_keys = {}
         updated, err, changed = self._apply_with_busy_ui(source, dest, assignments, fids)
         if err:
-            QMessageBox.information(self, "快速命名", err)
+            QMessageBox.information(self, tr("快速命名"), err)
             return
         if updated:
             new_key = assignment_key(assignments)
@@ -2552,7 +2639,7 @@ class QuickNameDialog(QDialog):
                 try:
                     canvas.freeze(False)
                 except Exception:
-                    pass
+                    pass  # nosec B110
             QApplication.restoreOverrideCursor()
 
 

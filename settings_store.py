@@ -36,3 +36,22 @@ class SettingsStore:
 
     def save_quick_name_toolbar(self, on):
         self._s.setValue(f"{self.ROOT}/quick_name_toolbar", bool(on))
+
+    def load_toolbar_hidden(self):
+        val = self._s.value(f"{self.ROOT}/toolbar_hidden")
+        if not val:
+            return []
+        if isinstance(val, str):
+            return [x for x in val.split(",") if x]
+        try:
+            return [str(x) for x in list(val) if x]
+        except Exception:
+            return []
+
+    def save_toolbar_hidden(self, hidden):
+        ids = []
+        for item in hidden or []:
+            text = str(item or "").strip()
+            if text and text not in ids:
+                ids.append(text)
+        self._s.setValue(f"{self.ROOT}/toolbar_hidden", ",".join(ids))

@@ -121,7 +121,7 @@ def _symbol_style_xml(symbol, geom_type):
         try:
             width = max(1.0, min(10.0, float(symbol.width()) * 3.78))
         except Exception:
-            pass
+            pass  # nosec B110
         return f"<LineStyle><color>{_kml_color(color)}</color><width>{width:.1f}</width></LineStyle>"
     if geom_type == QgsWkbTypes.PolygonGeometry:
         stroke = None

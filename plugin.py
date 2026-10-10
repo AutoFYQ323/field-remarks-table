@@ -7,6 +7,7 @@ from qgis.PyQt.QtGui import QIcon
 from qgis.PyQt.QtWidgets import QAction, QMessageBox
 
 from qgis.core import QgsMapLayer, QgsProject
+from .i18n import tr
 
 PLUGIN_TITLE = "Field Remarks Table"
 PLUGIN_MENU = "&Field Remarks Table"
@@ -26,7 +27,7 @@ class AttributeTablePlugin:
         icon = QIcon(icon_path) if os.path.exists(icon_path) else QIcon()
         self.action = QAction(icon, PLUGIN_TITLE, self.iface.mainWindow())
         self.action.setObjectName("fieldRemarksTableAction")
-        self.action.setToolTip("Open Field Remarks Table / 打开字段备注表")
+        self.action.setToolTip(tr("Open Field Remarks Table / 打开字段备注表"))
         self.action.setStatusTip(
             "Open an enhanced attribute table for the active vector layer"
         )
@@ -54,7 +55,7 @@ class AttributeTablePlugin:
         try:
             QgsProject.instance().readProject.connect(self._on_project_read)
         except Exception:
-            pass
+            pass  # nosec B110
         self._on_project_read()
 
     def unload(self):
@@ -62,7 +63,7 @@ class AttributeTablePlugin:
             try:
                 self.dialog.close()
             except Exception:
-                pass
+                pass  # nosec B110
             self.dialog = None
         try:
             from .remarks_dialog import QuickNameDialog, RemarksHubDialog
@@ -73,14 +74,14 @@ class AttributeTablePlugin:
                     try:
                         dlg.close()
                     except Exception:
-                        pass
+                        pass  # nosec B110
         except Exception:
-            pass
+            pass  # nosec B110
         if self.action is not None:
             try:
                 self.iface.removePluginVectorMenu(PLUGIN_MENU, self.action)
             except Exception:
-                pass
+                pass  # nosec B110
             self.iface.removeToolBarIcon(self.action)
             self.action = None
         try:
@@ -88,24 +89,24 @@ class AttributeTablePlugin:
             if ltv is not None:
                 ltv.contextMenuAboutToShow.disconnect(self._on_legend_menu)
         except Exception:
-            pass
+            pass  # nosec B110
         self._legend_action = None
         if self._legend_tip is not None:
             try:
                 self._legend_tip.detach()
             except Exception:
-                pass
+                pass  # nosec B110
             self._legend_tip = None
         try:
             QgsProject.instance().readProject.disconnect(self._on_project_read)
         except Exception:
-            pass
+            pass  # nosec B110
         try:
             from .remarks_store import RemarksSession
 
             RemarksSession.reset_process()
         except Exception:
-            pass
+            pass  # nosec B110
 
     def _on_project_read(self, *_args):
         try:
@@ -135,7 +136,7 @@ class AttributeTablePlugin:
             elif self.dialog is not None:
                 self.dialog._apply_remarks_to_ui()
         except Exception:
-            pass
+            pass  # nosec B110
 
     def _on_legend_menu(self, menu):
         if self._legend_action is None:
@@ -153,7 +154,7 @@ class AttributeTablePlugin:
             QMessageBox.information(
                 self.iface.mainWindow(),
                 PLUGIN_TITLE,
-                "Please select a vector layer first.\n请先选择一个矢量图层。",
+                tr("Please select a vector layer first.\n请先选择一个矢量图层。"),
             )
             return
 

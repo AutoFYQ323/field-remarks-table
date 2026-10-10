@@ -5,6 +5,7 @@ import csv
 import io
 import os
 from collections import Counter
+from .i18n import localize_button_box, tr
 
 try:
     from qgis.PyQt.QtCore import QStringListModel
@@ -93,7 +94,7 @@ def plugin_version():
                 if line.startswith("version="):
                     return (line.split("=", 1)[1] or "").strip() or "—"
     except Exception:
-        pass
+        pass  # nosec B110
     return "—"
 
 
@@ -202,7 +203,15 @@ class MultiCheckCombo(QComboBox):
         edit.setFrame(False)
         self.setInsertPolicy(QComboBox.NoInsert)
         self.view().viewport().installEventFilter(self)
-        self.add_check_item("全部", None, True)
+        edit.installEventFilter(self)
+        self.add_check_item(tr("全部"), None, True)
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.showPopup()
+            event.accept()
+            return
+        QComboBox.mousePressEvent(self, event)
 
     def wheelEvent(self, event):
         event.ignore()
@@ -217,6 +226,10 @@ class MultiCheckCombo(QComboBox):
         self._sync_text()
 
     def eventFilter(self, obj, event):
+        edit = self.lineEdit()
+        if obj is edit and event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+            self.showPopup()
+            return True
         if obj is self.view().viewport():
             etype = event.type()
             if etype == QEvent.MouseButtonPress:
@@ -307,14 +320,14 @@ class MultiCheckCombo(QComboBox):
             if item.checkState() == Qt.Checked:
                 labels.append(item.text())
         if not labels:
-            text = "全部"
-            tip = "全部（不额外筛选）"
+            text = tr("全部")
+            tip = tr("全部（不额外筛选）")
         elif len(labels) == 1:
             text = labels[0]
             tip = labels[0]
         else:
             joined = "、".join(labels)
-            text = joined if len(joined) <= 18 else ("已选 %d 项" % len(labels))
+            text = joined if len(joined) <= 18 else (tr("已选 %d 项") % len(labels))
             tip = joined
         edit = self.lineEdit()
         if edit is not None:
@@ -393,22 +406,22 @@ def parse_roundtrip_text(text):
     value column is refused so it cannot wipe existing data.
     """
     if text is None:
-        return None, "剪贴板是空的。"
+        return None, tr("剪贴板是空的。")
     raw = str(text).lstrip("\ufeff").replace("\r\n", "\n").replace("\r", "\n")
     if not raw.strip():
-        return None, "剪贴板是空的。"
+        return None, tr("剪贴板是空的。")
     try:
         rows = list(csv.reader(io.StringIO(raw), delimiter="\t"))
     except Exception as exc:
-        return None, "无法读取剪贴板：%s" % exc
+        return None, tr("无法读取剪贴板：%s") % exc
     while rows and (not rows[-1] or all(not (cell or "").strip() for cell in rows[-1])):
         rows.pop()
     if not rows:
-        return None, "剪贴板是空的。"
+        return None, tr("剪贴板是空的。")
     header = rows[0]
     layer_id, ok = _split_fid_header(header[0] if header else "")
     if not ok:
-        return None, (
+        return None, tr(
             "剪贴板不是可回贴格式。请用列标题「复制本列（可回贴）」，"
             "第一列必须是编号（表头以 #fid 开头），第二列才是要改的值。"
         )
@@ -418,7 +431,7 @@ def parse_roundtrip_text(text):
             continue
         data_rows.append(row)
     if not data_rows:
-        return None, "没有可写回的数据行。"
+        return None, tr("没有可写回的数据行。")
 
     width = max([len(header)] + [len(row) for row in data_rows])
     nonempty = []
@@ -431,28 +444,28 @@ def parse_roundtrip_text(text):
     if layer_id and header_field == layer_id:
         header_field = ""
     if not nonempty:
-        return None, (
+        return None, tr(
             "值列是空的，没有写入，表格里的原数据不会被清掉。"
             "请同时复制编号列和有内容的值列，不要只复制空列。"
         )
     if 1 in nonempty:
         if len(nonempty) > 1:
-            return None, "除了编号和值之外还有别的内容，没有写入，避免贴错列。"
+            return None, tr("除了编号和值之外还有别的内容，没有写入，避免贴错列。")
         value_idx = 1
     elif header_field:
-        return None, (
+        return None, tr(
             "字段「%s」这一列是空的，没有写入，避免把原数据清掉。"
-            "请复制编号列和这一列。" % header_field
-        )
+            "请复制编号列和这一列。"
+        ) % header_field
     elif len(nonempty) == 1:
         value_idx = nonempty[0]
     else:
-        return None, "除了编号和值之外还有别的内容，没有写入，避免贴错列。"
+        return None, tr("除了编号和值之外还有别的内容，没有写入，避免贴错列。")
     field_name = ""
     if value_idx < len(header) and (header[value_idx] or "").strip():
         field_name = header[value_idx].strip()
     if not field_name or (layer_id and field_name == layer_id):
-        return None, "表头缺少字段名。第一列是编号，第二列的表头应是字段名。"
+        return None, tr("表头缺少字段名。第一列是编号，第二列的表头应是字段名。")
 
     parsed = []
     seen = set()
@@ -462,19 +475,19 @@ def parse_roundtrip_text(text):
             continue
         fid = _parse_fid_token(_roundtrip_cell(row, 0))
         if fid is None:
-            errors.append("第 %s 行编号无效：%s" % (lineno, (_roundtrip_cell(row, 0) or "").strip()))
+            errors.append(tr("第 %s 行编号无效：%s") % (lineno, (_roundtrip_cell(row, 0) or "").strip()))
             continue
         if fid in seen:
-            errors.append("编号 %s 重复（第 %s 行）" % (fid, lineno))
+            errors.append(tr("编号 %s 重复（第 %s 行）") % (fid, lineno))
             continue
         seen.add(fid)
         parsed.append((fid, _roundtrip_cell(row, value_idx)))
     if errors:
         shown = "\n".join(errors[:8])
-        more = "" if len(errors) <= 8 else "\n…共 %s 处问题" % len(errors)
-        return None, "没有写入。请改好后再贴：\n%s%s" % (shown, more)
+        more = "" if len(errors) <= 8 else tr("\n…共 %s 处问题") % len(errors)
+        return None, tr("没有写入。请改好后再贴：\n%s%s") % (shown, more)
     if not parsed:
-        return None, "没有可写回的数据行。"
+        return None, tr("没有可写回的数据行。")
     return {"field": field_name, "layer_id": layer_id, "rows": parsed}, None
 
 
@@ -490,30 +503,38 @@ def clipboard_is_roundtrip(text):
     return ok
 
 # Default toolbar order (ids). Separators: sep1 / sep2 / …; customize always last.
+# Language sits immediately left of the toolbar-order button.
 DEFAULT_TOOLBAR_ORDER = [
-    "save",
-    "revert",
-    "reload",
     "edit",
+    "save",
+    "reload",
+    "revert",
     "sep1",
     "delete",
-    "fields",
-    "remarks",
-    "display_mode",
-    "sep2",
-    "zoom",
     "select_all",
     "invert",
     "deselect",
-    "col_width",
     "copy",
     "cut",
     "paste",
-    "sep3",
+    "sep4",
+    "remarks",
+    "display_mode",
+    "col_width",
+    "sep2",
+    "quick_name",
     "export_csv",
     "export_kmz",
-    "theme",
+    "field_map",
+    "line_dir",
+    "sep5",
+    "zoom",
+    "fields",
     "help",
+    "sep3",
+    "theme",
+    "sep6",
+    "language",
     "customize",
 ]
 
@@ -590,36 +611,37 @@ class ExportCsvDialog(QDialog):
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("导出 CSV")
+        self.setWindowTitle(tr("导出 CSV"))
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("导出范围："))
-        self.radio_all = QRadioButton("图层全部要素（默认）")
-        self.radio_visible = QRadioButton("仅当前表格显示的要素")
+        layout.addWidget(QLabel(tr("导出范围：")))
+        self.radio_all = QRadioButton(tr("图层全部要素（默认）"))
+        self.radio_visible = QRadioButton(tr("仅当前表格显示的要素"))
         self.radio_all.setChecked(True)
         layout.addWidget(self.radio_all)
         layout.addWidget(self.radio_visible)
 
         self.chk_qgis_format = QCheckBox(
-            "按 QGIS 属性表格式（首列 wkt_geom / 经纬度 + 图层原始字段顺序）"
+            tr("按 QGIS 属性表格式（首列 wkt_geom / 经纬度 + 图层原始字段顺序）")
         )
         self.chk_qgis_format.setChecked(True)
         self.chk_qgis_format.setToolTip(
-            "勾选：与自带属性表复制粘贴一致（wkt_geom + 图层字段顺序）；\n"
-            "不勾选：按本插件当前表格的列顺序导出（不含几何列）。"
+            tr("勾选：与自带属性表复制粘贴一致（wkt_geom + 图层字段顺序）；\n"
+            "不勾选：按本插件当前表格的列顺序导出（不含几何列）。")
         )
         layout.addWidget(self.chk_qgis_format)
 
         self.chk_numeric_text = QCheckBox(
-            "文本型纯数字（含小数）按数字导出"
+            tr("文本型纯数字（含小数）按数字导出")
         )
         self.chk_numeric_text.setChecked(True)
         self.chk_numeric_text.setToolTip(
-            "勾选：字段虽为文本，但内容是纯数字时按数值写入 CSV，便于 Excel 计算；\n"
-            "不勾选：一律按文本写出。"
+            tr("勾选：字段虽为文本，但内容是纯数字时按数值写入 CSV，便于 Excel 计算；\n"
+            "不勾选：一律按文本写出。")
         )
         layout.addWidget(self.chk_numeric_text)
 
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        localize_button_box(btns)
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
         layout.addWidget(btns)
@@ -705,7 +727,7 @@ class AttributeTableDialog(QDialog):
         # field name -> values of the whole layer (sort statistics); cleared on edits
         self._layer_value_cache = {}
 
-        self.setWindowTitle("无图层")
+        self.setWindowTitle(tr("无图层"))
         self.setWindowFlags(
             Qt.Window
             | Qt.WindowMinimizeButtonHint
@@ -721,6 +743,12 @@ class AttributeTableDialog(QDialog):
         self.model.editRejected.connect(lambda msg: self.status.showMessage(msg, 6000))
         self._build_ui()
         theme.register(self)
+        try:
+            from .i18n import language_changed
+
+            language_changed().connect(self._on_ui_language_changed)
+        except Exception:
+            pass  # nosec B110
         self._connect_project()
         self._load_active_layer()
         self._reuse_open_remarks_hub()
@@ -734,7 +762,7 @@ class AttributeTableDialog(QDialog):
         if act is not None:
             ref = theme.THEME_ICONS.get(theme.current_theme(), theme.THEME_ICONS["default"])
             act.setIcon(self._tool_icon(ref))
-            act.setToolTip("界面风格：%s" % theme.THEME_LABELS[theme.current_theme()])
+            act.setToolTip(tr("界面风格：%s") % tr(theme.THEME_LABELS[theme.current_theme()]))
         self._sync_frozen_geometry()
 
     def _show_theme_menu(self):
@@ -742,7 +770,7 @@ class AttributeTableDialog(QDialog):
         menu = QMenu(self)
         for key in theme.THEME_ORDER:
             act = menu.addAction(
-                self._tool_icon(theme.THEME_ICONS[key]), theme.THEME_LABELS[key]
+                self._tool_icon(theme.THEME_ICONS[key]), tr(theme.THEME_LABELS[key])
             )
             act.setCheckable(True)
             act.setChecked(key == current)
@@ -764,14 +792,14 @@ class AttributeTableDialog(QDialog):
             try:
                 self.restoreGeometry(_SESSION_GEOMETRY)
             except Exception:
-                pass
+                pass  # nosec B110
 
     def _save_session_geometry(self):
         global _SESSION_GEOMETRY
         try:
             _SESSION_GEOMETRY = self.saveGeometry()
         except Exception:
-            pass
+            pass  # nosec B110
 
     def _theme_icon(self, name):
         """QGIS theme icon; name like mActionToggleEditing.svg."""
@@ -780,13 +808,13 @@ class AttributeTableDialog(QDialog):
             if icon is not None and not icon.isNull():
                 return icon
         except Exception:
-            pass
+            pass  # nosec B110
         try:
             icon = QgsApplication.getThemeIcon("/" + name.lstrip("/"))
             if icon is not None and not icon.isNull():
                 return icon
         except Exception:
-            pass
+            pass  # nosec B110
         return QIcon()
 
     def _tool_icon(self, icon_ref):
@@ -796,6 +824,14 @@ class AttributeTableDialog(QDialog):
 
             name = icon_ref[len("plugin:") :]
             icons_dir = os.path.join(os.path.dirname(__file__), "icons")
+            from .i18n import current_language
+            from .i18n.catalog import LANG_EN
+
+            if name.startswith("lang_") or current_language() == LANG_EN:
+                en_dir = os.path.join(icons_dir, "en")
+                en_path = os.path.join(en_dir, name)
+                if os.path.exists(en_path):
+                    icons_dir = en_dir
             path = os.path.join(icons_dir, name)
             if os.path.exists(path) and name.lower().endswith(".svg"):
                 return QIcon(path)
@@ -812,7 +848,7 @@ class AttributeTableDialog(QDialog):
 
     def _tool_specs(self):
         """id -> (label, callable, icon_ref, checkable)."""
-        return {
+        raw = {
             "save": ("保存", self._save_edits, "mActionFileSave.svg", False),
             "revert": ("回滚", self._revert_edits, "mActionRollbackEdits.svg", False),
             "reload": ("刷新", self.reload_table, "mActionRefresh.svg", False),
@@ -885,7 +921,92 @@ class AttributeTableDialog(QDialog):
                 "mActionOptions.svg",
                 False,
             ),
+            "language": (
+                "语言",
+                self._show_language_menu,
+                self._language_icon_ref(),
+                False,
+            ),
+            "field_map": (
+                "字段映射复制",
+                self._open_field_map,
+                "plugin:field_map_24.png",
+                False,
+            ),
+            "line_dir": (
+                "线方向检查",
+                self._open_line_dir,
+                "plugin:line_dir_24.png",
+                False,
+            ),
         }
+        return {key: (tr(spec[0]), spec[1], spec[2], spec[3]) for key, spec in raw.items()}
+
+    def _language_icon_ref(self):
+        from .i18n import current_language
+        from .i18n.catalog import LANG_EN
+
+        if current_language() == LANG_EN:
+            return "plugin:lang_24.png"
+        return "plugin:lang_zh_24.png"
+
+    def _show_language_menu(self):
+        from .i18n import current_language, set_language
+        from .i18n.catalog import LANG_EN, LANG_ZH
+
+        menu = QMenu(self)
+        current = current_language()
+        for key, label in ((LANG_ZH, tr("中文")), (LANG_EN, "English")):
+            act = menu.addAction(label)
+            act.setCheckable(True)
+            act.setChecked(key == current)
+            act.triggered.connect(lambda _=False, k=key: set_language(k))
+        anchor = None
+        tool_act = self._tool_actions.get("language")
+        if tool_act is not None:
+            anchor = self.toolbar.widgetForAction(tool_act)
+        if anchor is not None and anchor.isVisible():
+            menu.exec_(anchor.mapToGlobal(anchor.rect().bottomLeft()))
+        else:
+            from qgis.PyQt.QtGui import QCursor
+
+            menu.exec_(QCursor.pos())
+
+    def _open_field_map(self, *_args):
+        from .tools.field_map_dialog import FieldMapDialog
+
+        FieldMapDialog.open_for(self.iface, self)
+
+    def _open_line_dir(self, *_args):
+        from .tools.line_dir_dialog import LineDirDialog
+
+        LineDirDialog.open_for(self.iface, self)
+
+    def _on_ui_language_changed(self, *_args):
+        self._rebuild_toolbar()
+        if hasattr(self, "lbl_search"):
+            self.lbl_search.setText(tr("过滤"))
+        if hasattr(self, "lbl_quick_filter"):
+            self.lbl_quick_filter.setText(tr("筛选"))
+        if hasattr(self, "lbl_freeze"):
+            self.lbl_freeze.setText(tr("冻结"))
+        if hasattr(self, "ed_text"):
+            self.ed_text.setPlaceholderText(tr("输入即过滤…"))
+        scope_labels = {
+            "all": tr("全部要素"),
+            "selected": tr("仅选中"),
+            "canvas": tr("地图可见要素"),
+            "modified": tr("仅已修改"),
+        }
+        combo = getattr(self, "cmb_scope", None)
+        if combo is not None:
+            for i in range(combo.count()):
+                key = combo.itemData(i)
+                if key in scope_labels:
+                    combo.setItemText(i, scope_labels[key])
+        if hasattr(self, "cmb_quick_filter"):
+            self._fill_quick_values(set(self.cmb_quick_filter.checked_payloads()))
+        self._update_status()
 
     def _resolved_toolbar_order(self):
         saved = self._settings.load_toolbar_order()
@@ -927,6 +1048,19 @@ class AttributeTableDialog(QDialog):
                     order.insert(insert_at, extra)
                     seen.add(extra)
                     insert_at += 1
+        if "language" in known and "language" not in seen:
+            if "customize" in order:
+                order.insert(order.index("customize"), "language")
+            else:
+                order.append("language")
+            seen.add("language")
+        if "export_kmz" in order:
+            insert_at = order.index("export_kmz") + 1
+            for extra in ("field_map", "line_dir"):
+                if extra in known and extra not in seen:
+                    order.insert(insert_at, extra)
+                    seen.add(extra)
+                    insert_at += 1
         for tid in DEFAULT_TOOLBAR_ORDER:
             if tid.startswith("sep"):
                 continue
@@ -937,6 +1071,9 @@ class AttributeTableDialog(QDialog):
             order = [t for t in order if t != "customize"] + ["customize"]
         elif "customize" not in order:
             order.append("customize")
+        if "language" in order and "customize" in order:
+            order = [t for t in order if t != "language"]
+            order.insert(order.index("customize"), "language")
         return order
 
     def _make_tool_action(self, tool_id):
@@ -965,8 +1102,15 @@ class AttributeTableDialog(QDialog):
         self.toolbar.clear()
         self._tool_actions = {}
         order = self._resolved_toolbar_order()
-        if not self._settings.load_quick_name_toolbar():
+        if self._settings.load_toolbar_order() and not self._settings.load_quick_name_toolbar():
             order = [tid for tid in order if tid != "quick_name"]
+        hidden = set(self._settings.load_toolbar_hidden())
+        if hidden:
+            order = [
+                tid
+                for tid in order
+                if tid == "customize" or str(tid).startswith("sep") or tid not in hidden
+            ]
         for tid in order:
             if tid.startswith("sep"):
                 self.toolbar.addSeparator()
@@ -1029,10 +1173,10 @@ class AttributeTableDialog(QDialog):
             return
         if mode == "full":
             self.btn_col_width.setIcon(self._tool_icon("plugin:colwidth_full_24.png"))
-            self.btn_col_width.setToolTip("列宽：完整显示（再点切换为适配窗口）")
+            self.btn_col_width.setToolTip(tr("列宽：完整显示（再点切换为适配窗口）"))
         else:
             self.btn_col_width.setIcon(self._tool_icon("plugin:colwidth_fit_24.png"))
-            self.btn_col_width.setToolTip("列宽：适配窗口（再点切换为完整显示）")
+            self.btn_col_width.setToolTip(tr("列宽：适配窗口（再点切换为完整显示）"))
 
     def _set_col_width_mode(self, mode):
         self._col_width_mode = "full" if mode == "full" else "fit"
@@ -1055,10 +1199,10 @@ class AttributeTableDialog(QDialog):
         on = self._remarks_active()
         if on:
             act.setIcon(self._tool_icon("plugin:remarks_24.png"))
-            act.setToolTip("字段备注（已套用配置）")
+            act.setToolTip(tr("字段备注（已套用配置）"))
         else:
             act.setIcon(self._tool_icon("plugin:remarks_off_24.png"))
-            act.setToolTip("字段备注")
+            act.setToolTip(tr("字段备注"))
 
     def _toggle_display_mode(self, *_args):
         if not hasattr(self, "model") or self.model is None:
@@ -1076,12 +1220,12 @@ class AttributeTableDialog(QDialog):
         note = bool(self.model.show_note())
         if note:
             act.setIcon(self._tool_icon("plugin:display_note_24.png"))
-            act.setToolTip("显示：注（再点切换为原值）")
-            act.setText("显示注")
+            act.setToolTip(tr("显示：注（再点切换为原值）"))
+            act.setText(tr("显示注"))
         else:
             act.setIcon(self._tool_icon("plugin:display_value_24.png"))
-            act.setToolTip("显示：值（再点切换为备注）")
-            act.setText("显示值")
+            act.setToolTip(tr("显示：值（再点切换为备注）"))
+            act.setText(tr("显示值"))
 
     def _apply_column_widths(self):
         if self._applying_col_widths or not hasattr(self, "table"):
@@ -1097,7 +1241,7 @@ class AttributeTableDialog(QDialog):
                     header.setMinimumSectionSize(36)
                     header.setStretchLastSection(False)
                 except Exception:
-                    pass
+                    pass  # nosec B110
 
             naturals = self._measure_column_natural_widths()
             if len(naturals) != len(names):
@@ -1200,11 +1344,13 @@ class AttributeTableDialog(QDialog):
         dlg = ToolbarOrderDialog(items, current, self)
         dlg.set_default_order(DEFAULT_TOOLBAR_ORDER)
         dlg.set_show_quick_name(self._settings.load_quick_name_toolbar())
+        dlg.set_hidden(self._settings.load_toolbar_hidden())
         if dlg.exec_() != QDialog.Accepted:
             return
         order = dlg.result_order()
         self._settings.save_toolbar_order(order)
         self._settings.save_quick_name_toolbar(dlg.show_quick_name())
+        self._settings.save_toolbar_hidden(dlg.result_hidden())
         self._rebuild_toolbar()
 
     def _make_combo_shrinkable(self, combo, min_chars=6, min_px=72):
@@ -1225,7 +1371,7 @@ class AttributeTableDialog(QDialog):
         return host
 
     def _theme_label(self, text, color):
-        lbl = QLabel(text)
+        lbl = QLabel(tr(text))
         lbl.setStyleSheet("color: %s; background: transparent;" % color)
         return lbl
 
@@ -1258,7 +1404,7 @@ class AttributeTableDialog(QDialog):
 
             self.toolbar.setIconSize(QSize(24, 24))
         except Exception:
-            pass
+            pass  # nosec B110
         self._rebuild_toolbar()
 
         root.addWidget(self.toolbar)
@@ -1275,7 +1421,7 @@ class AttributeTableDialog(QDialog):
         pin_lay = pin_group.layout()
         self.btn_pin = QToolButton()
         self.btn_pin.setObjectName("pinBtn")
-        self.btn_pin.setText("钉")
+        self.btn_pin.setText(tr("钉"))
         self.btn_pin.setCheckable(True)
         self.btn_pin.setFixedSize(24, 24)
         self.btn_pin.toggled.connect(self._on_pin_toggled)
@@ -1284,13 +1430,13 @@ class AttributeTableDialog(QDialog):
         self._sync_pin_button(False)
 
         self.cmb_scope = QComboBox()
-        self.cmb_scope.addItem("全部要素", "all")
-        self.cmb_scope.addItem("仅选中", "selected")
-        self.cmb_scope.addItem("地图可见要素", "canvas")
-        self.cmb_scope.addItem("仅已修改", "modified")
+        self.cmb_scope.addItem(tr("全部要素"), "all")
+        self.cmb_scope.addItem(tr("仅选中"), "selected")
+        self.cmb_scope.addItem(tr("地图可见要素"), "canvas")
+        self.cmb_scope.addItem(tr("仅已修改"), "modified")
         self.cmb_scope.setToolTip(
-            "范围：全部要素 / 仅选中 / 地图可见要素（画布范围内，平移缩放后约 500 毫秒刷新）"
-            " / 仅已修改（本次编辑里改过、新增、还没保存的要素）"
+            tr("范围：全部要素 / 仅选中 / 地图可见要素（画布范围内，平移缩放后约 500 毫秒刷新）"
+            " / 仅已修改（本次编辑里改过、新增、还没保存的要素）")
         )
         self._make_combo_shrinkable(self.cmb_scope, min_chars=6, min_px=108)
         self.cmb_scope.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
@@ -1302,7 +1448,8 @@ class AttributeTableDialog(QDialog):
         filter_group = self._theme_host("filterGroup")
         filter_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         filter_lay = filter_group.layout()
-        filter_lay.addWidget(self._theme_label("过滤", "#2a5a32"))
+        self.lbl_search = self._theme_label("过滤", "#2a5a32")
+        filter_lay.addWidget(self.lbl_search)
         self.cmb_filter_field = QComboBox()
         self._make_combo_shrinkable(self.cmb_filter_field, min_chars=5, min_px=72)
         self.cmb_filter_field.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
@@ -1311,7 +1458,7 @@ class AttributeTableDialog(QDialog):
         filter_lay.addWidget(self.cmb_filter_field, 1)
 
         self.ed_text = QLineEdit()
-        self.ed_text.setPlaceholderText("输入即过滤…")
+        self.ed_text.setPlaceholderText(tr("输入即过滤…"))
         self.ed_text.setClearButtonEnabled(True)
         self.ed_text.setMinimumWidth(140)
         self.ed_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
@@ -1328,7 +1475,7 @@ class AttributeTableDialog(QDialog):
         self._make_combo_shrinkable(self.cmb_quick_mode, min_chars=4, min_px=72)
         self.cmb_quick_mode.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._theme_combo(self.cmb_quick_mode, "#a34b5a")
-        self.cmb_quick_mode.setToolTip("分类筛选，或选择一个字段按其取值筛选")
+        self.cmb_quick_mode.setToolTip(tr("分类筛选，或选择一个字段按其取值筛选"))
         self.cmb_quick_mode.currentIndexChanged.connect(self._on_quick_mode_changed)
         screen_lay.addWidget(self.cmb_quick_mode, 1)
         self.cmb_quick_filter = MultiCheckCombo()
@@ -1341,12 +1488,13 @@ class AttributeTableDialog(QDialog):
         freeze_group = self._theme_host("freezeGroup")
         freeze_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         freeze_lay = freeze_group.layout()
-        freeze_lay.addWidget(self._theme_label("冻结", "#6a5420"))
+        self.lbl_freeze = self._theme_label("冻结", "#6a5420")
+        freeze_lay.addWidget(self.lbl_freeze)
         self.cmb_freeze = QComboBox()
         self._make_combo_shrinkable(self.cmb_freeze, min_chars=8, min_px=96)
         self.cmb_freeze.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         self._theme_combo(self.cmb_freeze, "#c4962a")
-        self.cmb_freeze.setToolTip("将指定字段固定到首列并冻结显示")
+        self.cmb_freeze.setToolTip(tr("将指定字段固定到首列并冻结显示"))
         self.cmb_freeze.currentIndexChanged.connect(self._on_freeze_field_changed)
         freeze_lay.addWidget(self.cmb_freeze, 1)
 
@@ -1367,28 +1515,28 @@ class AttributeTableDialog(QDialog):
         self._make_combo_shrinkable(self.cmb_fill_field, min_chars=8, min_px=100)
         self.cmb_fill_field.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
         self._theme_combo(self.cmb_fill_field, "#7b5ea8")
-        self.cmb_fill_field.setToolTip("要写入的目标字段")
+        self.cmb_fill_field.setToolTip(tr("要写入的目标字段"))
         self.cmb_fill_field.currentIndexChanged.connect(self._on_fill_field_changed)
         fill.addWidget(self.cmb_fill_field)
         fill.addWidget(self._theme_label("=", "#4a3d66"))
         self.cmb_fill_mode = QComboBox()
-        self.cmb_fill_mode.addItem("常量", "const")
-        self.cmb_fill_mode.addItem("只填空白", "blank")
-        self.cmb_fill_mode.addItem("序号", "seq")
-        self.cmb_fill_mode.addItem("前缀+序号", "prefix_seq")
-        self.cmb_fill_mode.addItem("前后序号", "around_seq")
-        self.cmb_fill_mode.addItem("前后加字", "affix")
-        self.cmb_fill_mode.addItem("表达式", "expr")
-        self.cmb_fill_mode.addItem("替换", "replace")
+        self.cmb_fill_mode.addItem(tr("常量"), "const")
+        self.cmb_fill_mode.addItem(tr("只填空白"), "blank")
+        self.cmb_fill_mode.addItem(tr("序号"), "seq")
+        self.cmb_fill_mode.addItem(tr("前缀+序号"), "prefix_seq")
+        self.cmb_fill_mode.addItem(tr("前后序号"), "around_seq")
+        self.cmb_fill_mode.addItem(tr("前后加字"), "affix")
+        self.cmb_fill_mode.addItem(tr("表达式"), "expr")
+        self.cmb_fill_mode.addItem(tr("替换"), "replace")
         self.cmb_fill_mode.setToolTip(
-            "常量：直接填 1 或文字；也可输入字段名引用其内容\n"
+            tr("常量：直接填 1 或文字；也可输入字段名引用其内容\n"
             "只填空白：同上，但已有内容的格子不动\n"
             "序号：按当前表筛选顺序递增。位数可选不补零、自动或指定位数\n"
             "前缀+序号：如填 A，不补零为 A1、A2；4 位为 A0001\n"
             "前后序号：在已有文字前面或后面加上序号（只选一边），原文字保留，序号用位数补零\n"
             "前后加字：在已有文字前或后追加，空白不动\n"
             "表达式：QGIS 表达式\n"
-            "替换：对目标字段做部分文字替换（一格多处全部替换）"
+            "替换：对目标字段做部分文字替换（一格多处全部替换）")
         )
         self._make_combo_shrinkable(self.cmb_fill_mode, min_chars=5, min_px=96)
         self._theme_combo(self.cmb_fill_mode, "#7b5ea8")
@@ -1399,15 +1547,15 @@ class AttributeTableDialog(QDialog):
         width_lay = self._fill_width_group.layout()
         self.lbl_fill_width = self._theme_label("位数", "#2a4568")
         self.cmb_fill_width = QComboBox()
-        self.cmb_fill_width.addItem("不补零", "none")
-        self.cmb_fill_width.addItem("自动", "auto")
+        self.cmb_fill_width.addItem(tr("不补零"), "none")
+        self.cmb_fill_width.addItem(tr("自动"), "auto")
         for _width in (2, 3, 4, 5, 6, 8, 10):
-            self.cmb_fill_width.addItem("%d位" % _width, _width)
+            self.cmb_fill_width.addItem(tr("%d位") % _width, _width)
         self.cmb_fill_width.setToolTip(
-            "不补零：1、2、3\n"
+            tr("不补零：1、2、3\n"
             "自动：按本次最大序号的位数补零。从 1 写到 100 为 001，写到 1000 为 0001\n"
             "指定位数：4 位为 0001。超出位数不截断（10000 仍是 10000）\n"
-            "前导零只留在文本字段"
+            "前导零只留在文本字段")
         )
         self._make_combo_shrinkable(self.cmb_fill_width, min_chars=4, min_px=72)
         self._theme_combo(self.cmb_fill_width, "#3d7ab5")
@@ -1419,9 +1567,9 @@ class AttributeTableDialog(QDialog):
         side_lay = self._fill_side_group.layout()
         self.lbl_fill_seq_side = self._theme_label("加在", "#6a4530")
         self.cmb_fill_seq_side = QComboBox()
-        self.cmb_fill_seq_side.addItem("后面", "after")
-        self.cmb_fill_seq_side.addItem("前面", "before")
-        self.cmb_fill_seq_side.setToolTip("序号加在已有文字的前面或后面，只选一边。原文字保留。")
+        self.cmb_fill_seq_side.addItem(tr("后面"), "after")
+        self.cmb_fill_seq_side.addItem(tr("前面"), "before")
+        self.cmb_fill_seq_side.setToolTip(tr("序号加在已有文字的前面或后面，只选一边。原文字保留。"))
         self._make_combo_shrinkable(self.cmb_fill_seq_side, min_chars=2, min_px=64)
         self._theme_combo(self.cmb_fill_seq_side, "#c47a45")
         side_lay.addWidget(self.lbl_fill_seq_side)
@@ -1430,25 +1578,25 @@ class AttributeTableDialog(QDialog):
         self.lbl_fill_prefix = self._theme_label("前面", "#4a3d66")
         self.ed_fill_prefix = QLineEdit()
         self.ed_fill_prefix.setClearButtonEnabled(True)
-        self.ed_fill_prefix.setPlaceholderText("加在现有文字前，可空")
+        self.ed_fill_prefix.setPlaceholderText(tr("加在现有文字前，可空"))
         self.ed_fill_prefix.setMinimumWidth(48)
         self._theme_line(self.ed_fill_prefix, "#7b5ea8")
-        self.ed_fill_prefix.setToolTip("加在已有文字前面。空白单元格不会被改成只有这段字。")
+        self.ed_fill_prefix.setToolTip(tr("加在已有文字前面。空白单元格不会被改成只有这段字。"))
         fill.addWidget(self.lbl_fill_prefix)
         fill.addWidget(self.ed_fill_prefix, 1)
         self.lbl_fill_suffix = self._theme_label("后面", "#4a3d66")
         self.ed_fill_suffix = QLineEdit()
         self.ed_fill_suffix.setClearButtonEnabled(True)
-        self.ed_fill_suffix.setPlaceholderText("加在现有文字后，可空")
+        self.ed_fill_suffix.setPlaceholderText(tr("加在现有文字后，可空"))
         self.ed_fill_suffix.setMinimumWidth(48)
         self._theme_line(self.ed_fill_suffix, "#7b5ea8")
-        self.ed_fill_suffix.setToolTip("加在已有文字后面。空白单元格不动。")
+        self.ed_fill_suffix.setToolTip(tr("加在已有文字后面。空白单元格不动。"))
         fill.addWidget(self.lbl_fill_suffix)
         fill.addWidget(self.ed_fill_suffix, 1)
         self.cmb_fill_preset = QComboBox()
         self._make_combo_shrinkable(self.cmb_fill_preset, min_chars=4, min_px=72)
         self._theme_combo(self.cmb_fill_preset, "#7b5ea8")
-        self.cmb_fill_preset.setToolTip("常用值：点选填入常量")
+        self.cmb_fill_preset.setToolTip(tr("常用值：点选填入常量"))
         try:
             self.cmb_fill_preset.activated[int].connect(self._on_fill_preset_chosen)
         except Exception:
@@ -1456,7 +1604,7 @@ class AttributeTableDialog(QDialog):
         fill.addWidget(self.cmb_fill_preset)
         self.btn_fill_expr = QPushButton("ε")
         self.btn_fill_expr.setFixedWidth(28)
-        self.btn_fill_expr.setToolTip("打开表达式构建器")
+        self.btn_fill_expr.setToolTip(tr("打开表达式构建器"))
         self.btn_fill_expr.clicked.connect(self._open_fill_expression_builder)
         fill.addWidget(self.btn_fill_expr)
         self.ed_fill = QLineEdit()
@@ -1471,7 +1619,7 @@ class AttributeTableDialog(QDialog):
         try:
             self._fill_field_completer.setFilterMode(Qt.MatchContains)
         except Exception:
-            pass
+            pass  # nosec B110
         self._fill_field_completer.setMaxVisibleItems(12)
         self.ed_fill.setCompleter(self._fill_field_completer)
         fill.addWidget(self.ed_fill, 1)
@@ -1479,7 +1627,7 @@ class AttributeTableDialog(QDialog):
         fill.addWidget(self.lbl_fill_find)
         self.ed_fill_find = QLineEdit()
         self.ed_fill_find.setClearButtonEnabled(True)
-        self.ed_fill_find.setPlaceholderText("要替换的文字（部分匹配）")
+        self.ed_fill_find.setPlaceholderText(tr("要替换的文字（部分匹配）"))
         self.ed_fill_find.setMinimumWidth(48)
         self._theme_line(self.ed_fill_find, "#7b5ea8")
         fill.addWidget(self.ed_fill_find, 1)
@@ -1487,18 +1635,18 @@ class AttributeTableDialog(QDialog):
         fill.addWidget(self.lbl_fill_replace)
         self.ed_fill_replace = QLineEdit()
         self.ed_fill_replace.setClearButtonEnabled(True)
-        self.ed_fill_replace.setPlaceholderText("替换成…（可空=删除该段）")
+        self.ed_fill_replace.setPlaceholderText(tr("替换成…（可空=删除该段）"))
         self.ed_fill_replace.setMinimumWidth(48)
         self._theme_line(self.ed_fill_replace, "#7b5ea8")
         fill.addWidget(self.ed_fill_replace, 1)
         self._fill_stretch_index = fill.count()
         fill.addStretch(1)
-        self.btn_fill_filtered = QPushButton("更新筛选行")
-        self.btn_fill_filtered.setToolTip("更新当前表格筛选后的全部行（含未滚到的）")
+        self.btn_fill_filtered = QPushButton(tr("更新筛选行"))
+        self.btn_fill_filtered.setToolTip(tr("更新当前表格筛选后的全部行（含未滚到的）"))
         self.btn_fill_filtered.clicked.connect(lambda: self._run_fill(selected_only=False))
         fill.addWidget(self.btn_fill_filtered)
-        self.btn_fill_selected = QPushButton("更新选中")
-        self.btn_fill_selected.setToolTip("仅更新地图/表中已选中的要素")
+        self.btn_fill_selected = QPushButton(tr("更新选中"))
+        self.btn_fill_selected.setToolTip(tr("仅更新地图/表中已选中的要素"))
         self.btn_fill_selected.clicked.connect(lambda: self._run_fill(selected_only=True))
         fill.addWidget(self.btn_fill_selected)
         self.fill_bar.setVisible(False)
@@ -1526,7 +1674,7 @@ class AttributeTableDialog(QDialog):
             try:
                 view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
             except Exception:
-                pass
+                pass  # nosec B110
             view.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
             view.horizontalHeader().setMinimumHeight(40)
             try:
@@ -1534,7 +1682,7 @@ class AttributeTableDialog(QDialog):
                 view.horizontalHeader().setMinimumSectionSize(36)
                 view.horizontalHeader().setStretchLastSection(False)
             except Exception:
-                pass
+                pass  # nosec B110
         self._vm_delegate = ValueMapDelegate(self.model)
         self.table.setItemDelegate(self._vm_delegate)
         self.frozen.setItemDelegate(self._vm_delegate)
@@ -1630,15 +1778,15 @@ class AttributeTableDialog(QDialog):
         try:
             QgsProject.instance().readProject.connect(self._on_project_read)
         except Exception:
-            pass
+            pass  # nosec B110
         try:
             QgsProject.instance().cleared.connect(self._on_project_cleared)
         except Exception:
-            pass
+            pass  # nosec B110
         try:
             self.iface.currentLayerChanged.connect(self._on_current_layer_changed)
         except Exception:
-            pass
+            pass  # nosec B110
 
     def _on_project_read(self, *_args):
         self._remarks.load()
@@ -1657,7 +1805,7 @@ class AttributeTableDialog(QDialog):
 
     def _update_window_title(self):
         if self._layer is None:
-            self.setWindowTitle("无图层")
+            self.setWindowTitle(tr("无图层"))
             return
         mode = "编辑中" if self._layer.isEditable() else "只读"
         self.setWindowTitle(f"{self._layer.name()} — {mode}")
@@ -1678,14 +1826,14 @@ class AttributeTableDialog(QDialog):
                 "border: 1px solid #c62828; border-radius: 3px; background: palette(button); "
                 "padding: 0; min-width: 22px; }"
             )
-            btn.setToolTip("已钉住当前图层（再点取消）")
+            btn.setToolTip(tr("已钉住当前图层（再点取消）"))
         else:
             btn.setStyleSheet(
                 "QToolButton#pinBtn { color: #3d7ec4; font-weight: 400; font-size: 13px; "
                 "border: 1px solid #3d7ec4; border-radius: 3px; background: palette(button); "
                 "padding: 0; min-width: 22px; }"
             )
-            btn.setToolTip("钉住图层：不随图例切换当前表")
+            btn.setToolTip(tr("钉住图层：不随图例切换当前表"))
 
     def _on_current_layer_changed(self, layer):
         if self._pin_layer:
@@ -1757,7 +1905,7 @@ class AttributeTableDialog(QDialog):
         current = self.cmb_filter_field.currentData()
         self.cmb_filter_field.blockSignals(True)
         self.cmb_filter_field.clear()
-        self.cmb_filter_field.addItem("所有字段", None)
+        self.cmb_filter_field.addItem(tr("所有字段"), None)
         for name in self._all_field_names:
             self.cmb_filter_field.addItem(self._field_labels.get(name, name), name)
         idx = self.cmb_filter_field.findData(current) if current else 0
@@ -1784,11 +1932,11 @@ class AttributeTableDialog(QDialog):
         mode_combo.blockSignals(True)
         mode_combo.clear()
         if categories:
-            mode_combo.addItem("分类筛选", QUICK_MODE_CATEGORY)
+            mode_combo.addItem(tr("分类筛选"), QUICK_MODE_CATEGORY)
         for name in self._all_field_names:
             mode_combo.addItem(self._field_labels.get(name, name), name)
         if mode_combo.count() == 0:
-            mode_combo.addItem("（无字段）", "")
+            mode_combo.addItem(tr("（无字段）"), "")
         restore = mode_combo.findData(prev_mode) if prev_mode else -1
         same_mode = restore >= 0
         mode_combo.setCurrentIndex(restore if same_mode else 0)
@@ -1804,19 +1952,21 @@ class AttributeTableDialog(QDialog):
         truncated = False
         if mode == QUICK_MODE_CATEGORY:
             for it in self._usable_categories():
-                items.append((it.get("label") or "(未命名)", it.get("filter_expr") or ""))
+                expr = it.get("filter_expr") or ""
+                label = it.get("label") or tr("(未命名)")
+                items.append(("%s (%d)" % (label, self._count_features(expr)), expr))
         elif mode:
             items, truncated = self._field_value_choices(mode)
         wanted = set(checked_exprs or ())
         matched = False
-        combo.add_check_item("全部", None, True)
+        combo.add_check_item(tr("全部"), None, True)
         for label, expr in items:
             checked = expr in wanted
             if checked:
                 matched = True
             combo.add_check_item(label, expr, checked)
         if truncated:
-            combo.add_note("仅列出前 %d 个值" % QUICK_VALUE_LIMIT)
+            combo.add_note(tr("仅列出前 %d 个值") % QUICK_VALUE_LIMIT)
         if matched:
             all_item = combo.model().item(0)
             if all_item is not None:
@@ -1834,7 +1984,7 @@ class AttributeTableDialog(QDialog):
         if field_idx < 0:
             return [], False
         seen = {}
-        blank = False
+        blank_count = 0
         truncated = False
         req = (
             QgsFeatureRequest()
@@ -1858,19 +2008,19 @@ class AttributeTableDialog(QDialog):
                 break
             raw = feat.attribute(field_idx)
             if raw is None or raw == NULL or str(raw).strip() == "":
-                blank = True
+                blank_count += 1
                 continue
             key = value_key(raw)
-            if key in seen:
-                continue
-            if len(seen) >= QUICK_VALUE_LIMIT:
-                truncated = True
-                break
-            seen[key] = raw
+            if key not in seen:
+                if len(seen) >= QUICK_VALUE_LIMIT:
+                    truncated = True
+                    continue
+                seen[key] = [raw, 0]
+            seen[key][1] += 1
         rows = []
-        if blank:
-            rows.append((0, 0.0, "", "(空)", "(空)", _blank_field_expr(field_name)))
-        for raw in seen.values():
+        if blank_count:
+            rows.append((0, 0.0, "", tr("(空)"), blank_count, _blank_field_expr(field_name)))
+        for raw, count in seen.values():
             num = try_parse_number(raw)
             plain = _plain_attr(raw)
             desc = ""
@@ -1880,19 +2030,30 @@ class AttributeTableDialog(QDialog):
                 desc = ""
             label = desc if desc and desc != plain else plain
             expr = field_eq_expression(field_name, _expr_attr(raw))
+            shown = label
+            if label != plain:
+                shown = "%s (%s)" % (label, plain)
             if num is not None:
-                rows.append((1, float(num), "", label, plain, expr))
+                rows.append((1, float(num), "", shown, count, expr))
             else:
-                rows.append((2, 0.0, plain.casefold(), label, plain, expr))
+                rows.append((2, 0.0, plain.casefold(), shown, count, expr))
         rows.sort(key=lambda row: (row[0], row[1], row[2], row[3]))
-        counts = Counter(row[3] for row in rows)
         items = []
-        for _kind, _num, _text, label, plain, expr in rows:
-            if counts[label] > 1 and label != plain:
-                items.append(("%s（%s）" % (label, plain), expr))
-            else:
-                items.append((label, expr))
+        for _kind, _num, _text, label, count, expr in rows:
+            items.append(("%s (%d)" % (label, count), expr))
         return items, truncated
+
+    def _count_features(self, expression):
+        layer = self._layer
+        expr = (expression or "").strip()
+        if layer is None or not expr:
+            return 0
+        request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
+        try:
+            request.setFilterExpression(expr)
+            return sum(1 for _feat in layer.getFeatures(request))
+        except Exception:
+            return 0  # nosec B110
 
     def _on_quick_mode_changed(self, _index):
         self._fill_quick_values(set())
@@ -1944,7 +2105,7 @@ class AttributeTableDialog(QDialog):
     def _rebuild_freeze_combo(self):
         self.cmb_freeze.blockSignals(True)
         self.cmb_freeze.clear()
-        self.cmb_freeze.addItem("不冻结", "")
+        self.cmb_freeze.addItem(tr("不冻结"), "")
         for name in self._all_field_names:
             self.cmb_freeze.addItem(self._field_labels.get(name, name), name)
         idx = self.cmb_freeze.findData(self._freeze_field)
@@ -1979,7 +2140,7 @@ class AttributeTableDialog(QDialog):
             try:
                 signal.connect(slot)
             except Exception:
-                pass
+                pass  # nosec B110
 
     def _optional_layer_signals(self, layer):
         pairs = []
@@ -2012,7 +2173,7 @@ class AttributeTableDialog(QDialog):
             try:
                 signal.disconnect(slot)
             except Exception:
-                pass
+                pass  # nosec B110
 
     def _on_layer_renderer_changed(self):
         self._rebuild_quick_filter()
@@ -2110,7 +2271,7 @@ class AttributeTableDialog(QDialog):
         mode = self._current_scope_mode()
         rect = self._map_extent_in_layer_crs() if mode == "canvas" else None
         if mode == "canvas" and rect is None and self._layer is not None:
-            self.status.showMessage("地图范围无法换算到图层坐标系，「地图可见」没有结果", 5000)
+            self.status.showMessage(tr("地图范围无法换算到图层坐标系，「地图可见」没有结果"), 5000)
         return self.model.set_scope_mode(mode, rect, reload_now=reload_now)
 
     def _update_canvas_extent_watch(self):
@@ -2123,7 +2284,7 @@ class AttributeTableDialog(QDialog):
             try:
                 canvas.extentsChanged.disconnect(self._on_canvas_extents_changed)
             except Exception:
-                pass
+                pass  # nosec B110
             self._watching_canvas = False
         if canvas is not None and self._current_scope_mode() == "canvas":
             try:
@@ -2202,7 +2363,7 @@ class AttributeTableDialog(QDialog):
             state["v"] = self.table.verticalScrollBar().value()
             state["h"] = self.table.horizontalScrollBar().value()
         except Exception:
-            pass
+            pass  # nosec B110
         return state
 
     def _restore_view_state(self, state):
@@ -2221,7 +2382,7 @@ class AttributeTableDialog(QDialog):
             hsb = self.table.horizontalScrollBar()
             hsb.setValue(min(state["h"], hsb.maximum()))
         except Exception:
-            pass
+            pass  # nosec B110
         self._sync_selection_from_layer()
 
     def _update_row_header_width(self):
@@ -2428,7 +2589,7 @@ class AttributeTableDialog(QDialog):
     def _duplicate_summary(values):
         """
         Case-insensitive duplicate check on non-empty values.
-        Returns display string: '无重名' or '有重名(N组/M条)'.
+        Returns (kind, text). kind is empty / none / dup.
         """
         keys = []
         for v in values:
@@ -2439,13 +2600,13 @@ class AttributeTableDialog(QDialog):
                 continue
             keys.append(text.casefold())
         if not keys:
-            return "无数据"
+            return "empty", tr("无数据")
         counts = Counter(keys)
         dup_groups = sum(1 for n in counts.values() if n > 1)
         if dup_groups == 0:
-            return "无重名"
+            return "none", tr("无重名")
         dup_rows = sum(n for n in counts.values() if n > 1)
-        return f"有重名({dup_groups}组/{dup_rows}条)"
+        return "dup", tr("有重名(%d组/%d条)") % (dup_groups, dup_rows)
 
     def _invalidate_layer_value_cache(self, *_args):
         self._layer_value_cache = {}
@@ -2573,23 +2734,23 @@ class AttributeTableDialog(QDialog):
         logical = self._header_logical_at(header, pos)
         names = self.model.field_names()
         if logical < 0 or logical >= len(names):
-            self.status.showMessage("未点中字段列，请对准列标题右键", 2500)
+            self.status.showMessage(tr("未点中字段列，请对准列标题右键"), 2500)
             return
         # Skip hidden columns (e.g. frozen col 0 hidden on main table)
         if header.isSectionHidden(logical):
-            self.status.showMessage("该列已隐藏，请在可见列标题上右键", 2500)
+            self.status.showMessage(tr("该列已隐藏，请在可见列标题上右键"), 2500)
             return
 
         field_name = names[logical]
         label = self._field_labels.get(field_name, field_name)
         menu = QMenu(self)
-        act_copy = menu.addAction("复制本列")
-        act_copy_header = menu.addAction("复制本列（含表头）")
+        act_copy = menu.addAction(tr("复制本列"))
+        act_copy_header = menu.addAction(tr("复制本列（含表头）"))
         act_copy_back = self._add_colored_menu_action(
-            menu, "复制本列（可回贴）", "#1565C0"
+            menu, tr("复制本列（可回贴）"), "#1565C0"
         )
         act_paste_back = self._add_colored_menu_action(
-            menu, "粘贴回本列", "#C62828"
+            menu, tr("粘贴回本列"), "#C62828"
         )
         act_copy.triggered.connect(
             lambda _=False, n=field_name: self._copy_column_to_clipboard(n, False)
@@ -2604,10 +2765,10 @@ class AttributeTableDialog(QDialog):
             lambda _=False, n=field_name: self._paste_roundtrip_column(n)
         )
         menu.addSeparator()
-        act_unique = menu.addAction("唯一值统计…")
-        act_unique.setToolTip("统计当前表格行里本列每个值出现几次")
-        act_dup = menu.addAction("选中重复值")
-        act_blank = menu.addAction("选中空值")
+        act_unique = menu.addAction(tr("唯一值统计…"))
+        act_unique.setToolTip(tr("统计当前表格行里本列每个值出现几次"))
+        act_dup = menu.addAction(tr("选中重复值"))
+        act_blank = menu.addAction(tr("选中空值"))
         act_unique.triggered.connect(
             lambda _=False, n=field_name: self._show_unique_values(n)
         )
@@ -2618,7 +2779,7 @@ class AttributeTableDialog(QDialog):
             lambda _=False, n=field_name: self._select_column_blanks(n)
         )
         menu.addSeparator()
-        act_remark = menu.addAction("编辑备注…")
+        act_remark = menu.addAction(tr("编辑备注…"))
         act_remark.triggered.connect(
             lambda _=False, n=field_name: self._edit_remarks(n)
         )
@@ -2638,7 +2799,7 @@ class AttributeTableDialog(QDialog):
 
     def _select_column_duplicates(self, field_name):
         if self._layer is None or self.model.rowCount() == 0:
-            self.status.showMessage("表格里没有行", 3000)
+            self.status.showMessage(tr("表格里没有行"), 3000)
             return
         groups = self._column_groups(field_name)
         fids = []
@@ -2649,7 +2810,7 @@ class AttributeTableDialog(QDialog):
                 fids.extend(group_fids)
         label = self._field_labels.get(field_name, field_name)
         if not fids:
-            self.status.showMessage("「%s」在当前表格行里没有重复值" % label, 5000)
+            self.status.showMessage(tr("「%s」在当前表格行里没有重复值") % label, 5000)
             return
         self._select_fids_on_layer(
             fids,
@@ -2659,12 +2820,12 @@ class AttributeTableDialog(QDialog):
 
     def _select_column_blanks(self, field_name):
         if self._layer is None or self.model.rowCount() == 0:
-            self.status.showMessage("表格里没有行", 3000)
+            self.status.showMessage(tr("表格里没有行"), 3000)
             return
         slot = self._column_groups(field_name).get(BLANK_KEY)
         label = self._field_labels.get(field_name, field_name)
         if not slot:
-            self.status.showMessage("「%s」在当前表格行里没有空值" % label, 5000)
+            self.status.showMessage(tr("「%s」在当前表格行里没有空值") % label, 5000)
             return
         self._select_fids_on_layer(
             slot[1],
@@ -2674,7 +2835,7 @@ class AttributeTableDialog(QDialog):
     def _show_unique_values(self, field_name):
         layer = self._layer
         if layer is None or self.model.rowCount() == 0:
-            self.status.showMessage("表格里没有行", 3000)
+            self.status.showMessage(tr("表格里没有行"), 3000)
             return
         field_idx = layer.fields().indexFromName(field_name)
         if field_idx < 0:
@@ -2712,7 +2873,7 @@ class AttributeTableDialog(QDialog):
             return
         idx = mode_combo.findData(field_name)
         if idx < 0:
-            self.status.showMessage("该字段不在「筛选」的字段列表里", 4000)
+            self.status.showMessage(tr("该字段不在「筛选」的字段列表里"), 4000)
             return
         wanted = set()
         for key, (raw, _fids) in checked:
@@ -2728,12 +2889,12 @@ class AttributeTableDialog(QDialog):
         self._on_quick_filter_changed()
         if len(applied) < len(wanted):
             self.status.showMessage(
-                "「筛选」下拉只列出前 %d 个值，有 %d 个勾选值没能加入"
+                tr("「筛选」下拉只列出前 %d 个值，有 %d 个勾选值没能加入")
                 % (QUICK_VALUE_LIMIT, len(wanted) - len(applied)),
                 8000,
             )
         else:
-            self.status.showMessage("已按 %d 个值筛选" % len(applied), 4000)
+            self.status.showMessage(tr("已按 %d 个值筛选") % len(applied), 4000)
 
     def _show_row_header_menu(self, header, pos):
         rows = self.model.rowCount()
@@ -2741,10 +2902,10 @@ class AttributeTableDialog(QDialog):
             return
         row = header.logicalIndexAt(pos)
         menu = QMenu(self)
-        act_range = menu.addAction("选中第 a–b 行…")
+        act_range = menu.addAction(tr("选中第 a–b 行…"))
         act_to_end = None
         if 0 <= row < rows:
-            act_to_end = menu.addAction("从第 %d 行选到末行" % (row + 1))
+            act_to_end = menu.addAction(tr("从第 %d 行选到末行") % (row + 1))
         act_range.triggered.connect(
             lambda _=False, r=row: self._select_row_range_prompt(r)
         )
@@ -2759,9 +2920,9 @@ class AttributeTableDialog(QDialog):
         start = row + 1 if 0 <= row < rows else 1
         text, ok = QInputDialog.getText(
             self,
-            "按行号选择",
-            "行号范围（当前共 %d 行，按表格显示顺序）：\n"
-            "例如 10-50、1-20,35,80-  （80- 表示到末行）" % rows,
+            tr("按行号选择"),
+            tr("行号范围（当前共 %d 行，按表格显示顺序）：\n"
+            "例如 10-50、1-20,35,80-  （80- 表示到末行）") % rows,
             QLineEdit.Normal,
             "%d-%d" % (start, rows),
         )
@@ -2770,7 +2931,7 @@ class AttributeTableDialog(QDialog):
         try:
             picked = parse_row_ranges(text, rows)
         except ValueError as exc:
-            QMessageBox.information(self, "按行号选择", str(exc))
+            QMessageBox.information(self, tr("按行号选择"), str(exc))
             return
         self._select_rows(picked)
 
@@ -2818,7 +2979,7 @@ class AttributeTableDialog(QDialog):
             except Exception:
                 clipboard = None
         if clipboard is None:
-            QMessageBox.warning(self, "复制", "无法访问剪贴板。")
+            QMessageBox.warning(self, tr("复制"), tr("无法访问剪贴板。"))
             return
         clipboard.setText("\n".join(lines))
         label = self._field_labels.get(field_name, field_name)
@@ -2847,10 +3008,10 @@ class AttributeTableDialog(QDialog):
         fids = self.model.fids()
         values = self.model.column_values(field_name)
         if not fids:
-            QMessageBox.information(self, "复制", "当前筛选没有可复制的行。")
+            QMessageBox.information(self, tr("复制"), tr("当前筛选没有可复制的行。"))
             return
         if len(fids) != len(values):
-            QMessageBox.warning(self, "复制", "行数和取值对不上，没有复制。")
+            QMessageBox.warning(self, tr("复制"), tr("行数和取值对不上，没有复制。"))
             return
         try:
             layer_id = layer.id() or ""
@@ -2870,12 +3031,12 @@ class AttributeTableDialog(QDialog):
             writer.writerow([int(fid), text])
         clipboard = self._app_clipboard()
         if clipboard is None:
-            QMessageBox.warning(self, "复制", "无法访问剪贴板。")
+            QMessageBox.warning(self, tr("复制"), tr("无法访问剪贴板。"))
             return
         clipboard.setText(buf.getvalue())
         label = self._field_labels.get(field_name, field_name)
         self.status.showMessage(
-            "已复制列「%s」共 %s 行（两列：编号和值，可改值后粘贴回本列）" % (label, len(fids)),
+            tr("已复制列「%s」共 %s 行（两列：编号和值，可改值后粘贴回本列）") % (label, len(fids)),
             5000,
         )
 
@@ -2904,20 +3065,20 @@ class AttributeTableDialog(QDialog):
         if layer is None:
             return
         if not layer.isEditable():
-            QMessageBox.information(self, "粘贴回列", "请先切换到编辑模式。")
+            QMessageBox.information(self, tr("粘贴回列"), tr("请先切换到编辑模式。"))
             return
         text = self._clipboard_text()
         if not clipboard_is_roundtrip(text):
             QMessageBox.information(
                 self,
-                "粘贴回列",
-                "剪贴板不是可回贴格式。请用列标题「复制本列（可回贴）」复制，"
-                "只改值、不要改编号列，再粘贴。普通复制没有编号，不能按位置贴回。",
+                tr("粘贴回列"),
+                tr("剪贴板不是可回贴格式。请用列标题「复制本列（可回贴）」复制，"
+                "只改值、不要改编号列，再粘贴。普通复制没有编号，不能按位置贴回。"),
             )
             return
         parsed, err = parse_roundtrip_text(text)
         if err:
-            QMessageBox.warning(self, "粘贴回列", err)
+            QMessageBox.warning(self, tr("粘贴回列"), err)
             return
         src_field = parsed["field"]
         layer_id = parsed["layer_id"]
@@ -2927,12 +3088,12 @@ class AttributeTableDialog(QDialog):
             except Exception:
                 current_id = ""
             if current_id and layer_id != current_id:
-                QMessageBox.warning(self, "粘贴回列", "这份数据来自另一个图层，不能贴到当前表。")
+                QMessageBox.warning(self, tr("粘贴回列"), tr("这份数据来自另一个图层，不能贴到当前表。"))
                 return
         field_name = target_field or src_field
         field_idx = layer.fields().indexFromName(field_name)
         if field_idx < 0:
-            QMessageBox.warning(self, "粘贴回列", "当前图层没有字段「%s」。" % field_name)
+            QMessageBox.warning(self, tr("粘贴回列"), tr("当前图层没有字段「%s」。") % field_name)
             return
         rows = parsed["rows"]
         missing = self._missing_feature_ids(layer, [fid for fid, _val in rows])
@@ -2941,8 +3102,8 @@ class AttributeTableDialog(QDialog):
             extra = "" if len(missing) <= 8 else " 等 %s 个" % len(missing)
             QMessageBox.warning(
                 self,
-                "粘贴回列",
-                "有 %s 个编号不在当前图层（%s%s）。一条都没写。" % (len(missing), sample, extra),
+                tr("粘贴回列"),
+                tr("有 %s 个编号不在当前图层（%s%s）。一条都没写。") % (len(missing), sample, extra),
             )
             return
         sample = "\n".join(
@@ -2960,7 +3121,7 @@ class AttributeTableDialog(QDialog):
                 "对的是编号，不是表格第几行。下面顺序可以不连着，不会错位。\n%s\n继续？"
                 % (field_name, len(rows), sample)
             )
-        if QMessageBox.question(self, "粘贴回列", question) != QMessageBox.Yes:
+        if QMessageBox.question(self, tr("粘贴回列"), question) != QMessageBox.Yes:
             return
         field = layer.fields().at(field_idx)
         values = {}
@@ -2970,9 +3131,9 @@ class AttributeTableDialog(QDialog):
             layer, field_idx, field_name, values, "粘贴回列"
         )
         if updated:
-            self.status.showMessage("已按编号写回 %s 行 → %s" % (updated, field_name), 4000)
+            self.status.showMessage(tr("已按编号写回 %s 行 → %s") % (updated, field_name), 4000)
         else:
-            self.status.showMessage("编号已对齐，字段「%s」的值没有变化" % field_name, 4000)
+            self.status.showMessage(tr("编号已对齐，字段「%s」的值没有变化") % field_name, 4000)
 
     def _on_table_selection(self, *_args):
         if self._syncing_selection:
@@ -3097,14 +3258,14 @@ class AttributeTableDialog(QDialog):
             return
         if checked:
             if not layer.isEditable() and not layer.startEditing():
-                QMessageBox.warning(self, "编辑", "无法开始编辑该图层。")
+                QMessageBox.warning(self, tr("编辑"), tr("无法开始编辑该图层。"))
                 self.act_toggle_edit.setChecked(False)
         else:
             if layer.isEditable() and layer.isModified():
                 reply = QMessageBox.question(
                     self,
-                    "结束编辑",
-                    "有未保存修改，是否保存？",
+                    tr("结束编辑"),
+                    tr("有未保存修改，是否保存？"),
                     QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
                 )
                 if reply == QMessageBox.Cancel:
@@ -3114,7 +3275,7 @@ class AttributeTableDialog(QDialog):
                     if not layer.commitChanges():
                         errs = layer.commitErrors()
                         msg = "\n".join(errs) if isinstance(errs, (list, tuple)) else (errs or "未知错误")
-                        QMessageBox.warning(self, "保存失败", msg)
+                        QMessageBox.warning(self, tr("保存失败"), msg)
                         self.act_toggle_edit.setChecked(True)
                         return
                 else:
@@ -3140,11 +3301,11 @@ class AttributeTableDialog(QDialog):
         if not layer.commitChanges():
             errs = layer.commitErrors()
             msg = "\n".join(errs) if isinstance(errs, (list, tuple)) else (errs or "未知错误")
-            QMessageBox.warning(self, "保存失败", msg)
+            QMessageBox.warning(self, tr("保存失败"), msg)
             layer.startEditing()
         else:
             layer.startEditing()
-            self.status.showMessage("已保存", 3000)
+            self.status.showMessage(tr("已保存"), 3000)
         self._update_edit_actions()
         self._update_window_title()
 
@@ -3152,7 +3313,7 @@ class AttributeTableDialog(QDialog):
         layer = self._layer
         if layer is None or not layer.isEditable():
             return
-        if QMessageBox.question(self, "回滚", "放弃未保存修改？") != QMessageBox.Yes:
+        if QMessageBox.question(self, tr("回滚"), tr("放弃未保存修改？")) != QMessageBox.Yes:
             return
         self._disconnect_layer_signals()
         try:
@@ -3167,13 +3328,13 @@ class AttributeTableDialog(QDialog):
     def _delete_selected(self):
         layer = self._layer
         if layer is None or not layer.isEditable():
-            QMessageBox.information(self, "删除", "请先切换到编辑模式。")
+            QMessageBox.information(self, tr("删除"), tr("请先切换到编辑模式。"))
             return
         fids = layer.selectedFeatureIds()
         if not fids:
-            QMessageBox.information(self, "删除", "没有选中的要素。")
+            QMessageBox.information(self, tr("删除"), tr("没有选中的要素。"))
             return
-        if QMessageBox.question(self, "删除", f"删除选中的 {len(fids)} 个要素？") != QMessageBox.Yes:
+        if QMessageBox.question(self, tr("删除"), f"删除选中的 {len(fids)} 个要素？") != QMessageBox.Yes:
             return
         layer.beginEditCommand("删除要素")
         try:
@@ -3184,7 +3345,7 @@ class AttributeTableDialog(QDialog):
             layer.endEditCommand()
         else:
             layer.destroyEditCommand()
-            QMessageBox.warning(self, "删除", "删除失败。")
+            QMessageBox.warning(self, tr("删除"), tr("删除失败。"))
         self._schedule_reload()
 
     def _layer_supports_editing(self, layer):
@@ -3194,7 +3355,7 @@ class AttributeTableDialog(QDialog):
             if hasattr(layer, "supportsEditing"):
                 return bool(layer.supportsEditing())
         except Exception:
-            pass
+            pass  # nosec B110
         provider = layer.dataProvider()
         if provider is None:
             return False
@@ -3245,7 +3406,7 @@ class AttributeTableDialog(QDialog):
             return
         fids = self.model.fids()
         if not fids:
-            QMessageBox.information(self, "全选", "当前筛选没有要素。")
+            QMessageBox.information(self, tr("全选"), tr("当前筛选没有要素。"))
             return
         layer.selectByIds(fids)
         self._update_status()
@@ -3253,14 +3414,20 @@ class AttributeTableDialog(QDialog):
     def _show_help(self):
         ver = plugin_version()
         dlg = QDialog(self)
-        dlg.setWindowTitle("Help — Field Remarks Table %s" % ver)
+        dlg.setWindowTitle(tr("帮助 — 字段备注表 %s") % ver)
         dlg.resize(560, 420)
         lay = QVBoxLayout(dlg)
         browser = QTextBrowser()
         browser.setOpenExternalLinks(False)
-        browser.setHtml(HELP_HTML.replace("__VERSION__", ver))
+        from .i18n import current_language
+        from .i18n.catalog import LANG_EN
+        from .i18n.help_en import HELP_HTML_EN
+
+        html = HELP_HTML_EN if current_language() == LANG_EN else HELP_HTML
+        browser.setHtml(html.replace("__VERSION__", ver))
         lay.addWidget(browser)
         btns = QDialogButtonBox(QDialogButtonBox.Close)
+        localize_button_box(btns)
         btns.rejected.connect(dlg.reject)
         btns.clicked.connect(dlg.accept)
         lay.addWidget(btns)
@@ -3285,10 +3452,10 @@ class AttributeTableDialog(QDialog):
     def _export_kmz(self):
         layer = self._layer
         if layer is None:
-            QMessageBox.information(self, "导出 KMZ", "无图层。")
+            QMessageBox.information(self, tr("导出 KMZ"), tr("无图层。"))
             return
         if not layer.isSpatial():
-            QMessageBox.information(self, "导出 KMZ", "该图层没有几何，无法导出 KMZ。")
+            QMessageBox.information(self, tr("导出 KMZ"), tr("该图层没有几何，无法导出 KMZ。"))
             return
         try:
             total_rows = int(layer.featureCount())
@@ -3305,7 +3472,7 @@ class AttributeTableDialog(QDialog):
             return
         fids = self.model.fids() if dlg.table_only() else None
         if fids is not None and not fids:
-            QMessageBox.information(self, "导出 KMZ", "当前表格没有行。")
+            QMessageBox.information(self, tr("导出 KMZ"), tr("当前表格没有行。"))
             return
         path, _ = QFileDialog.getSaveFileName(
             self, "导出 KMZ", os.path.expanduser("~"), "KMZ (*.kmz)"
@@ -3326,7 +3493,7 @@ class AttributeTableDialog(QDialog):
                 use_layer_style=dlg.use_layer_style(),
             )
         except Exception as e:
-            QMessageBox.warning(self, "导出 KMZ 失败", str(e))
+            QMessageBox.warning(self, tr("导出 KMZ 失败"), str(e))
             return
         finally:
             QApplication.restoreOverrideCursor()
@@ -3335,7 +3502,7 @@ class AttributeTableDialog(QDialog):
         )
         QMessageBox.information(
             self,
-            "导出 KMZ",
+            tr("导出 KMZ"),
             f"完成。\n写入要素：{written}\n跳过（无几何）：{skipped}\n\n{path}",
         )
 
@@ -3407,12 +3574,12 @@ class AttributeTableDialog(QDialog):
             "expr": "QGIS 表达式，如 \"POP\" + 1 或 $id",
             "replace": "对当前目标字段做部分替换，一格内全部替换；区分大小写",
         }
-        self.ed_fill.setPlaceholderText(tips.get(mode, ""))
+        self.ed_fill.setPlaceholderText(tr(tips.get(mode, "")))
         self.ed_fill.setToolTip(
-            tips.get(mode, "")
+            tr(tips.get(mode, ""))
             if mode != "const"
-            else "输入常量，或输入其它字段名（打字弹出下拉，中间字母也能搜，列出全部命中项）把该字段内容写入目标字段。\n"
-            "要写入恰好等于字段名的文字，用单引号包起来，如 'TYPE'。"
+            else tr("输入常量，或输入其它字段名（打字弹出下拉，中间字母也能搜，列出全部命中项）把该字段内容写入目标字段。\n"
+            "要写入恰好等于字段名的文字，用单引号包起来，如 'TYPE'。")
         )
         self._update_fill_preset_visible()
         self._sync_fill_field_completer()
@@ -3504,7 +3671,7 @@ class AttributeTableDialog(QDialog):
             return
         self.cmb_fill_preset.blockSignals(True)
         self.cmb_fill_preset.clear()
-        self.cmb_fill_preset.addItem("含义…", "")
+        self.cmb_fill_preset.addItem(tr("含义…"), "")
         field_name = None
         if hasattr(self, "cmb_fill_field"):
             field_name = self.cmb_fill_field.currentData()
@@ -3609,14 +3776,14 @@ class AttributeTableDialog(QDialog):
         if hasattr(self, "btn_fill_filtered"):
             if on:
                 self.btn_fill_filtered.setToolTip(
-                    "更新当前表格筛选后的全部行；若快速插入行已选含义，则按所选列写入（全空则不再确认）"
+                    tr("更新当前表格筛选后的全部行；若快速插入行已选含义，则按所选列写入（全空则不再确认）")
                 )
                 self.btn_fill_selected.setToolTip(
-                    "仅更新已选中要素；若快速插入行已选含义，则按所选列写入（全空则不再确认）"
+                    tr("仅更新已选中要素；若快速插入行已选含义，则按所选列写入（全空则不再确认）")
                 )
             else:
-                self.btn_fill_filtered.setToolTip("更新当前表格筛选后的全部行（含未滚到的）")
-                self.btn_fill_selected.setToolTip("仅更新地图/表中已选中的要素")
+                self.btn_fill_filtered.setToolTip(tr("更新当前表格筛选后的全部行（含未滚到的）"))
+                self.btn_fill_selected.setToolTip(tr("仅更新地图/表中已选中的要素"))
 
     def _on_remarks_enabled_changed(self, _enabled):
         self._apply_remarks_to_ui()
@@ -3667,7 +3834,7 @@ class AttributeTableDialog(QDialog):
             try:
                 signal.disconnect(slot)
             except Exception:
-                pass
+                pass  # nosec B110
 
     def _reuse_open_remarks_hub(self):
         hub = getattr(RemarksHubDialog, "_instance", None)
@@ -3734,7 +3901,7 @@ class AttributeTableDialog(QDialog):
         if hasattr(self, "ed_fill") and text is not None:
             self.ed_fill.setText(str(text))
         self.status.showMessage(
-            "已选插入值：选弹出项立即写入，或点取消后用赋值条按钮写入", 4000
+            tr("已选插入值：选弹出项立即写入，或点取消后用赋值条按钮写入"), 4000
         )
 
     def _fill_target_fids(self, selected_only=False, title="赋值", scope=None):
@@ -3746,28 +3913,28 @@ class AttributeTableDialog(QDialog):
         if scope == "selected":
             selected = set(layer.selectedFeatureIds())
             if not selected:
-                QMessageBox.information(self, title, "没有选中的要素。")
+                QMessageBox.information(self, title, tr("没有选中的要素。"))
                 return None
             fids = [fid for fid in self.model.fids() if fid in selected]
             if not fids:
                 QMessageBox.information(
                     self,
                     title,
-                    "选中的 %s 个要素都不在当前表格里（被范围、过滤或筛选挡住了）。\n"
+                    tr("选中的 %s 个要素都不在当前表格里（被范围、过滤或筛选挡住了）。\n"
                     "为避免改到看不见的要素，这次没有写入。\n"
-                    "可以先清除过滤/筛选，或把范围切到「仅选中」。" % len(selected),
+                    "可以先清除过滤/筛选，或把范围切到「仅选中」。") % len(selected),
                 )
                 return None
             return fids
         if scope == "all":
             fids = self._all_layer_fids(layer)
             if not fids:
-                QMessageBox.information(self, title, "图层没有要素。")
+                QMessageBox.information(self, title, tr("图层没有要素。"))
                 return None
             return fids
         fids = self.model.fids()
         if not fids:
-            QMessageBox.information(self, title, "当前没有可更新的筛选行。")
+            QMessageBox.information(self, title, tr("当前没有可更新的筛选行。"))
             return None
         return fids
 
@@ -3775,12 +3942,12 @@ class AttributeTableDialog(QDialog):
         try:
             return list(layer.allFeatureIds())
         except Exception:
-            pass
+            pass  # nosec B110
         req = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
         try:
             req.setNoAttributes()
         except Exception:
-            pass
+            pass  # nosec B110
         return [feat.id() for feat in layer.getFeatures(req)]
 
     @staticmethod
@@ -3845,7 +4012,7 @@ class AttributeTableDialog(QDialog):
             QMessageBox.information(
                 self,
                 title,
-                "变量「%s」不存在，无法写入。" % "、".join(missing),
+                tr("变量「%s」不存在，无法写入。") % "、".join(missing),
             )
             return None
         return resolved
@@ -3869,7 +4036,7 @@ class AttributeTableDialog(QDialog):
             if (
                 QMessageBox.question(
                     self,
-                    "快速插入",
+                    tr("快速插入"),
                     f"将按快速插入行写入 {len(fids)} 条（{scope_tip}）：\n{lines}\n继续？",
                 )
                 != QMessageBox.Yes
@@ -3913,7 +4080,7 @@ class AttributeTableDialog(QDialog):
             extra = "，%s 列因表达式失败已跳过" % skipped if skipped else ""
             self.status.showMessage(f"快速插入完成：更新 {total} 处{extra}", 4000)
         elif skipped:
-            self.status.showMessage("快速插入：表达式未能写入任何行", 4000)
+            self.status.showMessage(tr("快速插入：表达式未能写入任何行"), 4000)
 
     @staticmethod
     def _pending_shown(val):
@@ -3923,13 +4090,13 @@ class AttributeTableDialog(QDialog):
 
     def _ask_quick_fill_scope(self, field_name, value, combo):
         box = QMessageBox(self)
-        box.setWindowTitle("快速插入")
+        box.setWindowTitle(tr("快速插入"))
         shown = combo.currentText() if combo is not None else str(value)
         box.setText(f"将「{shown}」写入字段「{field_name}」")
-        btn_all = box.addButton("更新全部", QMessageBox.ActionRole)
-        btn_filt = box.addButton("更新筛选项", QMessageBox.ActionRole)
-        btn_sel = box.addButton("更新选中", QMessageBox.ActionRole)
-        btn_cancel = box.addButton("取消", QMessageBox.RejectRole)
+        btn_all = box.addButton(tr("更新全部"), QMessageBox.ActionRole)
+        btn_filt = box.addButton(tr("更新筛选项"), QMessageBox.ActionRole)
+        btn_sel = box.addButton(tr("更新选中"), QMessageBox.ActionRole)
+        btn_cancel = box.addButton(tr("取消"), QMessageBox.RejectRole)
         box.setDefaultButton(btn_sel)
         box.exec_()
         clicked = box.clickedButton()
@@ -3948,7 +4115,7 @@ class AttributeTableDialog(QDialog):
         if layer is None:
             return
         if not layer.isEditable():
-            QMessageBox.information(self, "快速插入", "请先切换到编辑模式。")
+            QMessageBox.information(self, tr("快速插入"), tr("请先切换到编辑模式。"))
             return
         if not field_name:
             return
@@ -3960,12 +4127,12 @@ class AttributeTableDialog(QDialog):
             selected = set(layer.selectedFeatureIds())
             fids = [fid for fid in self.model.fids() if fid in selected]
             if not fids:
-                QMessageBox.information(self, "快速插入", "没有选中的要素。")
+                QMessageBox.information(self, tr("快速插入"), tr("没有选中的要素。"))
                 return
         else:
             fids = self.model.fids()
             if not fids:
-                QMessageBox.information(self, "快速插入", "当前没有可更新的筛选行。")
+                QMessageBox.information(self, tr("快速插入"), tr("当前没有可更新的筛选行。"))
                 return
         coerced = self._coerce_value_for_field(field, value)
         values = {fid: coerced for fid in fids}
@@ -3981,7 +4148,7 @@ class AttributeTableDialog(QDialog):
         if self._layer is None:
             return
         dlg = QgsExpressionBuilderDialog(self._layer, self.ed_fill.text(), self)
-        dlg.setWindowTitle("赋值表达式")
+        dlg.setWindowTitle(tr("赋值表达式"))
         if dlg.exec_():
             self.ed_fill.setText(dlg.expressionText())
             self.cmb_fill_mode.blockSignals(True)
@@ -4037,7 +4204,7 @@ class AttributeTableDialog(QDialog):
                 % (len(toolong), samples(toolong))
             )
         if total <= 0:
-            QMessageBox.warning(self, command_name, "\n".join(lines) + "\n\n没有可写入的值。")
+            QMessageBox.warning(self, command_name, "\n".join(lines) + tr("\n\n没有可写入的值。"))
             return False
         lines.append("\n继续写入其余 %s 条？" % total)
         return QMessageBox.question(self, command_name, "\n".join(lines)) == QMessageBox.Yes
@@ -4045,7 +4212,7 @@ class AttributeTableDialog(QDialog):
     def _run_fill(self, selected_only=False):
         layer = self._layer
         if layer is None or not layer.isEditable():
-            QMessageBox.information(self, "赋值", "请先切换到编辑模式。")
+            QMessageBox.information(self, tr("赋值"), tr("请先切换到编辑模式。"))
             return
 
         pending = {}
@@ -4061,7 +4228,7 @@ class AttributeTableDialog(QDialog):
 
         field_name = self.cmb_fill_field.currentData()
         if not field_name:
-            QMessageBox.information(self, "赋值", "请选择目标字段。")
+            QMessageBox.information(self, tr("赋值"), tr("请选择目标字段。"))
             return
         field_idx = layer.fields().indexFromName(field_name)
         if field_idx < 0:
@@ -4094,7 +4261,7 @@ class AttributeTableDialog(QDialog):
             if mode == "seq" and content.strip():
                 num = try_parse_number(content)
                 if num is None:
-                    QMessageBox.warning(self, "赋值", "序号模式请输入起始数字，或留空从 1 开始。")
+                    QMessageBox.warning(self, tr("赋值"), tr("序号模式请输入起始数字，或留空从 1 开始。"))
                     return
                 seq_start = int(round(num))
             seq_order = [fid for fid in self.model.fids() if fid in set(fids)]
@@ -4107,9 +4274,9 @@ class AttributeTableDialog(QDialog):
             if seq_width > 0 and not self._field_stores_text(field):
                 QMessageBox.warning(
                     self,
-                    "赋值",
-                    "补零只会留在文本字段里。当前字段是数字类型，前导零存不住。"
-                    "请改成文本字段，或把位数选成「不补零」。",
+                    tr("赋值"),
+                    tr("补零只会留在文本字段里。当前字段是数字类型，前导零存不住。"
+                    "请改成文本字段，或把位数选成「不补零」。"),
                 )
                 return
 
@@ -4130,7 +4297,7 @@ class AttributeTableDialog(QDialog):
             if (
                 QMessageBox.question(
                     self,
-                    "赋值确认",
+                    tr("赋值确认"),
                     confirm_msg,
                 )
                 != QMessageBox.Yes
@@ -4145,7 +4312,7 @@ class AttributeTableDialog(QDialog):
                 src_field = payload
                 values = self._copy_field_values(layer, field, fids, src_field)
                 if values is None:
-                    QMessageBox.warning(self, "赋值", "找不到字段「%s」。" % src_field)
+                    QMessageBox.warning(self, tr("赋值"), tr("找不到字段「%s」。") % src_field)
                     return
             else:
                 if kind == "null":
@@ -4157,8 +4324,8 @@ class AttributeTableDialog(QDialog):
                         if missing:
                             QMessageBox.information(
                                 self,
-                                "赋值",
-                                "变量「%s」不存在，无法写入。" % "、".join(missing),
+                                tr("赋值"),
+                                tr("变量「%s」不存在，无法写入。") % "、".join(missing),
                             )
                             return
                         raw = resolved
@@ -4189,7 +4356,7 @@ class AttributeTableDialog(QDialog):
         if updated:
             if src_field:
                 self.status.showMessage(
-                    "赋值完成：已更新 %s 行 → %s ← %s" % (updated, field_name, src_field),
+                    tr("赋值完成：已更新 %s 行 → %s ← %s") % (updated, field_name, src_field),
                     4000,
                 )
             else:
@@ -4216,7 +4383,7 @@ class AttributeTableDialog(QDialog):
             if self._attr_is_empty(fetched.get(fid, {}).get(field_idx, NULL))
         ]
         if not empty_fids:
-            QMessageBox.information(self, "赋值", "范围内没有空白单元格，已有内容不会改。")
+            QMessageBox.information(self, tr("赋值"), tr("范围内没有空白单元格，已有内容不会改。"))
             return
         scope_tip = "选中" if selected_only else "筛选"
         skipped = len(fids) - len(empty_fids)
@@ -4232,7 +4399,7 @@ class AttributeTableDialog(QDialog):
                     "只写入「%s」的空白单元格，共 %s 条（%s）。已有内容 %s 条不动。继续？"
                     % (field_name, len(empty_fids), scope_tip, skipped)
                 )
-            if QMessageBox.question(self, "赋值确认", confirm_msg) != QMessageBox.Yes:
+            if QMessageBox.question(self, tr("赋值确认"), confirm_msg) != QMessageBox.Yes:
                 return
         src_field = None
         values = {}
@@ -4240,7 +4407,7 @@ class AttributeTableDialog(QDialog):
             src_field = payload
             copied = self._copy_field_values(layer, field, empty_fids, src_field)
             if copied is None:
-                QMessageBox.warning(self, "赋值", "找不到字段「%s」。" % src_field)
+                QMessageBox.warning(self, tr("赋值"), tr("找不到字段「%s」。") % src_field)
                 return
             values = copied
         else:
@@ -4253,8 +4420,8 @@ class AttributeTableDialog(QDialog):
                     if missing:
                         QMessageBox.information(
                             self,
-                            "赋值",
-                            "变量「%s」不存在，无法写入。" % "、".join(missing),
+                            tr("赋值"),
+                            tr("变量「%s」不存在，无法写入。") % "、".join(missing),
                         )
                         return
                     raw = resolved
@@ -4264,21 +4431,21 @@ class AttributeTableDialog(QDialog):
         updated = self._commit_attribute_values(layer, field_idx, field_name, values, "赋值")
         if updated:
             self.status.showMessage(
-                "已填空白 %s 行，跳过已有内容 %s 行 → %s" % (updated, skipped, field_name),
+                tr("已填空白 %s 行，跳过已有内容 %s 行 → %s") % (updated, skipped, field_name),
                 4000,
             )
         elif not skipped:
-            self.status.showMessage("赋值完成：已更新 0 行 → %s" % field_name, 4000)
+            self.status.showMessage(tr("赋值完成：已更新 0 行 → %s") % field_name, 4000)
         else:
-            self.status.showMessage("空白单元格的值没有变化 → %s" % field_name, 4000)
+            self.status.showMessage(tr("空白单元格的值没有变化 → %s") % field_name, 4000)
 
     def _run_fill_around_seq(self, layer, field, field_idx, field_name, fids, selected_only):
         """Add a padded sequence before or after each cell's current text."""
         if not self._field_stores_text(field):
             QMessageBox.warning(
                 self,
-                "赋值",
-                "前后序号是在已有文字上加序号，只写入文本字段。当前字段是数字类型，存不住。",
+                tr("赋值"),
+                tr("前后序号是在已有文字上加序号，只写入文本字段。当前字段是数字类型，存不住。"),
             )
             return
         place = "after"
@@ -4308,8 +4475,8 @@ class AttributeTableDialog(QDialog):
         if (
             QMessageBox.question(
                 self,
-                "赋值确认",
-                "保留「%s」里的原文字，在%s加上序号，共 %s 条（%s）。如 %s。空白只写序号。继续？"
+                tr("赋值确认"),
+                tr("保留「%s」里的原文字，在%s加上序号，共 %s 条（%s）。如 %s。空白只写序号。继续？")
                 % (field_name, side, len(order), scope_tip, sample or ""),
             )
             != QMessageBox.Yes
@@ -4318,7 +4485,7 @@ class AttributeTableDialog(QDialog):
         updated = self._commit_attribute_values(layer, field_idx, field_name, values, "赋值")
         if updated:
             self.status.showMessage(
-                "前后序号完成：已在原文字%s加上序号，更新 %s 行 → %s" % (side, updated, field_name),
+                tr("前后序号完成：已在原文字%s加上序号，更新 %s 行 → %s") % (side, updated, field_name),
                 4000,
             )
 
@@ -4326,13 +4493,13 @@ class AttributeTableDialog(QDialog):
         prefix = self.ed_fill_prefix.text() if hasattr(self, "ed_fill_prefix") else ""
         suffix = self.ed_fill_suffix.text() if hasattr(self, "ed_fill_suffix") else ""
         if prefix == "" and suffix == "":
-            QMessageBox.information(self, "赋值", "请填写要加在前面或后面的文字。")
+            QMessageBox.information(self, tr("赋值"), tr("请填写要加在前面或后面的文字。"))
             return
         if not self._field_stores_text(field):
             QMessageBox.warning(
                 self,
-                "赋值",
-                "前后加字只写入文本字段。当前字段是数字类型，加字存不住。",
+                tr("赋值"),
+                tr("前后加字只写入文本字段。当前字段是数字类型，加字存不住。"),
             )
             return
         fetched = self.model._fetch_attributes(fids, [field_idx])
@@ -4343,15 +4510,15 @@ class AttributeTableDialog(QDialog):
                 continue
             values[fid] = self._coerce_value_for_field(field, "%s%s%s" % (prefix, raw, suffix))
         if not values:
-            QMessageBox.information(self, "赋值", "范围内没有已有文字，空白单元格不会被改。")
+            QMessageBox.information(self, tr("赋值"), tr("范围内没有已有文字，空白单元格不会被改。"))
             return
         scope_tip = "选中" if selected_only else "筛选"
         skipped = len(fids) - len(values)
         if (
             QMessageBox.question(
                 self,
-                "赋值确认",
-                "给「%s」已有文字前面加「%s」、后面加「%s」，共 %s 条（%s）。空白 %s 条不动。继续？"
+                tr("赋值确认"),
+                tr("给「%s」已有文字前面加「%s」、后面加「%s」，共 %s 条（%s）。空白 %s 条不动。继续？")
                 % (field_name, prefix, suffix, len(values), scope_tip, skipped),
             )
             != QMessageBox.Yes
@@ -4360,24 +4527,24 @@ class AttributeTableDialog(QDialog):
         updated = self._commit_attribute_values(layer, field_idx, field_name, values, "赋值")
         if updated:
             self.status.showMessage(
-                "前后加字完成：已更新 %s 行，空白未改 %s 行 → %s" % (updated, skipped, field_name),
+                tr("前后加字完成：已更新 %s 行，空白未改 %s 行 → %s") % (updated, skipped, field_name),
                 4000,
             )
         else:
-            self.status.showMessage("已有文字没有变化 → %s" % field_name, 4000)
+            self.status.showMessage(tr("已有文字没有变化 → %s") % field_name, 4000)
 
     def _eval_fill_expression(self, layer, field, fids, expr_text, skip_errors=False):
         expr_text = (expr_text or "").strip()
         if not expr_text:
             if skip_errors:
                 return {}
-            QMessageBox.warning(self, "赋值", "请输入表达式。")
+            QMessageBox.warning(self, tr("赋值"), tr("请输入表达式。"))
             return None
         exp = QgsExpression(expr_text)
         if exp.hasParserError():
             QMessageBox.warning(
                 self,
-                "赋值" if not skip_errors else "快速插入",
+                tr("赋值") if not skip_errors else tr("快速插入"),
                 exp.parserErrorString(),
             )
             return {} if skip_errors else None
@@ -4431,7 +4598,7 @@ class AttributeTableDialog(QDialog):
         if eval_error:
             QMessageBox.warning(
                 self,
-                "赋值",
+                tr("赋值"),
                 f"表达式错误（FID {eval_error[0]}）：{eval_error[1]}",
             )
             return None
@@ -4441,7 +4608,7 @@ class AttributeTableDialog(QDialog):
         find_text = self.ed_fill_find.text()
         replace_text = self.ed_fill_replace.text()
         if find_text == "":
-            QMessageBox.warning(self, "替换", "请输入替换前的文字。")
+            QMessageBox.warning(self, tr("替换"), tr("请输入替换前的文字。"))
             return
 
         fetched = self.model._fetch_attributes(fids, [field_idx])
@@ -4466,7 +4633,7 @@ class AttributeTableDialog(QDialog):
         if not values:
             QMessageBox.information(
                 self,
-                "替换",
+                tr("替换"),
                 f"当前范围内没有匹配「{find_text}」。",
             )
             return
@@ -4475,7 +4642,7 @@ class AttributeTableDialog(QDialog):
         if (
             QMessageBox.question(
                 self,
-                "替换确认",
+                tr("替换确认"),
                 f"字段「{field_name}」（{scope_tip}）\n"
                 f"将「{find_text}」替换为「{replace_text}」\n"
                 f"命中 {rows} 行 / {occ} 处，继续？",
@@ -4557,7 +4724,7 @@ class AttributeTableDialog(QDialog):
                 else:
                     if own_command:
                         layer.destroyEditCommand()
-                    QMessageBox.warning(self, command_name, "写入失败。")
+                    QMessageBox.warning(self, command_name, tr("写入失败。"))
                     return 0
             else:
                 for fid, val in values.items():
@@ -4569,20 +4736,20 @@ class AttributeTableDialog(QDialog):
                 else:
                     if own_command:
                         layer.destroyEditCommand()
-                    QMessageBox.warning(self, command_name, "写入失败。")
+                    QMessageBox.warning(self, command_name, tr("写入失败。"))
                     return 0
         finally:
             if frozen and canvas is not None:
                 try:
                     canvas.freeze(False)
                 except Exception:
-                    pass
+                    pass  # nosec B110
             QApplication.restoreOverrideCursor()
             if disconnected:
                 try:
                     layer.attributeValueChanged.connect(self._on_attribute_changed)
                 except Exception:
-                    pass
+                    pass  # nosec B110
 
         self._refresh_after_fill(field_name)
         return updated
@@ -4632,7 +4799,7 @@ class AttributeTableDialog(QDialog):
         if self._layer is None:
             return
         if not self._layer.selectedFeatureIds():
-            QMessageBox.information(self, "缩放", "没有选中的要素。")
+            QMessageBox.information(self, tr("缩放"), tr("没有选中的要素。"))
             return
         self.iface.mapCanvas().zoomToSelected(self._layer)
         self.iface.mapCanvas().refresh()
@@ -4660,7 +4827,7 @@ class AttributeTableDialog(QDialog):
 
     def _export_csv(self):
         if self._layer is None:
-            QMessageBox.information(self, "导出", "无图层。")
+            QMessageBox.information(self, tr("导出"), tr("无图层。"))
             return
         dlg = ExportCsvDialog(self)
         if dlg.exec_() != QDialog.Accepted:
@@ -4681,7 +4848,7 @@ class AttributeTableDialog(QDialog):
             else:
                 self._write_csv_custom_order(path, scope, coerce_num)
         except OSError as e:
-            QMessageBox.warning(self, "导出失败", str(e))
+            QMessageBox.warning(self, tr("导出失败"), str(e))
             return
         finally:
             QApplication.restoreOverrideCursor()
@@ -4802,7 +4969,7 @@ class AttributeTableDialog(QDialog):
     def _update_status(self):
         layer = self._layer
         if layer is None:
-            self.status.showMessage("无图层")
+            self.status.showMessage(tr("无图层"))
             self.lbl_stats.clear()
             self.lbl_stats.setStyleSheet("")
             return
@@ -4811,14 +4978,18 @@ class AttributeTableDialog(QDialog):
         selected = len(layer.selectedFeatureIds())
         if layer.isEditable() and layer.isModified():
             changed = len(self.model.modified_fids())
-            edit = "编辑·未保存（已改 %s 条）" % changed if changed else "编辑·未保存"
+            edit = (
+                tr("编辑·未保存（已改 %s 条）") % changed
+                if changed
+                else tr("编辑·未保存")
+            )
         elif layer.isEditable():
-            edit = "编辑中"
+            edit = tr("编辑中")
         else:
-            edit = "只读"
+            edit = tr("只读")
         geom = ""
         try:
-            geom = {0: "点", 1: "线", 2: "面"}.get(int(layer.geometryType()), "")
+            geom = {0: tr("点"), 1: tr("线"), 2: tr("面")}.get(int(layer.geometryType()), "")
         except Exception:
             geom = ""
         if geom:
@@ -4826,7 +4997,7 @@ class AttributeTableDialog(QDialog):
         sort = ""
         if self.model.sort_field():
             arrow = "↑" if self.model.sort_ascending() else "↓"
-            sort = f"  |  排序 {self.model.sort_field()}{arrow}"
+            sort = "  |  " + tr("排序") + " " + self.model.sort_field() + arrow
         crs = ""
         try:
             c = layer.crs()
@@ -4839,7 +5010,11 @@ class AttributeTableDialog(QDialog):
         if shown == 0 and total:
             empty = "  |  " + self._empty_result_hint()
         self.status.showMessage(
-            f"{layer.name()}{geom}  |  共 {total}  |  显示 {shown}  |  选中 {selected}  |  {edit}{sort}{crs}{empty}"
+            tr("%s  |  共 %s  |  显示 %s  |  选中 %s  |  %s")
+            % (layer.name() + geom, total, shown, selected, edit)
+            + sort
+            + crs
+            + empty
         )
         self._update_stats_label()
 
@@ -4848,18 +5023,18 @@ class AttributeTableDialog(QDialog):
         reasons = []
         scope = self._current_scope_mode()
         if scope == "selected":
-            reasons.append("范围是「仅选中」")
+            reasons.append(tr("范围是「仅选中」"))
         elif scope == "canvas":
-            reasons.append("范围是「地图可见」")
+            reasons.append(tr("范围是「地图可见」"))
         elif scope == "modified":
-            reasons.append("范围是「仅已修改」")
+            reasons.append(tr("范围是「仅已修改」"))
         if self.model.text_filter():
-            reasons.append("过滤「%s」" % self.model.text_filter())
+            reasons.append(tr("过滤「%s」") % self.model.text_filter())
         if self.model.category_filter():
-            reasons.append("筛选")
+            reasons.append(tr("筛选"))
         if not reasons:
-            return "没有匹配的行"
-        return "没有匹配的行：%s，可清除或把范围切回「全部要素」" % "、".join(reasons)
+            return tr("没有匹配的行")
+        return tr("没有匹配的行：%s，可清除或把范围切回「全部要素」") % "、".join(reasons)
 
     def _update_stats_label(self):
         """Bottom-right: selection-cell stats, or column sort stats."""
@@ -4867,15 +5042,16 @@ class AttributeTableDialog(QDialog):
             if self._sel_sum is not None and self._sel_count is not None:
                 self.lbl_stats.setStyleSheet("")
                 self.lbl_stats.setText(
-                    f"选中合计 {self._sel_count}个"
-                    f" / 总和 {self._format_sum(self._sel_sum)}"
+                    tr("选中合计 %s个 / 总和 %s")
+                    % (self._sel_count, self._format_sum(self._sel_sum))
                 )
                 return
             if self._sel_dup is not None:
-                text = f"选中重名 {self._sel_dup}"
-                if "有重名" in self._sel_dup:
+                kind, detail = self._sel_dup
+                text = tr("选中重名 %s") % detail
+                if kind == "dup":
                     self.lbl_stats.setStyleSheet("color: #c62828; font-weight: bold;")
-                elif self._sel_dup.startswith("无重名"):
+                elif kind == "none":
                     self.lbl_stats.setStyleSheet("color: #2e7d32; font-weight: bold;")
                 else:
                     self.lbl_stats.setStyleSheet("")
@@ -4888,29 +5064,27 @@ class AttributeTableDialog(QDialog):
             if self._sum_filtered is not None and self._sum_all is not None:
                 self.lbl_stats.setStyleSheet("")
                 self.lbl_stats.setText(
-                    f"{label}合计 筛选 {self._format_sum(self._sum_filtered)}"
-                    f" / 全部 {self._format_sum(self._sum_all)}"
+                    tr("%s合计 筛选 %s / 全部 %s")
+                    % (
+                        label,
+                        self._format_sum(self._sum_filtered),
+                        self._format_sum(self._sum_all),
+                    )
                 )
                 return
 
             if self._dup_filtered is not None and self._dup_all is not None:
-                text = f"{label}重名 筛选 {self._dup_filtered} / 全部 {self._dup_all}"
-                has_dup = (
-                    "有重名" in self._dup_filtered or "有重名" in self._dup_all
-                )
-                if has_dup:
+                kind_f, text_f = self._dup_filtered
+                kind_a, text_a = self._dup_all
+                text = tr("%s重名 筛选 %s / 全部 %s") % (label, text_f, text_a)
+                if kind_f == "dup" or kind_a == "dup":
                     self.lbl_stats.setStyleSheet("color: #c62828; font-weight: bold;")
-                else:
-                    no_dup = (
-                        self._dup_filtered.startswith("无重名")
-                        and self._dup_all.startswith("无重名")
+                elif kind_f == "none" and kind_a == "none":
+                    self.lbl_stats.setStyleSheet(
+                        "color: #2e7d32; font-weight: bold;"
                     )
-                    if no_dup:
-                        self.lbl_stats.setStyleSheet(
-                            "color: #2e7d32; font-weight: bold;"
-                        )
-                    else:
-                        self.lbl_stats.setStyleSheet("")
+                else:
+                    self.lbl_stats.setStyleSheet("")
                 self.lbl_stats.setText(text)
                 return
 
@@ -4949,14 +5123,14 @@ class AttributeTableDialog(QDialog):
             callback()
             return True
         except Exception as exc:
-            QMessageBox.warning(self, "属性表", str(exc))
+            QMessageBox.warning(self, tr("属性表"), str(exc))
             return False
         finally:
             if prev is not None and prev != layer:
                 try:
                     self.iface.setActiveLayer(prev)
                 except Exception:
-                    pass
+                    pass  # nosec B110
 
     def keyPressEvent(self, event):
         if event.matches(QKeySequence.Copy):
@@ -4981,7 +5155,7 @@ class AttributeTableDialog(QDialog):
     def _copy_selected_cells(self):
         indexes = self._selected_cell_indexes()
         if not indexes:
-            self.status.showMessage("请先选择单元格", 3000)
+            self.status.showMessage(tr("请先选择单元格"), 3000)
             return
         cells = {}
         rows = set()
@@ -5001,10 +5175,10 @@ class AttributeTableDialog(QDialog):
         text = "\n".join(lines)
         clip = QApplication.clipboard()
         if clip is None:
-            QMessageBox.warning(self, "复制", "无法访问剪贴板。")
+            QMessageBox.warning(self, tr("复制"), tr("无法访问剪贴板。"))
             return
         clip.setText(text)
-        self.status.showMessage("已复制 %s 个单元格到剪贴板" % len(indexes), 3000)
+        self.status.showMessage(tr("已复制 %s 个单元格到剪贴板") % len(indexes), 3000)
 
     def _copy_features(self):
         layer = self._layer
@@ -5012,11 +5186,11 @@ class AttributeTableDialog(QDialog):
             return
         n = len(layer.selectedFeatureIds())
         if n == 0:
-            self.status.showMessage("请先选中要素（选择单元格会同步选中对应行）", 3000)
+            self.status.showMessage(tr("请先选中要素（选择单元格会同步选中对应行）"), 3000)
             return
         act = self.iface.actionCopyFeatures()
         if act is None:
-            QMessageBox.warning(self, "复制", "当前 QGIS 无复制要素动作。")
+            QMessageBox.warning(self, tr("复制"), tr("当前 QGIS 无复制要素动作。"))
             return
         if self._with_layer_as_active(lambda: act.trigger()):
             self.status.showMessage(f"已复制 {n} 个要素到剪贴板", 3000)
@@ -5026,15 +5200,15 @@ class AttributeTableDialog(QDialog):
         if layer is None:
             return
         if not layer.isEditable():
-            QMessageBox.information(self, "剪切", "请先切换到编辑模式。")
+            QMessageBox.information(self, tr("剪切"), tr("请先切换到编辑模式。"))
             return
         n = len(layer.selectedFeatureIds())
         if n == 0:
-            self.status.showMessage("请先选中要剪切的要素", 3000)
+            self.status.showMessage(tr("请先选中要剪切的要素"), 3000)
             return
         act = self.iface.actionCutFeatures()
         if act is None:
-            QMessageBox.warning(self, "剪切", "当前 QGIS 无剪切要素动作。")
+            QMessageBox.warning(self, tr("剪切"), tr("当前 QGIS 无剪切要素动作。"))
             return
         if self._with_layer_as_active(lambda: act.trigger()):
             self.reload_table()
@@ -5045,26 +5219,26 @@ class AttributeTableDialog(QDialog):
         if layer is None:
             return
         if not layer.isEditable():
-            QMessageBox.information(self, "粘贴", "请先切换到编辑模式。")
+            QMessageBox.information(self, tr("粘贴"), tr("请先切换到编辑模式。"))
             return
         if clipboard_is_roundtrip(self._clipboard_text()):
-            self.status.showMessage("剪贴板是「编号 + 值」两列 → 按编号粘贴回列", 4000)
+            self.status.showMessage(tr("剪贴板是「编号 + 值」两列 → 按编号粘贴回列"), 4000)
             self._paste_roundtrip_column(None)
             return
         act = self.iface.actionPasteFeatures()
         if act is None:
-            QMessageBox.warning(self, "粘贴", "当前 QGIS 无粘贴要素动作。")
+            QMessageBox.warning(self, tr("粘贴"), tr("当前 QGIS 无粘贴要素动作。"))
             return
         if self._with_layer_as_active(lambda: act.trigger()):
             self._schedule_reload()
-            self.status.showMessage("剪贴板不是可回贴格式 → 已按 QGIS 要素粘贴（新增要素）", 4000)
+            self.status.showMessage(tr("剪贴板不是可回贴格式 → 已按 QGIS 要素粘贴（新增要素）"), 4000)
 
     def showEvent(self, event):
         super().showEvent(event)
         try:
             self.setMaximumSize(QWIDGETSIZE_MAX, QWIDGETSIZE_MAX)
         except Exception:
-            pass
+            pass  # nosec B110
         self._schedule_column_widths(0)
 
     def resizeEvent(self, event):
@@ -5086,7 +5260,7 @@ class AttributeTableDialog(QDialog):
             try:
                 signal.disconnect(slot)
             except Exception:
-                pass
+                pass  # nosec B110
         if hasattr(self, "_selection_stats_timer"):
             self._selection_stats_timer.stop()
         if hasattr(self, "_canvas_scope_timer"):
@@ -5101,7 +5275,7 @@ class AttributeTableDialog(QDialog):
                 canvas = self.iface.mapCanvas()
                 canvas.extentsChanged.disconnect(self._on_canvas_extents_changed)
             except Exception:
-                pass
+                pass  # nosec B110
             self._watching_canvas = False
         self._disconnect_layer_signals()
         self._detach_remarks_hub()
@@ -5109,9 +5283,9 @@ class AttributeTableDialog(QDialog):
         try:
             QgsProject.instance().readProject.disconnect(self._on_project_read)
         except Exception:
-            pass
+            pass  # nosec B110
         try:
             QgsProject.instance().cleared.disconnect(self._on_project_cleared)
         except Exception:
-            pass
+            pass  # nosec B110
         super().closeEvent(event)

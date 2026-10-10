@@ -18,6 +18,7 @@ from qgis.PyQt.QtWidgets import (
     QDialogButtonBox,
     QSpinBox,
 )
+from .i18n import localize_button_box, tr
 
 from qgis.core import QgsField, QgsVectorDataProvider
 
@@ -72,7 +73,7 @@ class _NewFieldDialog(QDialog):
     def __init__(self, layer, parent=None):
         super().__init__(parent)
         self.layer = layer
-        self.setWindowTitle("新建字段")
+        self.setWindowTitle(tr("新建字段"))
         form = QFormLayout(self)
         self.ed_name = QLineEdit()
         self.cmb_type = QComboBox()
@@ -98,11 +99,12 @@ class _NewFieldDialog(QDialog):
             self.cmb_type.addItem("String", ("String", QVariant.String, 255, 0))
 
         self.cmb_type.currentIndexChanged.connect(self._on_type_changed)
-        form.addRow("字段名：", self.ed_name)
-        form.addRow("类型：", self.cmb_type)
-        form.addRow("长度：", self.spn_len)
-        form.addRow("精度：", self.spn_prec)
+        form.addRow(tr("字段名："), self.ed_name)
+        form.addRow(tr("类型："), self.cmb_type)
+        form.addRow(tr("长度："), self.spn_len)
+        form.addRow(tr("精度："), self.spn_prec)
         btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        localize_button_box(btns)
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
         form.addRow(btns)
@@ -163,21 +165,21 @@ class FieldsManagerDialog(QDialog):
         super().__init__(parent)
         self.layer = layer
         self._remarks = remarks_store
-        self.setWindowTitle("字段管理")
+        self.setWindowTitle(tr("字段管理"))
         self.resize(420, 360)
         self._changed = False
         self._remarks_changed = False
 
         layout = QVBoxLayout(self)
-        layout.addWidget(QLabel("当前图层字段（改名/删除需在编辑模式且数据源支持）："))
+        layout.addWidget(QLabel(tr("当前图层字段（改名/删除需在编辑模式且数据源支持）：")))
         self.list = QListWidget()
         layout.addWidget(self.list, 1)
 
         row = QHBoxLayout()
-        self.btn_add = QPushButton("新建字段")
-        self.btn_rename = QPushButton("重命名")
-        self.btn_delete = QPushButton("删除字段")
-        self.btn_remarks = QPushButton("字段备注")
+        self.btn_add = QPushButton(tr("新建字段"))
+        self.btn_rename = QPushButton(tr("重命名"))
+        self.btn_delete = QPushButton(tr("删除字段"))
+        self.btn_remarks = QPushButton(tr("字段备注"))
         self.btn_add.clicked.connect(self._add_field)
         self.btn_rename.clicked.connect(self._rename_field)
         self.btn_delete.clicked.connect(self._delete_field)
@@ -189,6 +191,7 @@ class FieldsManagerDialog(QDialog):
         layout.addLayout(row)
 
         close_btn = QDialogButtonBox(QDialogButtonBox.Close)
+        localize_button_box(close_btn)
         close_btn.rejected.connect(self.reject)
         layout.addWidget(close_btn)
 
@@ -256,14 +259,14 @@ class FieldsManagerDialog(QDialog):
         if editing and not can_add:
             tips.append("当前数据源不支持添加字段")
         if tips:
-            self.setWindowTitle("字段管理 — " + "；".join(tips))
+            self.setWindowTitle(tr("字段管理 — ") + "；".join(tips))
         else:
-            self.setWindowTitle("字段管理")
+            self.setWindowTitle(tr("字段管理"))
 
     def _ensure_editing(self):
         if self.layer.isEditable():
             return True
-        QMessageBox.information(self, "字段管理", "请先在属性表中切换到编辑模式。")
+        QMessageBox.information(self, tr("字段管理"), tr("请先在属性表中切换到编辑模式。"))
         return False
 
     def _add_field(self):
@@ -274,13 +277,13 @@ class FieldsManagerDialog(QDialog):
             return
         field = dlg.field()
         if not field.name():
-            QMessageBox.warning(self, "新建字段", "字段名不能为空。")
+            QMessageBox.warning(self, tr("新建字段"), tr("字段名不能为空。"))
             return
         if self.layer.fields().indexFromName(field.name()) >= 0:
-            QMessageBox.warning(self, "新建字段", "字段名已存在。")
+            QMessageBox.warning(self, tr("新建字段"), tr("字段名已存在。"))
             return
         if not self.layer.addAttribute(field):
-            QMessageBox.warning(self, "新建字段", "添加失败（数据源可能不支持）。")
+            QMessageBox.warning(self, tr("新建字段"), tr("添加失败（数据源可能不支持）。"))
             return
         self.layer.updateFields()
         self._changed = True
@@ -293,17 +296,17 @@ class FieldsManagerDialog(QDialog):
         if not (caps & QgsVectorDataProvider.RenameAttributes):
             QMessageBox.warning(
                 self,
-                "重命名",
-                "当前数据源不支持直接重命名字段。\n"
-                "（例如部分 Shapefile / 只读层。可换用 GeoPackage 等格式。）",
+                tr("重命名"),
+                tr("当前数据源不支持直接重命名字段。\n"
+                "（例如部分 Shapefile / 只读层。可换用 GeoPackage 等格式。）"),
             )
             return
         old = self._selected_name()
         if not old:
-            QMessageBox.information(self, "重命名", "请先选择一个字段。")
+            QMessageBox.information(self, tr("重命名"), tr("请先选择一个字段。"))
             return
         new, ok = QInputDialog.getText(
-            self, "重命名字段", f"新名称（原名：{old}）：", text=old
+            self, tr("重命名字段"), f"新名称（原名：{old}）：", text=old
         )
         if not ok:
             return
@@ -311,13 +314,13 @@ class FieldsManagerDialog(QDialog):
         if not new or new == old:
             return
         if self.layer.fields().indexFromName(new) >= 0:
-            QMessageBox.warning(self, "重命名", "目标字段名已存在。")
+            QMessageBox.warning(self, tr("重命名"), tr("目标字段名已存在。"))
             return
         idx = self.layer.fields().indexFromName(old)
         if idx < 0:
             return
         if not self.layer.renameAttribute(idx, new):
-            QMessageBox.warning(self, "重命名", "重命名失败。")
+            QMessageBox.warning(self, tr("重命名"), tr("重命名失败。"))
             return
         self.layer.updateFields()
         self._changed = True
@@ -342,10 +345,10 @@ class FieldsManagerDialog(QDialog):
             return
         name = self._selected_name()
         if not name:
-            QMessageBox.information(self, "删除字段", "请先选择一个字段。")
+            QMessageBox.information(self, tr("删除字段"), tr("请先选择一个字段。"))
             return
         if (
-            QMessageBox.question(self, "删除字段", f"确定删除字段「{name}」？")
+            QMessageBox.question(self, tr("删除字段"), f"确定删除字段「{name}」？")
             != QMessageBox.Yes
         ):
             return
@@ -353,7 +356,7 @@ class FieldsManagerDialog(QDialog):
         if idx < 0:
             return
         if not self.layer.deleteAttribute(idx):
-            QMessageBox.warning(self, "删除字段", "删除失败（数据源可能不支持）。")
+            QMessageBox.warning(self, tr("删除字段"), tr("删除失败（数据源可能不支持）。"))
             return
         self.layer.updateFields()
         self._changed = True
@@ -375,9 +378,9 @@ class FieldsManagerDialog(QDialog):
         if (
             QMessageBox.question(
                 self,
-                "删除字段",
-                "字段「%s」在当前备注项目里还有中文名/说明/含义。\n"
-                "一并删掉这条备注吗？（选「否」则保留，以后再建同名字段仍会套用）" % name,
+                tr("删除字段"),
+                tr("字段「%s」在当前备注项目里还有中文名/说明/含义。\n"
+                "一并删掉这条备注吗？（选「否」则保留，以后再建同名字段仍会套用）") % name,
             )
             != QMessageBox.Yes
         ):
