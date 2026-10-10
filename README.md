@@ -78,6 +78,10 @@ GNU GPL v2 or later. See `LICENSE`.
 1. Zip the plugin folder so the archive root is `attribute_table/` with `metadata.txt` inside (no `__pycache__`, no `.git`).
 2. Upload the zip on the plugin page at plugins.qgis.org (or update the version there as required).
 
+## Version 1.18.5 (high level)
+
+- Flake8: remove duplicate `localize_button_box` in `i18n/runtime.py` (marketplace quality scan)
+
 ## Version 1.18.4 (high level)
 
 - plugins.qgis.org Bandit scan: `# nosec` on intentional except pass/continue and line-direction jitter (`random.random()`)
