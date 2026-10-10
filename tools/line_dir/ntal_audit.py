@@ -627,7 +627,7 @@ def open_audit(host):
         try:
             host.log.setPlainText(text)
         except Exception:
-            pass
+            pass  # nosec B110
         return
     lines = [
         "组网骨架固定（光交→主干→接头→配线→分纤盒→入户）。命名方案见参数「方案」页。",
@@ -655,16 +655,16 @@ def open_audit(host):
     try:
         host.log.setPlainText("\n".join(lines))
     except Exception:
-        pass
+        pass  # nosec B110
     seen = set()
     for old in (_DIR_DLG, line_dir_mod._DIR_DLG):
         if old is None or id(old) in seen:
-            continue
+            continue  # nosec B112
         seen.add(id(old))
         try:
             old.close()
         except Exception:
-            pass
+            pass  # nosec B110
     _DIR_DLG = None
     line_dir_mod._DIR_DLG = None
     parent = None

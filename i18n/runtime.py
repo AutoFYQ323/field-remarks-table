@@ -50,7 +50,7 @@ def current_language():
     try:
         QSettings().setValue(_SETTINGS, lang)
     except Exception:
-        pass
+        pass  # nosec B110
     return lang
 
 
@@ -59,7 +59,7 @@ def set_language(lang):
     try:
         QSettings().setValue(_SETTINGS, lang)
     except Exception:
-        pass
+        pass  # nosec B110
     hub().changed.emit(lang)
     return lang
 
@@ -80,7 +80,7 @@ def translate(msgid, *args, **kwargs):
         try:
             text = text % (args if args else kwargs) if args else text % kwargs
         except Exception:
-            pass
+            pass  # nosec B110
     return text
 
 

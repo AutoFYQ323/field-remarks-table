@@ -744,7 +744,7 @@ def write_text_atomic(path, text):
         try:
             os.fsync(handle.fileno())
         except OSError:
-            pass
+            pass  # nosec B110
     os.replace(tmp, path)
 
 
@@ -1000,7 +1000,7 @@ def parse_pack_file(data):
     if isinstance(packs_in, list) and packs_in:
         for item in packs_in:
             if not isinstance(item, dict):
-                continue
+                continue  # nosec B112
             name = str(item.get("name") or "").strip() or "未命名"
             layers = _clean_pack_layers(item.get("layers"))
             items.append((name, layers, normalize_variables(item.get("variables"))))

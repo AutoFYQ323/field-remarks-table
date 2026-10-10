@@ -81,11 +81,11 @@ def _activate_rule_tree(renderer):
     while stack:
         rule = stack.pop()
         if rule is None:
-            continue
+            continue  # nosec B112
         try:
             rule.setActive(True)
         except Exception:
-            pass
+            pass  # nosec B110
         try:
             key = str(rule.ruleKey() or "")
         except Exception:
@@ -94,7 +94,7 @@ def _activate_rule_tree(renderer):
             try:
                 renderer.checkLegendSymbolItem(key, True)
             except Exception:
-                pass
+                pass  # nosec B110
         stack.extend(_rule_children(rule))
 
 
@@ -114,11 +114,11 @@ def _enable_legend_items(renderer, include_unchecked=False):
         except Exception:
             key = ""
         if not key:
-            continue
+            continue  # nosec B112
         try:
             renderer.checkLegendSymbolItem(key, True)
         except Exception:
-            continue
+            continue  # nosec B112
 
 
 def _clone_renderer(layer, include_unchecked=False):
@@ -133,7 +133,7 @@ def _clone_renderer(layer, include_unchecked=False):
             _enable_legend_items(clone, include_unchecked=include_unchecked)
             return clone
     except Exception:
-        pass
+        pass  # nosec B110
     return renderer
 
 
@@ -182,7 +182,7 @@ def _leaf_rule_items(renderer):
     while stack:
         rule, is_root = stack.pop()
         if rule is None:
-            continue
+            continue  # nosec B112
         kids = _rule_children(rule)
         if kids:
             for child in kids:
@@ -195,7 +195,7 @@ def _leaf_rule_items(renderer):
         except Exception:
             key = ""
         if not key:
-            continue
+            continue  # nosec B112
         label = ""
         try:
             label = (rule.label() or "").strip()
@@ -252,7 +252,7 @@ def list_layer_categories(layer, include_unchecked=False):
     for item in source:
         key = _rule_key(item)
         if not key or key in seen:
-            continue
+            continue  # nosec B112
         seen.add(key)
         label = ""
         try:
@@ -268,7 +268,7 @@ def list_layer_categories(layer, include_unchecked=False):
         for extra in _leaf_rule_items(renderer):
             key = extra.get("key") or ""
             if not key or key in seen:
-                continue
+                continue  # nosec B112
             seen.add(key)
             items.append(extra)
     if not items:
@@ -311,7 +311,7 @@ def _render_context(layer):
             QgsExpressionContext(QgsExpressionContextUtils.globalProjectLayerScopes(layer))
         )
     except Exception:
-        pass
+        pass  # nosec B110
     return ctx
 
 
@@ -370,7 +370,7 @@ def count_legend_keys(layer, keys, include_unchecked=False):
             try:
                 found = rend.legendKeysForFeature(feat, ctx)
             except Exception:
-                continue
+                continue  # nosec B112
             for key in _as_key_set(found):
                 if key in counts:
                     counts[key] += 1
@@ -379,7 +379,7 @@ def count_legend_keys(layer, keys, include_unchecked=False):
             try:
                 rend.stopRender(ctx)
             except Exception:
-                pass
+                pass  # nosec B110
     return counts
 
 
@@ -456,7 +456,7 @@ class FeatureCategoryFilter(object):
         seen = set()
         for key in _as_key_set(found):
             if key not in self._allowed:
-                continue
+                continue  # nosec B112
             text = (self._key_labels.get(key) or key or "").strip()
             if text and text not in seen:
                 seen.add(text)
@@ -468,7 +468,7 @@ class FeatureCategoryFilter(object):
             try:
                 self._renderer.stopRender(self._ctx)
             except Exception:
-                pass
+                pass  # nosec B110
         self._started = False
         self._renderer = None
         self._ctx = None

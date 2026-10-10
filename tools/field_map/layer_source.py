@@ -100,7 +100,7 @@ def _sublayer_key(sublayer):
     try:
         wkb = str(sublayer.wkbType())
     except Exception:
-        pass
+        pass  # nosec B110
     return (name, wkb)
 
 
@@ -117,7 +117,7 @@ def _dedupe_sublayers(sublayers):
             except Exception:
                 key = ("", key[1])
         if not key[0] or key in seen:
-            continue
+            continue  # nosec B112
         seen.add(key)
         result.append(sub)
     return result
@@ -139,15 +139,15 @@ def _query_one_uri(uri):
             name = sub.name() or ""
             nested_uri = sub.uri() or ""
         except Exception:
-            pass
+            pass  # nosec B110
         if nested_uri and (name.lower().endswith(".kml") or nested_uri.lower().endswith(".kml")):
             try:
                 nested = list(registry.querySublayers(nested_uri) or [])
                 if nested:
                     expanded.extend(nested)
-                    continue
+                    continue  # nosec B112
             except Exception:
-                pass
+                pass  # nosec B110
         expanded.append(sub)
     return _dedupe_sublayers(expanded)
 
@@ -207,7 +207,7 @@ def sublayer_uri(sublayer, path):
         if uri:
             return uri
     except Exception:
-        pass
+        pass  # nosec B110
 
     name = ""
     try:

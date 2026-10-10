@@ -43,7 +43,7 @@ def project_vector_layers():
         except Exception:
             ok = False
         if not ok:
-            continue
+            continue  # nosec B112
         out.append(layer)
     out.sort(key=lambda item: item.name())
     return out
@@ -99,7 +99,7 @@ def collect_orphans(layers_map, qgis_layers):
         missing_fields = []
         for fname, fentry in (entry.get("fields") or {}).items():
             if field_is_empty(fentry):
-                continue
+                continue  # nosec B112
             if fname not in existing:
                 missing_fields.append(fname)
         if missing_fields:

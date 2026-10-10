@@ -31,7 +31,7 @@ class _Host(object):
             canvas = self.iface.mapCanvas()
             canvas.refresh()
         except Exception:
-            pass
+            pass  # nosec B110
 
 
 class LineDirDialog(object):

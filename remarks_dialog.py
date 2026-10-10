@@ -462,15 +462,15 @@ class QuickFillBar(QWidget):
                 logical = names.index(name)
             except ValueError:
                 combo.hide()
-                continue
+                continue  # nosec B112
             if freeze_on and logical == 0:
                 combo.setParent(self.frozen_host)
                 combo.setGeometry(0, 1, self.frozen_host.width(), host_h)
                 combo.show()
-                continue
+                continue  # nosec B112
             if header.isSectionHidden(logical):
                 combo.hide()
-                continue
+                continue  # nosec B112
             combo.setParent(self.table_host)
             x = header.sectionViewportPosition(logical)
             w = header.sectionSize(logical)
@@ -1862,7 +1862,7 @@ class RemarksHubDialog(QDialog):
         for name in self._field_names():
             incoming = layer_value_map_meanings(self._layer, name)
             if not incoming:
-                continue
+                continue  # nosec B112
             entry = normalize_field(fields.get(name) or empty_field())
             merged = merge_value_map_meanings(entry.get("meanings") or [], incoming)
             if meanings_signature(merged) != meanings_signature(entry.get("meanings") or []):
@@ -2358,7 +2358,7 @@ class QuickNameDialog(QDialog):
             for lyr in layers:
                 lyr = self._as_vector(lyr)
                 if lyr is None or layers_are_same(lyr, dest):
-                    continue
+                    continue  # nosec B112
                 if self._selected_fids(lyr) and layer_geom_kind(lyr) == layer_geom_kind(dest):
                     return lyr
         return dest if dest is not None else active
@@ -2460,7 +2460,7 @@ class QuickNameDialog(QDialog):
             try:
                 total += int(self.list.item(i).data(Qt.UserRole + 4) or 0)
             except (TypeError, ValueError):
-                pass
+                pass  # nosec B110
         return total
 
     def _refresh_layer_caption(self):

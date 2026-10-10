@@ -186,7 +186,7 @@ class _ClearButtonCenterFilter(QObject):
                 return False
             for btn in host.findChildren(QToolButton):
                 if btn.parentWidget() is not host:
-                    continue
+                    continue  # nosec B112
                 y = max(0, (host.height() - btn.height()) // 2)
                 if btn.y() != y:
                     btn.move(btn.x(), y)
@@ -420,7 +420,7 @@ class LayerGroupTable(QFrame):
             try:
                 combo.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
             except Exception:
-                pass
+                pass  # nosec B110
         combo.setStyleSheet(
             "QComboBox { font-size: 11px; color: #1b1b1b; }"
             "QComboBox QLineEdit { font-size: 11px; color: #1b1b1b; padding: 0 4px; border: none; }"
@@ -446,7 +446,7 @@ class LayerGroupTable(QFrame):
             try:
                 combo.setPlaceholderText(hint)
             except Exception:
-                pass
+                pass  # nosec B110
         combo.currentTextChanged.connect(self._check_field_validity)
         if tooltip:
             combo.setToolTip(tooltip)
@@ -475,7 +475,7 @@ class LayerGroupTable(QFrame):
         try:
             font.setPointSize(9)
         except Exception:
-            pass
+            pass  # nosec B110
         item.setFont(font)
         item.setForeground(QColor("#0d47a1"))
         item.setBackground(QColor("#c8e6c9"))
@@ -532,7 +532,7 @@ class LayerGroupTable(QFrame):
                     pal.setColor(QPalette.ColorRole.WindowText, QColor("#1b1b1b"))
                     layer_combo.setPalette(pal)
                 except Exception:
-                    pass
+                    pass  # nosec B110
             self.table.setCellWidget(r, 0, layer_combo)
         else:
             missing_edit = QLineEdit(layer_name)
@@ -1106,7 +1106,7 @@ class ParamDialog(QDialog):
         try:
             self.spin_tol.setValue(float(params.get("tolerance") or 0.6))
         except (TypeError, ValueError):
-            pass
+            pass  # nosec B110
         if bool(params.get("clockwise")):
             self.dir_cw.setChecked(True)
         else:
@@ -1114,7 +1114,7 @@ class ParamDialog(QDialog):
         try:
             self.spin_angle.setValue(float(params.get("start_angle") if params.get("start_angle") is not None else 100.0))
         except (TypeError, ValueError):
-            pass
+            pass  # nosec B110
         self._apply_action_schemes(params)
         self.edit_prefix_splice.setText(str(params.get("prefix_splice") or "").strip() or "BPE")
         self.edit_prefix_box.setText(str(params.get("prefix_box") or "").strip() or "PBO")

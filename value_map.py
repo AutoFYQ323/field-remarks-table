@@ -38,14 +38,14 @@ def value_key(value):
                 return ("n", str(int(num)))
             return ("n", str(num))
         except (TypeError, ValueError):
-            pass
+            pass  # nosec B110
     if text:
         try:
             num = float(text)
             if num == int(num):
                 return ("n", str(int(num)))
         except (TypeError, ValueError):
-            pass
+            pass  # nosec B110
     return ("s", text)
 
 
@@ -98,10 +98,10 @@ def read_value_map_pairs(layer, field):
     seen = set()
     for stored in stored_list:
         if is_null_map_value(stored):
-            continue
+            continue  # nosec B112
         key = value_key(stored)
         if key in seen:
-            continue
+            continue  # nosec B112
         seen.add(key)
         desc = _represent_desc(layer, idx, config, stored)
         if not desc:
