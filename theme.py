@@ -109,6 +109,8 @@ QPushButton:default {{ border-color: {focus}; }}
 QPushButton:disabled {{ color: {muted}; background-color: {panel}; border-color: {border}; }}
 
 QLineEdit, QComboBox {{ background-color: {base}; color: {text}; border: 1px solid {border}; border-radius: 3px; selection-background-color: {sel}; selection-color: {sel_text}; }}
+QComboBox {{ padding: 2px 22px 2px 8px; min-width: 72px; }}
+QComboBox::drop-down {{ subcontrol-origin: padding; subcontrol-position: top right; width: 18px; border: none; }}
 QLineEdit:focus, QComboBox:focus {{ border-color: {focus}; }}
 QLineEdit:disabled, QComboBox:disabled {{ color: {muted}; background-color: {panel}; }}
 QComboBox QAbstractItemView {{ background-color: {base}; color: {text}; border: 1px solid {border}; selection-background-color: {sel}; selection-color: {sel_text}; outline: 0; }}
@@ -205,7 +207,7 @@ def apply(widget, theme=None):
         try:
             hook()
         except Exception:
-            pass
+            pass  # nosec B110
 
 
 def register(widget):
@@ -221,7 +223,7 @@ def set_theme(key):
     try:
         QSettings().setValue(SETTINGS_KEY, key)
     except Exception:
-        pass
+        pass  # nosec B110
     _windows[:] = [w for w in _windows if _alive(w)]
     for w in list(_windows):
         apply(w, key)

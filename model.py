@@ -14,6 +14,7 @@ from qgis.core import (
     NULL,
 )
 
+from .i18n import tr
 from .value_utils import coerce_for_field, field_kind, temporal_text, value_text
 
 _NUM_RE = re.compile(r"^[\s]*[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?[\s]*$")
@@ -246,7 +247,7 @@ class FeatureTableModel(QAbstractTableModel):
             try:
                 kind = field_kind(fields.at(field_idx))
             except Exception:
-                pass
+                pass  # nosec B110
             align.append(kind in ("int", "real"))
         self._col_editable, self._col_align = editable, align
 
@@ -287,17 +288,17 @@ class FeatureTableModel(QAbstractTableModel):
                 for fid, attrs in (buf.changedAttributeValues() or {}).items():
                     out[int(fid)] = set(int(i) for i in (attrs or {}).keys())
             except Exception:
-                pass
+                pass  # nosec B110
             try:
                 for fid in (buf.addedFeatures() or {}).keys():
                     out[int(fid)] = None
             except Exception:
-                pass
+                pass  # nosec B110
             try:
                 for fid in (buf.changedGeometries() or {}).keys():
                     out.setdefault(int(fid), set())
             except Exception:
-                pass
+                pass  # nosec B110
         self._modified = out
         return out
 
@@ -670,7 +671,10 @@ class FeatureTableModel(QAbstractTableModel):
                 if role == Qt.DisplayRole:
                     return str(section + 1)  # 1-based row number
                 if role == Qt.ToolTipRole:
-                    return f"序号 {section + 1}\nFID {self._fids[section]}\n双击缩放到该要素"
+                    return tr("序号 %d\nFID %s\n双击缩放到该要素") % (
+                        section + 1,
+                        self._fids[section],
+                    )
         return None
 
     def flags(self, index):
@@ -725,7 +729,7 @@ class FeatureTableModel(QAbstractTableModel):
             modified = self._cell_modified(fid, field_idx)
             tip = None
             if is_null:
-                tip = "(空 / NULL)"
+                tip = tr("(空 / NULL)")
             else:
                 raw = value_text(value)
                 if self._show_note:
@@ -735,7 +739,7 @@ class FeatureTableModel(QAbstractTableModel):
                 if tip is None and len(raw) > 40:
                     tip = raw
             if modified:
-                return (tip + "\n" if tip else "") + "（已修改，未保存）"
+                return (tip + "\n" if tip else "") + tr("（已修改，未保存）")
             return tip
         if role == Qt.BackgroundRole:
             if self._cell_modified(fid, field_idx):
@@ -767,21 +771,21 @@ class FeatureTableModel(QAbstractTableModel):
         status, new_val, note = coerce_for_field(field, value)
         if status == "invalid":
             self.editRejected.emit(
-                "「%s」写不进字段「%s」：%s" % (value_text(value), field.name(), note)
+                tr("「%s」写不进字段「%s」：%s") % (value_text(value), field.name(), note)
             )
             return False
         if status == "rounded":
             self.editRejected.emit(
-                "字段「%s」是整数，%s 已四舍五入为 %s" % (field.name(), value_text(value), new_val)
+                tr("字段「%s」是整数，%s 已四舍五入为 %s") % (field.name(), value_text(value), new_val)
             )
         elif status == "toolong":
             self.editRejected.emit(
-                "字段「%s」%s，保存时数据源可能截断或拒绝" % (field.name(), note)
+                tr("字段「%s」%s，保存时数据源可能截断或拒绝") % (field.name(), note)
             )
         current = self._attr(self._cache.get(fid), field_idx)
         if _same_value(current, new_val):
             return True
-        self._layer.beginEditCommand("编辑属性")
+        self._layer.beginEditCommand(tr("编辑属性"))
         ok = self._layer.changeAttributeValue(fid, field_idx, new_val)
         if ok:
             self._layer.endEditCommand()
@@ -836,7 +840,7 @@ class FeatureTableModel(QAbstractTableModel):
                 if feat.isValid():
                     return feat
             except Exception:
-                pass
+                pass  # nosec B110
             self._cache.pop(fid)
         try:
             row = self._fid_row.get(fid)
@@ -864,7 +868,7 @@ class FeatureTableModel(QAbstractTableModel):
                 if text is not None and str(text) != "":
                     return str(text)
             except Exception:
-                pass
+                pass  # nosec B110
             return "NULL"
         text = value_text(value)
         if len(text) > 200:

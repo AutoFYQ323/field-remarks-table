@@ -7,6 +7,7 @@ from qgis.PyQt.QtWidgets import (
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
+    QInputDialog,
     QLabel,
     QMessageBox,
     QPushButton,
@@ -14,6 +15,7 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
+from .i18n import localize_button_box, tr
 
 from qgis.core import QgsMapLayer, QgsProject
 
@@ -160,11 +162,14 @@ class _MismatchAskDialog(QDialog):
         lbl.setWordWrap(True)
         root.addWidget(lbl)
         row = QHBoxLayout()
-        btn_match = QPushButton("开始匹配")
-        btn_back = QPushButton("返回重新选择")
+        btn_match = QPushButton(tr("开始匹配"))
+        btn_copy = QPushButton(tr("复制为新项目"))
+        btn_back = QPushButton(tr("返回重新选择"))
         btn_match.clicked.connect(lambda: self._pick("match"))
+        btn_copy.clicked.connect(lambda: self._pick("copy"))
         btn_back.clicked.connect(self.reject)
         row.addWidget(btn_match)
+        row.addWidget(btn_copy)
         row.addWidget(btn_back)
         root.addLayout(row)
         self.resize(440, 160)
@@ -177,7 +182,7 @@ class _MismatchAskDialog(QDialog):
 class RemapDialog(QDialog):
     def __init__(self, layers_map, qgis_layers, parent=None):
         super().__init__(parent)
-        self.setWindowTitle("匹配图层和字段")
+        self.setWindowTitle(tr("匹配图层和字段"))
         self._layers_map = {
             name: normalize_layer(entry) for name, entry in (layers_map or {}).items()
         }
@@ -188,8 +193,8 @@ class RemapDialog(QDialog):
 
         root = QVBoxLayout(self)
         tip = QLabel(
-            "名字相同的已自动对应。下面只列出对不上的项。"
-            "选「删除」才会丢掉这一份配置。"
+            tr("名字相同的已自动对应。下面只列出对不上的项。"
+            "选「删除」才会丢掉这一份配置。")
         )
         tip.setWordWrap(True)
         root.addWidget(tip)
@@ -203,11 +208,26 @@ class RemapDialog(QDialog):
 
         self._build_form()
 
+        self.copied = False
+        self._session = None
         buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        buttons.button(QDialogButtonBox.Cancel).setText("返回重新选择")
+        localize_button_box(buttons)
+        buttons.button(QDialogButtonBox.Cancel).setText(tr("返回重新选择"))
+        btn_copy = buttons.addButton(tr("复制为新项目"), QDialogButtonBox.ActionRole)
+        btn_copy.clicked.connect(self._copy_as_new)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
+
+    def set_session(self, session):
+        self._session = session
+
+    def _copy_as_new(self):
+        if self._session is None:
+            return
+        if copy_current_pack_drop_orphans(self._session, self):
+            self.copied = True
+            self.accept()
 
     def _qgis_names(self):
         return [layer.name() for layer in self._qgis_layers]
@@ -233,17 +253,17 @@ class RemapDialog(QDialog):
         qgis_names = self._qgis_names()
 
         if missing_layers:
-            self._form.addWidget(self._section("对不上的图层"))
+            self._form.addWidget(self._section(tr("对不上的图层")))
             for old_name in missing_layers:
                 combo = QComboBox()
-                combo.addItem("请选择…", None)
-                combo.addItem("删除该图层配置", DELETE_LAYER)
+                combo.addItem(tr("请选择…"), None)
+                combo.addItem(tr("删除该图层配置"), DELETE_LAYER)
                 for name in qgis_names:
                     combo.addItem(name, name)
                 combo.setCurrentIndex(0)
                 combo.currentIndexChanged.connect(self._rebuild_fields)
                 self._layer_combos[old_name] = combo
-                self._form.addLayout(self._labeled_row("图层「%s」→" % old_name, combo))
+                self._form.addLayout(self._labeled_row(tr("图层「%s」→") % old_name, combo))
 
         self._field_box = QWidget()
         self._field_layout = QVBoxLayout(self._field_box)
@@ -273,7 +293,7 @@ class RemapDialog(QDialog):
         self._field_combos = {}
         if not field_orphans:
             return
-        self._field_layout.addWidget(self._section("对不上的字段"))
+        self._field_layout.addWidget(self._section(tr("对不上的字段")))
         for lname, fields in field_orphans.items():
             layer = self._layer_by_name(lname)
             field_names = []
@@ -284,8 +304,8 @@ class RemapDialog(QDialog):
                     field_names = []
             for old_field in fields:
                 combo = QComboBox()
-                combo.addItem("请选择…", None)
-                combo.addItem("删除该字段配置", DELETE_FIELD)
+                combo.addItem(tr("请选择…"), None)
+                combo.addItem(tr("删除该字段配置"), DELETE_FIELD)
                 for fname in field_names:
                     combo.addItem(fname, fname)
                 combo.setCurrentIndex(0)
@@ -330,7 +350,7 @@ class RemapDialog(QDialog):
         for combo in pending:
             if combo.currentData() is None:
                 QMessageBox.information(
-                    self, "匹配", "还有未选择的图层或字段。请选择对应项，或选删除。"
+                    self, tr("匹配"), tr("还有未选择的图层或字段。请选择对应项，或选删除。")
                 )
                 return
         super().accept()
@@ -344,10 +364,69 @@ def _orphan_field_names(field_orphans):
     ]
 
 
+def _orphan_report(layers_map, qgis_layers):
+    missing_layers, field_orphans = collect_orphans(layers_map, qgis_layers)
+    lines = []
+    if missing_layers:
+        lines.append(tr("图层：") + "、".join(missing_layers))
+    field_names = _orphan_field_names(field_orphans)
+    if field_names:
+        lines.append(tr("字段：") + "、".join(field_names))
+    return "\n".join(lines) if lines else tr("（没有可丢弃的对不上项）")
+
+
+def _drop_orphans(session):
+    layers = dict(session._layers())
+    qgis_layers = project_vector_layers()
+    missing_layers, field_orphans = collect_orphans(layers, qgis_layers)
+    layer_map = {name: DELETE_LAYER for name in missing_layers}
+    layers = apply_layer_remap(layers, layer_map)
+    field_map = {}
+    for lname, fields in (field_orphans or {}).items():
+        if lname in missing_layers:
+            continue
+        for fname in fields:
+            field_map[(lname, fname)] = DELETE_FIELD
+    layers = apply_field_remap(layers, field_map)
+    session.replace_current_layers(layers)
+
+
+def copy_current_pack_drop_orphans(session, parent=None):
+    """Copy the current pack, then drop layers/fields that do not match this project."""
+    if getattr(session, "is_placeholder", None) and session.is_placeholder():
+        QMessageBox.information(
+            parent,
+            tr("复制为新项目"),
+            tr("「%s」是占位项目，不能删除。") % session.current_name(),
+        )
+        return False
+    report = _orphan_report(session._layers(), project_vector_layers())
+    suggested = (session.current_name() or tr("未命名")) + " 2"
+    name, ok = QInputDialog.getText(
+        parent,
+        tr("复制为新项目"),
+        tr("以下图层或字段在当前工程对不上，复制后会从新项目中丢弃：")
+        + "\n\n"
+        + report
+        + "\n\n"
+        + tr("新项目名称："),
+        text=suggested,
+    )
+    if not ok:
+        return False
+    name = (name or "").strip()
+    if not name:
+        return False
+    session.duplicate_current(name)
+    _drop_orphans(session)
+    return True
+
+
 def run_self_check(session, parent=None):
     """
-    If any configured layer name is missing, ask 开始匹配 / 返回重新选择.
-    Field-only mismatches go straight to remap. Cancel remap also resets to 默认.
+    If any configured layer name is missing, ask to match, copy, or go back.
+    Field-only mismatches go straight to remap, which can also copy the pack.
+    Cancel remap resets to the placeholder pack.
     """
     if getattr(session, "is_placeholder", None) and session.is_placeholder():
         return False
@@ -362,22 +441,30 @@ def run_self_check(session, parent=None):
 
     if missing_layers:
         n = len(missing_layers)
-        msg = (
+        msg = tr(
             "项目「%s」有 %s 个图层对不上：%s\n"
             "若选错了项目可返回重选。"
-            % (
-                session.current_name(),
-                n,
-                "、".join(missing_layers),
-            )
+        ) % (
+            session.current_name(),
+            n,
+            "、".join(missing_layers),
         )
-        ask = _MismatchAskDialog("图层对不上", msg, parent)
-        if ask.exec_() != QDialog.Accepted or ask.choice != "match":
+        ask = _MismatchAskDialog(tr("图层对不上"), msg, parent)
+        if ask.exec_() != QDialog.Accepted:
+            return RESET_DEFAULT
+        if ask.choice == "copy":
+            if copy_current_pack_drop_orphans(session, parent):
+                return True
+            return RESET_DEFAULT
+        if ask.choice != "match":
             return RESET_DEFAULT
 
     remap = RemapDialog(dict(session._layers()), qgis_layers, parent)
+    remap.set_session(session)
     if remap.exec_() != QDialog.Accepted:
         return RESET_DEFAULT
+    if getattr(remap, "copied", False):
+        return True
     session.replace_current_layers(remap.result_layers())
     return True
 
