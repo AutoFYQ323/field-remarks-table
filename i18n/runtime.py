@@ -112,29 +112,3 @@ def localize_button_box(box):
         if button is not None:
             button.setText(tr(msgid))
     return box
-
-
-def localize_button_box(box):
-    """Standard OK/Cancel/Close follow the plugin language, not only the QGIS locale."""
-    if box is None:
-        return box
-    try:
-        from qgis.PyQt.QtWidgets import QDialogButtonBox
-    except Exception:
-        return box
-    mapping = (
-        (QDialogButtonBox.Ok, "确定"),
-        (QDialogButtonBox.Cancel, "取消"),
-        (QDialogButtonBox.Yes, "是"),
-        (QDialogButtonBox.No, "否"),
-        (QDialogButtonBox.Close, "关闭"),
-        (QDialogButtonBox.Save, "保存"),
-    )
-    for flag, msgid in mapping:
-        try:
-            button = box.button(flag)
-        except Exception:
-            button = None
-        if button is not None:
-            button.setText(tr(msgid))
-    return box
