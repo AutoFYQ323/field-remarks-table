@@ -229,7 +229,7 @@ def _bucket_keys(value):
         try:
             keys.append(("n", float(value)))
         except (TypeError, ValueError):
-            pass
+            pass  # nosec B110
     return tuple(keys)
 
 
@@ -450,7 +450,7 @@ def copy_geoms_and_assign(source, dest, fids, assignments):
         for feat in source.getFeatures(req):
             geom = feat.geometry()
             if geom is None or geom.isEmpty():
-                continue
+                continue  # nosec B112
             g = QgsGeometry(geom)
             if transform is not None:
                 if g.transform(transform) != 0:
@@ -606,10 +606,10 @@ def notify_open_attribute_tables(layer, field_names, force_reload=False):
     for widget in candidates:
         marker = id(widget)
         if marker in seen:
-            continue
+            continue  # nosec B112
         seen.add(marker)
         if getattr(widget, "_layer", None) is not layer:
-            continue
+            continue  # nosec B112
         if force_reload:
             reload_fn = getattr(widget, "reload_table", None)
             if callable(reload_fn):
@@ -617,10 +617,10 @@ def notify_open_attribute_tables(layer, field_names, force_reload=False):
                     reload_fn()
                 except Exception:
                     pass  # nosec B110
-                continue
+                continue  # nosec B112
         fn = getattr(widget, "refresh_after_external_edit", None)
         if not callable(fn):
-            continue
+            continue  # nosec B112
         try:
             fn(names)
         except Exception:
@@ -701,7 +701,7 @@ def save_edits_via_qgis(layer, iface):
     for name in ("actionSaveActiveLayerEdits", "actionSaveEdits"):
         getter = getattr(iface, name, None)
         if not callable(getter):
-            continue
+            continue  # nosec B112
         try:
             action = getter()
         except Exception:

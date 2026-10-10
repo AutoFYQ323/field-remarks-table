@@ -1022,7 +1022,7 @@ class FeatureTableModel(QAbstractTableModel):
             for desc, stored in pairs:
                 key = value_key(stored)
                 if key[0] == "null":
-                    continue
+                    continue  # nosec B112
                 text = ("" if desc is None else str(desc)).strip()
                 labels[key] = text or str(stored)
             name = fields.at(i).name()

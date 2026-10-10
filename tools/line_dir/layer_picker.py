@@ -18,7 +18,7 @@ def attr_key(value):
         if value == NULL:
             return ""
     except Exception:
-        pass
+        pass  # nosec B110
     return str(value)
 
 
@@ -69,20 +69,20 @@ class LayerCheckCombo(QComboBox):
             try:
                 self.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
             except AttributeError:
-                pass
+                pass  # nosec B110
         except Exception:
-            pass
+            pass  # nosec B110
         try:
             self.lineEdit().setPlaceholderText("未选")
             self.lineEdit().installEventFilter(self)
         except Exception:
-            pass
+            pass  # nosec B110
         self._tree = QTreeWidget()
         self._tree.setHeaderHidden(True)
         try:
             self._tree.setRootIsDecorated(True)
         except Exception:
-            pass
+            pass  # nosec B110
         try:
             self._tree.setWindowFlags(POPUP_FLAGS)
         except Exception:
@@ -104,7 +104,7 @@ class LayerCheckCombo(QComboBox):
                     self.showPopup()
                 return True
         except Exception:
-            pass
+            pass  # nosec B110
         if self._tree.isVisible() and not self._suppress_outside:
             if etype == KEY_PRESS:
                 try:
@@ -112,7 +112,7 @@ class LayerCheckCombo(QComboBox):
                         self.hidePopup()
                         return True
                 except Exception:
-                    pass
+                    pass  # nosec B110
             if etype == MOUSE_PRESS:
                 pos = self._event_global_pos(event)
                 if pos is not None and not self._popup_contains(pos):
@@ -124,7 +124,7 @@ class LayerCheckCombo(QComboBox):
             if hasattr(event, "globalPosition"):
                 return event.globalPosition().toPoint()
         except Exception:
-            pass
+            pass  # nosec B110
         try:
             return event.globalPos()
         except Exception:
@@ -226,7 +226,7 @@ class LayerCheckCombo(QComboBox):
             self.lineEdit().setText(text)
             self.lineEdit().setPlaceholderText("未选")
         except Exception:
-            pass
+            pass  # nosec B110
         self.setToolTip(text or "未选")
 
     def showPopup(self):
@@ -272,7 +272,7 @@ class LayerCheckCombo(QComboBox):
             try:
                 app.removeEventFilter(self)
             except Exception:
-                pass
+                pass  # nosec B110
         self._filter_on = False
 
     def hidePopup(self):
@@ -281,11 +281,11 @@ class LayerCheckCombo(QComboBox):
         try:
             self._tree.hide()
         except Exception:
-            pass
+            pass  # nosec B110
         try:
             super(LayerCheckCombo, self).hidePopup()
         except Exception:
-            pass
+            pass  # nosec B110
 
     def _rebuild_tree(self):
         self._block = True

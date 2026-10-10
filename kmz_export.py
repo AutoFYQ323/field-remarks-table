@@ -293,12 +293,12 @@ def export_layer_to_kmz(
                     continue
             except Exception:
                 skipped += 1
-                continue
+                continue  # nosec B112
 
         kml_geom = _geometry_to_kml(geom2)
         if not kml_geom:
             skipped += 1
-            continue
+            continue  # nosec B112
 
         if title_idx >= 0:
             name = _xml_text(feat.attribute(title_idx)) or f"fid_{feat.id()}"

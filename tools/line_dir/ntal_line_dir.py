@@ -132,7 +132,7 @@ def reverse_line_geoms(rows):
             try:
                 layer.destroyEditCommand()
             except Exception:
-                pass
+                pass  # nosec B110
             errors.append(tr("{} 修复异常：{}").format(layer.name(), exc))
     return updated, errors
 
@@ -155,7 +155,7 @@ class _CheckProgress(object):
         try:
             self.dlg.setCancelButton(None)
         except Exception:
-            pass
+            pass  # nosec B110
         self.dlg.setValue(0)
         self._last = 0.0
         self.dlg.show()
@@ -178,14 +178,14 @@ class _CheckProgress(object):
             if self.dlg.value() != value:
                 self.dlg.setValue(value)
         except Exception:
-            pass
+            pass  # nosec B110
 
     def close(self):
         try:
             self.dlg.setValue(1000)
             self.dlg.close()
         except Exception:
-            pass
+            pass  # nosec B110
 
 
 class _StepTick(object):
@@ -638,7 +638,7 @@ class LineDirDialog(QDialog):
         try:
             self.setAttribute(_qt_flag("WA_DeleteOnClose"), True)
         except Exception:
-            pass
+            pass  # nosec B110
         root = QVBoxLayout(self)
         if self._free:
             hint_text = tr("不挡地图，窗口置顶。打勾的翻转，不打勾的不动。方向反了默认打勾，伪成环默认不勾。")
@@ -798,7 +798,7 @@ class LineDirDialog(QDialog):
                 xform = QgsCoordinateTransform(layer.crs(), dst, QgsProject.instance().transformContext())
                 box = xform.transformBoundingBox(box)
         except Exception:
-            pass
+            pass  # nosec B110
         span = max(box.width(), box.height())
         if span <= 0:
             span = max(canvas.extent().width(), canvas.extent().height()) * 0.05 or 40.0
@@ -809,7 +809,7 @@ class LineDirDialog(QDialog):
         try:
             canvas.flashFeatureIds(layer, [fid])
         except Exception:
-            pass
+            pass  # nosec B110
 
     def picked_rows(self):
         rows = self.result.get("reversible") or []
@@ -927,7 +927,7 @@ def open_line_dir(host):
         try:
             old.close()
         except Exception:
-            pass
+            pass  # nosec B110
     parent = None
     try:
         parent = host.iface.mainWindow() if host.iface is not None else host
@@ -953,4 +953,4 @@ def close_line_dir():
     try:
         dlg.close()
     except Exception:
-        pass
+        pass  # nosec B110

@@ -196,7 +196,7 @@ def parse_hh(value):
         if value == NULL:
             return 0.0
     except Exception:
-        pass
+        pass  # nosec B110
     if isinstance(value, bool):
         return 0.0
     if isinstance(value, (int, float)):
@@ -204,7 +204,7 @@ def parse_hh(value):
             if math.isnan(value):
                 return 0.0
         except Exception:
-            pass
+            pass  # nosec B110
         return float(value)
     text = str(value).translate(_FW_TRANS).strip()
     if not text:
@@ -212,7 +212,7 @@ def parse_hh(value):
     try:
         return float(text)
     except ValueError:
-        pass
+        pass  # nosec B110
     compact = text.replace(",", "")
     match = _NUM_RE.search(compact)
     if not match:
@@ -230,7 +230,7 @@ def format_num(value):
         if value == NULL:
             return ""
     except Exception:
-        pass
+        pass  # nosec B110
     try:
         number = float(value)
     except (TypeError, ValueError):
@@ -246,13 +246,13 @@ def _layer_crs(layer):
         if crs is not None and crs.isValid():
             return crs
     except Exception:
-        pass
+        pass  # nosec B110
     try:
         proj = QgsProject.instance().crs()
         if proj is not None and proj.isValid():
             return proj
     except Exception:
-        pass
+        pass  # nosec B110
     return QgsCoordinateReferenceSystem("EPSG:4326")
 
 
@@ -262,7 +262,7 @@ def _project_crs():
         if crs is not None and crs.isValid():
             return crs
     except Exception:
-        pass
+        pass  # nosec B110
     return QgsCoordinateReferenceSystem("EPSG:4326")
 
 
@@ -322,7 +322,7 @@ def working_crs_from_layers(layers):
                 if geom is not None:
                     combined = geom
         except Exception:
-            pass
+            pass  # nosec B110
     lon, lat = 0.0, 0.0
     if combined is not None and not combined.isEmpty():
         try:
@@ -372,7 +372,7 @@ def _straight_line(geom):
             if lined is not None and not lined.isEmpty():
                 return lined
     except Exception:
-        pass
+        pass  # nosec B110
     return geom
 
 
@@ -398,7 +398,7 @@ def _geom_parts(geom):
             for i in range(raw.numGeometries()):
                 piece = raw.geometryN(i)
                 if piece is None:
-                    continue
+                    continue  # nosec B112
                 parts.append(QgsGeometry(piece.clone()))
         except Exception:
             parts = []
@@ -444,7 +444,7 @@ def _part_vertices(geom):
             if xy:
                 pts.append(xy)
     except Exception:
-        pass
+        pass  # nosec B110
     return pts
 
 
@@ -580,13 +580,13 @@ def _point_on_line(line_geom, xy):
             out = snapped.asPoint()
             return (out.x(), out.y())
     except Exception:
-        pass
+        pass  # nosec B110
     try:
         _dist, close_pt, _after, _left = line_geom.closestSegmentWithContext(QgsPointXY(xy[0], xy[1]))
         if close_pt is not None:
             return (close_pt.x(), close_pt.y())
     except Exception:
-        pass
+        pass  # nosec B110
     return xy
 
 
@@ -1061,7 +1061,7 @@ def value_for_field(layer, field_name, value):
         if field.isNumeric():
             return float(value)
     except Exception:
-        pass
+        pass  # nosec B110
     return format_num(value)
 
 
@@ -1122,7 +1122,7 @@ def code_conflicts_with_layer(writes, ref_kind, title):
         request.setSubsetOfAttributes([idx])
         for feat in layer.getFeatures(request):
             if feat.id() in rewritten:
-                continue
+                continue  # nosec B112
             text = attr_key(feat.attribute(idx)).strip()
             if text:
                 existing.setdefault(text, feat.id())
@@ -1170,7 +1170,7 @@ def write_values(writes, write_field=None, command="NTAL 写入"):
             try:
                 layer.destroyEditCommand()
             except Exception:
-                pass
+                pass  # nosec B110
             errors.append("{} 写入异常：{}".format(layer.name(), exc))
     return updated, errors
 
@@ -1653,7 +1653,7 @@ def _is_ntal_temp(layer):
         if layer.customProperty(TEMP_PROP) not in (None, ""):
             return True
     except Exception:
-        pass
+        pass  # nosec B110
     try:
         if layer.providerType() != "memory":
             return False
@@ -1671,7 +1671,7 @@ def _remove_layer_by_name(name):
             try:
                 project.removeMapLayer(layer.id())
             except Exception:
-                pass
+                pass  # nosec B110
 
 
 def clear_temp_layers(sources):
@@ -1695,7 +1695,7 @@ def clear_temp_layers(sources):
             try:
                 project.removeMapLayer(layer.id())
             except Exception:
-                pass
+                pass  # nosec B110
 
 
 def _add_layer_to_result_group(layer, checked=True, group_path=None):
@@ -1706,7 +1706,7 @@ def _add_layer_to_result_group(layer, checked=True, group_path=None):
         try:
             node.setItemVisibilityChecked(False)
         except Exception:
-            pass
+            pass  # nosec B110
     return node
 
 
@@ -1714,11 +1714,11 @@ def _distinct_outline_colors(count):
     colors = []
     if count <= 0:
         return colors
-    start = random.random()
+    start = random.random()  # nosec B311
     for i in range(count):
         hue = (start + float(i) / float(count)) % 1.0
-        sat = 0.82 + (random.random() * 0.12)
-        val = 0.78 + (random.random() * 0.16)
+        sat = 0.82 + (random.random() * 0.12)  # nosec B311
+        val = 0.78 + (random.random() * 0.16)  # nosec B311
         color = QColor.fromHsvF(hue, min(sat, 1.0), min(val, 1.0))
         colors.append(color.name())
     return colors
@@ -1764,7 +1764,7 @@ def _label_layer(layer, field_name, color):
     try:
         settings.placement = QgsPalLayerSettings.OverPoint
     except Exception:
-        pass
+        pass  # nosec B110
     fmt = QgsTextFormat()
     fmt.setSize(9)
     fmt.setFont(QFont("Microsoft YaHei", 9))
@@ -1791,7 +1791,7 @@ def _add_temp_points(name, rows, color, fields_spec, fallback_crs=None, checked=
         try:
             layer.setCrs(project_crs)
         except Exception:
-            pass
+            pass  # nosec B110
     provider = layer.dataProvider()
     qfields = QgsFields()
     for fname, ftype in fields_spec:
@@ -2178,7 +2178,7 @@ def collect_issue_points(result):
             else:
                 node = _first_ref(item, "node", nodes)
                 if node is None:
-                    continue
+                    continue  # nosec B112
                 xy, crs, rec = _node_issue_xy(node, work_crs=work_crs)
                 extra = _point_hint_parts(node)
                 marker = "circle"

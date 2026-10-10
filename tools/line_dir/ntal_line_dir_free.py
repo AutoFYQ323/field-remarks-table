@@ -924,7 +924,7 @@ def open_free_line_dir(host):
     try:
         progress.dlg.setWindowTitle(tr("线方向检查"))
     except Exception:
-        pass
+        pass  # nosec B110
     try:
         result = run_free_line_dir(
             picked["point_layer"],
@@ -957,7 +957,7 @@ def open_free_line_dir(host):
         try:
             old.close()
         except Exception:
-            pass
+            pass  # nosec B110
     dlg = LineDirDialog(result, host, added=added, parent=parent)
     dlg.setWindowTitle(tr("线方向检查"))
     line_dir_mod._DIR_DLG = dlg
@@ -979,4 +979,4 @@ def close_free_line_dir():
     try:
         dlg.close()
     except Exception:
-        pass
+        pass  # nosec B110

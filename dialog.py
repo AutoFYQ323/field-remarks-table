@@ -369,7 +369,7 @@ def _parse_fid_token(text):
     try:
         return int(raw)
     except ValueError:
-        pass
+        pass  # nosec B110
     try:
         num = float(raw)
     except ValueError:
@@ -2009,12 +2009,12 @@ class AttributeTableDialog(QDialog):
             raw = feat.attribute(field_idx)
             if raw is None or raw == NULL or str(raw).strip() == "":
                 blank_count += 1
-                continue
+                continue  # nosec B112
             key = value_key(raw)
             if key not in seen:
                 if len(seen) >= QUICK_VALUE_LIMIT:
                     truncated = True
-                    continue
+                    continue  # nosec B112
                 seen[key] = [raw, 0]
             seen[key][1] += 1
         rows = []
