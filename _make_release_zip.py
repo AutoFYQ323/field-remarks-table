@@ -5,7 +5,7 @@ import zipfile
 
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 PLUGIN_NAME = "attribute_table"
-OUT = os.path.join(os.path.dirname(PLUGIN_DIR), "attribute_table-1.18.5.zip")
+OUT = os.path.join(os.path.dirname(PLUGIN_DIR), "attribute_table-1.18.6.zip")
 
 SKIP_DIRS = {".git", "__pycache__", ".cursor", ".vscode"}
 SKIP_FILES = {".bandit", "_make_release_zip.py", "_bandit_fix.py"}

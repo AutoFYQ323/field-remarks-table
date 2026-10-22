@@ -154,7 +154,7 @@ class AttributeTablePlugin:
             QMessageBox.information(
                 self.iface.mainWindow(),
                 PLUGIN_TITLE,
-                tr("Please select a vector layer first.\n请先选择一个矢量图层。"),
+                tr("请先选择一个矢量图层"),
             )
             return
 

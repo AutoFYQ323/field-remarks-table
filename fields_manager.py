@@ -253,13 +253,13 @@ class FieldsManagerDialog(QDialog):
             self.btn_remarks.setEnabled(self.layer is not None and self._remarks is not None)
         tips = []
         if not editing:
-            tips.append("请先切换到编辑模式")
+            tips.append(tr("请先切换到编辑模式"))
         if editing and not can_rename:
-            tips.append("当前数据源不支持字段重命名")
+            tips.append(tr("当前数据源不支持字段重命名"))
         if editing and not can_add:
-            tips.append("当前数据源不支持添加字段")
+            tips.append(tr("当前数据源不支持添加字段"))
         if tips:
-            self.setWindowTitle(tr("字段管理 — ") + "；".join(tips))
+            self.setWindowTitle(tr("字段管理 — %s") % tr("；").join(tips))
         else:
             self.setWindowTitle(tr("字段管理"))
 

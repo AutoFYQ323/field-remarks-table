@@ -73,7 +73,7 @@ class LayerCheckCombo(QComboBox):
         except Exception:
             pass  # nosec B110
         try:
-            self.lineEdit().setPlaceholderText("未选")
+            self.lineEdit().setPlaceholderText(tr("未选"))
             self.lineEdit().installEventFilter(self)
         except Exception:
             pass  # nosec B110
@@ -186,7 +186,7 @@ class LayerCheckCombo(QComboBox):
             if key in seen:
                 continue
             seen.add(key)
-            label = cat.label() or key or "(空)"
+            label = cat.label() or key or tr("(空)")
             rows.append((key, label))
         return field, rows
 
@@ -224,10 +224,10 @@ class LayerCheckCombo(QComboBox):
         text = ", ".join(parts)
         try:
             self.lineEdit().setText(text)
-            self.lineEdit().setPlaceholderText("未选")
+            self.lineEdit().setPlaceholderText(tr("未选"))
         except Exception:
             pass  # nosec B110
-        self.setToolTip(text or "未选")
+        self.setToolTip(text or tr("未选"))
 
     def showPopup(self):
         if self._tree.isVisible():

@@ -14,7 +14,7 @@ or the layer context menu.</p>
 <li><b>Paste-back</b> keeps feature ids. Edit values only. Do not change the <b>#fid</b> column.</li>
 <li><b>Top bar</b>: pin, scope, freeze, filter, search. The second filter box opens when you click anywhere in it, and each value shows how many features have it.</li>
 <li><b>Scope</b>: all features, selected, visible on the map, or edited in this session.</li>
-<li><b>Fill bar</b> (edit mode only): constant, blanks only, sequence, prefix + sequence, sequence around text, add text, expression, replace.</li>
+<li><b>Fill bar</b> (edit mode only): constant, sequence around text, add text, expression, replace. The in-plugin Help window has the full pages.</li>
 <li><b>Themes</b>: Default (native QGIS), Sakura pink, Mint. The choice is remembered on this computer.</li>
 <li><b>Field remarks</b> opens the pack window. Packs holds New, Delete, and Rename. Import / Export holds both actions. Enable applies the pack to layer fields.</li>
 <li><b>Unmatched packs</b>: you can copy the current pack to a new name. Layers and fields that do not match this project are listed and dropped from the copy.</li>

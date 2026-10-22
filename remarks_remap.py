@@ -473,36 +473,37 @@ def _join_names(items, limit=4):
     items = [str(x) for x in items if x]
     if not items:
         return ""
+    sep = tr("、")
     if len(items) <= limit:
-        return "、".join(items)
-    return "、".join(items[:limit]) + " 等%s项" % len(items)
+        return sep.join(items)
+    return sep.join(items[:limit]) + tr(" 等%s项") % len(items)
 
 
 def self_check_summary(session):
     """Short status for the hub footer: current pack vs this QGIS project."""
     if getattr(session, "is_placeholder", None) and session.is_placeholder():
-        return "「默认（不可修改）」为占位项目，请新建或选择一套配置。"
+        return tr("「默认（不可修改）」为占位项目，请新建或选择一套配置。")
     layers_map = {}
     try:
         layers_map = dict(session._layers())
     except Exception:
         layers_map = {}
     if not pack_has_config(layers_map):
-        return "当前项目还没有图层配置。"
+        return tr("当前项目还没有图层配置。")
     qgis_layers = project_vector_layers()
     if not qgis_layers:
-        return "当前工程没有矢量图层，无法核对配置。"
+        return tr("当前工程没有矢量图层，无法核对配置。")
     missing_layers, field_orphans = collect_orphans(layers_map, qgis_layers)
     if not missing_layers and not field_orphans:
-        return "配置的图层、字段全部有效。"
+        return tr("配置的图层、字段全部有效。")
     parts = []
     if missing_layers:
-        parts.append("图层对不上：%s" % _join_names(missing_layers))
+        parts.append(tr("图层对不上：%s") % _join_names(missing_layers))
     field_names = [
         "%s.%s" % (lname, fname)
         for lname, fields in field_orphans.items()
         for fname in fields
     ]
     if field_names:
-        parts.append("字段对不上：%s" % _join_names(field_names))
-    return "；".join(parts) or "配置的图层、字段全部有效。"
+        parts.append(tr("字段对不上：%s") % _join_names(field_names))
+    return tr("；").join(parts) or tr("配置的图层、字段全部有效。")

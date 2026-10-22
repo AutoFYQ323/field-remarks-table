@@ -615,10 +615,10 @@ def _feature_label_from_edge(edge):
 
 def _filter_caption(flt):
     if not flt:
-        return "全部"
+        return tr("全部")
     labels = flt.get("labels") or flt.get("keys") or []
     if not labels:
-        return "无"
+        return tr("无")
     if len(labels) <= 2:
         return ",".join(str(item) for item in labels)
     return tr("{}类").format(len(labels))

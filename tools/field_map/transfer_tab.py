@@ -56,7 +56,8 @@ from .field_transfer import (
 )
 from .mapping_store import load_mapping_config, save_mapping_config
 
-SKIP_LABEL = tr("（不映射）")
+def skip_label():
+    return tr("（不映射）")
 DUP_COMBO_STYLE = (
     "QComboBox { background: #ffebee; color: #c62828; font-weight: bold;"
     " border: 1px solid #e57373; }"
@@ -117,7 +118,8 @@ class TransferTab(QWidget):
         layout.setContentsMargins(8, 8, 8, 8)
         layout.setSpacing(6)
 
-        layer_box = QGroupBox(tr("图层选择"))
+        self.layer_box = QGroupBox(tr("图层选择"))
+        layer_box = self.layer_box
         layer_form = QFormLayout(layer_box)
 
         self.source_filter = self._make_filter_combo()
@@ -135,8 +137,10 @@ class TransferTab(QWidget):
         target_row.addWidget(self.target_filter)
         target_row.addWidget(self.target_combo, 1)
 
-        layer_form.addRow(tr("源图层"), source_row)
-        layer_form.addRow(tr("目标图层"), target_row)
+        self.lbl_source_row = QLabel(tr("源图层"))
+        self.lbl_target_row = QLabel(tr("目标图层"))
+        layer_form.addRow(self.lbl_source_row, source_row)
+        layer_form.addRow(self.lbl_target_row, target_row)
         layout.addWidget(layer_box)
 
         self.lbl_unused = QLabel(tr("未匹配源字段："))
@@ -199,7 +203,8 @@ class TransferTab(QWidget):
         self.mapping_table.setMinimumSize(0, 0)
         layout.addWidget(self.mapping_table, 1)
 
-        opt_box = QGroupBox(tr("复制选项"))
+        self.opt_box = QGroupBox(tr("复制选项"))
+        opt_box = self.opt_box
         opt_layout = QHBoxLayout(opt_box)
         self.only_selected_cb = QCheckBox(tr("仅复制源图层中选中的要素"))
         self.reproject_cb = QCheckBox(tr("坐标系不同时自动重投影到目标图层"))
@@ -220,6 +225,42 @@ class TransferTab(QWidget):
         self.save_btn.clicked.connect(self._save_clicked)
         self.load_file_btn.clicked.connect(self._load_from_file)
         self.transfer_btn.clicked.connect(self._run_transfer)
+
+    def apply_language(self):
+        self.layer_box.setTitle(tr("图层选择"))
+        self.lbl_source_row.setText(tr("源图层"))
+        self.lbl_target_row.setText(tr("目标图层"))
+        self.load_file_btn.setText(tr("从文件加载…"))
+        self.chk_fuzzy.setText(tr("模糊匹配"))
+        self.chk_fuzzy.setToolTip(
+            tr('用于「按名称自动匹配」：去掉空格/下划线后仍唯一，或一方名称包含另一方且只能唯一配对时才自动填入。')
+        )
+        self.chk_hide_matched.setText(tr("隐藏已匹配源字段"))
+        self.chk_hide_matched.setToolTip(
+            tr('开启时：已经配给某一目标字段的源字段，不再出现在其它行的下拉里。关闭后可把同一源字段配给多个目标字段，重复项会标红。')
+        )
+        self.auto_match_btn.setText(tr("按名称自动匹配"))
+        self.clear_map_btn.setText(tr("清空映射"))
+        self.refresh_btn.setText(tr("刷新图层列表"))
+        self.save_btn.setText(tr("保存"))
+        self.transfer_btn.setText(tr("开始复制"))
+        self.mapping_table.setHorizontalHeaderLabels(
+            [tr("目标字段"), tr("目标类型"), tr("目标别名"), tr("源字段")]
+        )
+        self.opt_box.setTitle(tr("复制选项"))
+        self.only_selected_cb.setText(tr("仅复制源图层中选中的要素"))
+        self.reproject_cb.setText(tr("坐标系不同时自动重投影到目标图层"))
+        for combo in (self.source_filter, self.target_filter):
+            current = combo.currentData()
+            combo.blockSignals(True)
+            for i, key in enumerate((FILTER_ALL, FILTER_POINT, FILTER_LINE, FILTER_POLYGON)):
+                if i < combo.count() and combo.itemData(i) == key:
+                    combo.setItemText(i, tr(FILTER_LABELS[key]))
+            idx = combo.findData(current)
+            if idx >= 0:
+                combo.setCurrentIndex(idx)
+            combo.blockSignals(False)
+        self._rebuild_source_combos()
 
     def _make_filter_combo(self):
         combo = QComboBox()
@@ -358,7 +399,7 @@ class TransferTab(QWidget):
 
     def _make_source_combo(self, keep_name="", used_others=None):
         combo = NoWheelComboBox()
-        combo.addItem(SKIP_LABEL, "")
+        combo.addItem(skip_label(), "")
         hide_used = self.chk_hide_matched.isChecked()
         used_others = used_others or set()
         for src_name in self._source_field_names():
@@ -493,7 +534,7 @@ class TransferTab(QWidget):
             src_name = mapping.get(target_names[row], "")
             combo.blockSignals(True)
             combo.clear()
-            combo.addItem(SKIP_LABEL, "")
+            combo.addItem(skip_label(), "")
             for src_opt in source_names:
                 combo.addItem(self._source_field_label(src_opt), src_opt)
             idx = combo.findData(src_name) if src_name else 0
