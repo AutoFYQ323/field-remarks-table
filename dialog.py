@@ -98,46 +98,6 @@ def plugin_version():
     return "—"
 
 
-HELP_HTML = """
-<h3>Field Remarks Table — 功能说明（版本 __VERSION__）</h3>
-<p><b>English:</b> Complementary attribute table for vector layers. It does not replace
-QGIS built-in Attribute Table (F6). Open from the toolbar, <b>Vector &gt; Field Remarks Table</b>,
-or the layer context menu. Field-remark packs, pack variables, quick naming from symbology,
-batch fill, paste-by-feature-id, KMZ/CSV export. Interface language: Simplified Chinese.</p>
-<ul>
-<li><b>双击左侧序号</b>：选中该要素并缩放到地图。</li>
-<li><b>左键单击列标题</b>：按该列智能排序（文本型数字按数值排）。</li>
-<li><b>排序后状态栏右侧</b>：纯数字列显示「筛选/全部合计」；非数字列显示「重名」检测（忽略大小写），有重名红色、无重名绿色。</li>
-<li><b>框选/点选单元格</b>：约 500 毫秒后在同一位置统计所选值——纯数字显示数量与总和；否则查重名（点表头整列统计仍保留）。</li>
-<li><b>列标题右键</b>：复制本列 / 复制本列（含表头）/ 复制本列（可回贴）/ 粘贴回本列 / 唯一值统计 / 选中重复值 / 选中空值 / 编辑备注。普通复制只有单元格文字。可回贴会带上要素编号，改完后按编号写回，不按行号对位。日期统一复制成 2024-09-01 这种文字。</li>
-<li><b>唯一值统计</b>：列出本列每个值出现几次、占比，含义列显示值映射/备注描述。统计范围是当前表格里的行（受范围、过滤、筛选影响）。勾选后可「按勾选筛选」（填进顶栏筛选）或「选中勾选要素」，也能复制列表。</li>
-<li><b>选中重复值 / 选中空值</b>：在当前表格行里找出本列重复的值（空值不算）或空值（NULL 或空白），直接在图层上选中，状态栏报条数。</li>
-<li><b>左侧序号右键</b>：「选中第 a–b 行…」按表格显示顺序选行，可写 10-50、1-20,35、80-（到末行）；或「从第 N 行选到末行」。</li>
-<li><b>拖动列标题</b>：仅改变本窗口显示顺序，不改图层字段顺序；关闭窗口后不记忆。</li>
-<li><b>顶栏</b>：第一行从左到右为「钉」→ 范围 → 冻结 → 筛选 → 过滤（含文本框），按窗口宽度分担。第二行是赋值条，只在编辑模式出现。</li>
-<li><b>钉</b>：小按钮。蓝字=未钉住（表随图例当前层切换）；红字=钉住当前图层。</li>
-<li><b>范围</b>：全部要素 / 仅选中 / 地图可见要素（画布范围内，平移缩放后约 500 毫秒刷新）/ 仅已修改（编辑模式下还没保存的新增或改过的要素）。无单独标题。表格为空时状态栏会说明是哪个范围、过滤或筛选挡住了。</li>
-<li><b>未保存修改</b>：编辑模式下改过还没保存的单元格显示淡黄底色，悬停提示「已修改，未保存」；状态栏显示「编辑·未保存（已改 N 条）」。关闭窗口或切图层不弹提示，保存/回滚仍由 QGIS 管。</li>
-<li><b>写入校验</b>：手改单元格、赋值条、快速插入、粘贴回本列都会按字段类型检查。存不下的值（如往整数字段写「abc」、日期写错）跳过不写；小数写进整数字段会四舍五入、文字超出字段长度，写入前弹窗列出例子让你确认。没有问题就不多弹窗。整数/小数/日期列双击是文本框编辑，不会把小数截成两位、也不丢秒。表达式字段和不可编辑的连接字段只读。数字列靠右对齐。</li>
-<li><b>过滤 / 文本框 / 筛选</b>：过滤选字段或所有字段；文本框输入即过滤（固定约 500 毫秒，无延迟选项）。筛选始终显示，是两个下拉：左边选「分类筛选」或某个字段；右边勾选具体项（可多选，满足任一即留下）。选「分类筛选」时右边是图层分类/规则；选字段时右边是该字段的不重复值（空值显示为「(空)」，值映射显示描述）。右边第一项「全部」表示这次不额外筛选。与文本过滤同时生效。</li>
-<li><b>冻结</b>：将指定字段固定到左侧。右侧表出现横向滚动条时，左侧也显示一条同高的（能拖或只占位），两边的行始终对齐。</li>
-<li><b>界面风格</b>（工具栏「色」图标）：默认（QGIS 原生）/ 樱花粉 / 薄荷清新。作用于本插件所有窗口（主表、字段备注、快速命名、字段管理、导出、弹窗等），本机记住。文字一律深色、背景浅色，选中行白字深底，保证看得清。</li>
-<li><b>赋值条</b>（仅编辑模式，单独一行）：常量 / 只填空白 / 序号 / 前缀+序号 / 前后序号 / 前后加字 / 表达式 / 替换，可更新筛选行或选中行。序号、前缀+序号、前后序号可选位数：不补零、自动（按本次最大序号补零，写到 100 则 001），或指定位数（4 位为 0001，超出不截断）。补零只留在文本字段。前后序号是在已有文字前面或后面加上序号（二选一），原文字保留；位数同样可选。例如原文字 JT1、加在后面、自动位数得到 JT11。空白格子只写序号。只填空白只写当前为空的格子，已有内容不动。前后加字只改已有文字，空白不动。常量框可输入字段名（打字弹出下拉，按包含匹配列出全部候选，如 AM 会列出 NAME、NAMF、2NAMG）：整名匹配则把该字段内容写入目标字段；要写入恰好等于字段名的文字，用单引号包起来。替换为字面量部分替换（一格多处全部替换）。</li>
-<li><b>全选 / 反选 / 取消选择</b>：全选、反选针对当前表格筛选结果；取消选择清空图层全部选中。</li>
-<li><b>列宽</b>：点击图标切换。「适」=适配窗口（按去掉换行/超长后的最大内容宽度比例铺满窗口，拉窗口会重算）；「全」=完整显示（按同样规则撑开，可超出窗口）。仍可手动拖列宽。</li>
-<li><b>图层右键 Field Remarks Table</b>：从图例打开本窗口。</li>
-<li><b>字段备注</b>：工具栏图标只负责打开窗口，不是启用开关。彩色=已选真正项目且窗口里已启用（表头会套配置）；灰色=停在「默认（不可修改）」或未启用。管理项目并编辑当前图例图层的字段。「修改名称」右边可树形预览已配置图层/字段：红色为当前工程对不上的图层/字段，默认只显示不匹配项。未启用时图层管理只读，启用后才能改。每次打开 QGIS 都从占位「默认（不可修改）」开始（不能改数据、不能启用）；本次会话里选过的项目一直记住，关掉 QGIS 就回到占位。导入/导出可勾选多个项目。打开窗口、换项目、预览都不会弹匹配；点「启用」才预检图层/字段，对不上再匹配。换项目会先关闭启用，需再点启用。启用开关只决定要不要把配置套到图层字段上（默认关闭）。启用后表头两行：中文名在上、原字段名在下。列标题悬停显示中文名、悬停说明、含义，有这些时不显示原字段名。含义写入值可选常量或粘贴 QGIS 表达式；常量写入值可插入当前项目的变量。列表末项是图层名：只填中文名和悬停说明（图例悬停，不赋值），没有含义列表。值映射字段名称标绿；值映射项不能删除，后面「原」描述不变，可恢复默认。</li>
-<li><b>变量配置</b>：字段备注窗口里、启用旁边。跟当前备注项目走，不是全 QGIS 共用。选了真正项目就能配（不依赖启用开关）；占位「默认（不可修改）」不能配。标题给人看，内容才是写入值。图1 给某一列加含义时点「插入变量」把 {{标题}} 拼进写入值（可再加常量）。插入下拉只出现这条含义。点插入当下才替换成变量当前内容；变量改了含义不用改。删了或改了标题，插入会提示找不到，不写空。导入/导出一并带走。预览点「显示全部」能看到变量列表。QGIS 表达式和值映射项不掺变量。</li>
-<li><b>快速插入行</b>（启用备注且编辑模式）：表格上方与各列对齐。选含义后弹出「更新全部 / 更新筛选项 / 更新选中 / 取消」；取消则保留所选，再用赋值条按钮写入。常量写入等号右侧；含义里的变量按当前项目内容替换后再写，找不到变量则不写并提示。QGIS 含义按表达式逐要素计算，算失败的要素跳过。插入下拉只列本字段已配含义，不会把项目变量直接灌进每一列。</li>
-<li><b>快速命名</b>：独立功能，与字段备注启用无关。入口在属性表工具栏：到「顺序」里勾 <b>工具栏显示快速命名</b> 才出现青绿「快」图标（本地记住，默认不放）。读取分类/规则的全部类别（不管图例勾没勾）。列表括号内是本窗口维护的要素数量：打开/换图层数一次，命名后按刚写的条数加减。标题图层名后的总数=下列分类之和，用来对照 QGIS 图例。钉住图层右边是自动保存下拉（默认「不自动保存」）：不保存还能回滚，图例要等你在 QGIS 里保存才变。选「N秒后保存」则命名后先只写入，约 N 秒再点一次 QGIS 自带的「保存图层编辑」（连续命名按当前秒数重新计时，只存一次），图例由 QGIS 自己刷。关掉窗口会立刻补存。该层未保存修改都会写入，这次不能再撤销。另两个勾选默认都不勾：钉住图层、勾选后点分类不再确认。底部「刷新图例计数」只在你点的时候把当前层符号化原样设回去，逼 QGIS 重算左侧分类 [n]；不改要素、不自动刷。钉住分类图层 A 后：在 A 上选中再点分类=只改属性、不复制；在其他层选中再点分类=把几何复制进 A，再按该类规则给新要素赋值。来源层不改；A 不增加来源字段。点线面须同类。</li>
-<li><b>值映射下拉</b>：QGIS 设了值映射的字段，本表也可下拉选描述，写入仍是字段值。</li>
-<li><b>工具栏最右侧「顺序」</b>：自定义按钮顺序，本地保存。</li>
-<li><b>复制 / 剪切 / 粘贴</b>：Ctrl+C 复制当前选中单元格的值（Tab/换行，不带几何）；工具栏「复制」仍复制整条要素。剪切、粘贴要素需编辑模式。要改完贴回筛选行：列标题用「复制本列（可回贴）」（当前筛选的全部行，含未滚到的）。剪贴板只有两列：编号、字段值。第一列表头以 <b>#fid</b> 开头，不要改、不要删；在外面只改第二列。再点「粘贴回本列」或 Ctrl+V。按编号写回，与当前筛选顺序无关。编号对不上、重复、来自别的图层，或值列整列都是空的，则一条都不写，避免把原数据清掉。Ctrl+V 会在状态栏说明这次是「按编号粘贴回列」还是「按 QGIS 要素粘贴（新增要素）」。</li>
-<li><b>导出 KMZ</b>：可勾「只导出当前表格里的行」（默认导出全部）、「使用图层颜色」（单一/分类/分级符号上色，规则符号不上色）。多点要素导出为多个点；日期按 2024-09-01 写入描述。坐标转换失败会报错而不是悄悄导出错位置。</li>
-<li><b>删除字段</b>（字段管理）：如果该字段在当前备注项目里有中文名/说明/含义，会问是否一并删掉这条备注。</li>
-<li><b>窗口大小</b>：本次 QGIS 会话内记住；退出 QGIS 后不保留。</li>
-</ul>
-"""
 
 FILTER_DELAY_MS = 500
 
@@ -1006,7 +966,113 @@ class AttributeTableDialog(QDialog):
                     combo.setItemText(i, scope_labels[key])
         if hasattr(self, "cmb_quick_filter"):
             self._fill_quick_values(set(self.cmb_quick_filter.checked_payloads()))
+        if hasattr(self, "cmb_scope"):
+            self.cmb_scope.setToolTip(
+                tr("范围：全部要素 / 仅选中 / 地图可见要素（画布范围内，平移缩放后约 500 毫秒刷新）"
+                " / 仅已修改（本次编辑里改过、新增、还没保存的要素）")
+            )
+        if hasattr(self, "cmb_quick_mode"):
+            self.cmb_quick_mode.setToolTip(tr("分类筛选，或选择一个字段按其取值筛选"))
+        self._sync_pin_button()
+        self._retranslate_fill_bar()
         self._update_status()
+
+    def _fill_mode_tip(self):
+        return tr(
+            "常量：直接填 1 或文字；也可输入字段名引用其内容\n"
+            "前后序号：在已有文字前面或后面加上序号（只选一边），原文字保留，序号用位数补零\n"
+            "前后加字：在已有文字前或后追加，空白不动\n"
+            "表达式：QGIS 表达式\n"
+            "替换：对目标字段做部分文字替换（一格多处全部替换）"
+        )
+
+    def _retranslate_fill_bar(self):
+        if not hasattr(self, "cmb_fill_mode"):
+            return
+        if hasattr(self, "lbl_fill"):
+            self.lbl_fill.setText(tr("赋值："))
+        if hasattr(self, "btn_pin"):
+            self.btn_pin.setText(tr("钉"))
+        modes = (
+            ("常量", "const"),
+            ("前后序号", "around_seq"),
+            ("前后加字", "affix"),
+            ("表达式", "expr"),
+            ("替换", "replace"),
+        )
+        combo = self.cmb_fill_mode
+        current = combo.currentData()
+        combo.blockSignals(True)
+        for i, (msgid, data) in enumerate(modes):
+            if i < combo.count() and combo.itemData(i) == data:
+                combo.setItemText(i, tr(msgid))
+        if current in ("blank", "seq", "prefix_seq"):
+            idx = combo.findData("const")
+            if idx >= 0:
+                combo.setCurrentIndex(idx)
+        combo.blockSignals(False)
+        combo.setToolTip(self._fill_mode_tip())
+        if hasattr(self, "lbl_fill_width"):
+            self.lbl_fill_width.setText(tr("位数"))
+        if hasattr(self, "cmb_fill_width"):
+            width = self.cmb_fill_width
+            width.blockSignals(True)
+            labels = { "none": tr("不补零"), "auto": tr("自动") }
+            for i in range(width.count()):
+                data = width.itemData(i)
+                if data in labels:
+                    width.setItemText(i, labels[data])
+                elif isinstance(data, int):
+                    width.setItemText(i, tr("%d位") % data)
+            width.blockSignals(False)
+            width.setToolTip(
+                tr("不补零：1、2、3\n"
+                "自动：按本次最大序号的位数补零。从 1 写到 100 为 001，写到 1000 为 0001\n"
+                "指定位数：4 位为 0001。超出位数不截断（10000 仍是 10000）\n"
+                "前导零只留在文本字段")
+            )
+        if hasattr(self, "lbl_fill_seq_side"):
+            self.lbl_fill_seq_side.setText(tr("加在"))
+        if hasattr(self, "cmb_fill_seq_side"):
+            side = self.cmb_fill_seq_side
+            side.blockSignals(True)
+            for i in range(side.count()):
+                data = side.itemData(i)
+                if data == "after":
+                    side.setItemText(i, tr("后面"))
+                elif data == "before":
+                    side.setItemText(i, tr("前面"))
+            side.blockSignals(False)
+            side.setToolTip(tr("序号加在已有文字的前面或后面，只选一边。原文字保留。"))
+        if hasattr(self, "lbl_fill_prefix"):
+            self.lbl_fill_prefix.setText(tr("前面"))
+        if hasattr(self, "ed_fill_prefix"):
+            self.ed_fill_prefix.setPlaceholderText(tr("加在现有文字前，可空"))
+            self.ed_fill_prefix.setToolTip(tr("加在已有文字前面。空白单元格不会被改成只有这段字。"))
+        if hasattr(self, "lbl_fill_suffix"):
+            self.lbl_fill_suffix.setText(tr("后面"))
+        if hasattr(self, "ed_fill_suffix"):
+            self.ed_fill_suffix.setPlaceholderText(tr("加在现有文字后，可空"))
+            self.ed_fill_suffix.setToolTip(tr("加在已有文字后面。空白单元格不动。"))
+        if hasattr(self, "lbl_fill_find"):
+            self.lbl_fill_find.setText(tr("替换前"))
+        if hasattr(self, "ed_fill_find"):
+            self.ed_fill_find.setPlaceholderText(tr("要替换的文字（部分匹配）"))
+        if hasattr(self, "lbl_fill_replace"):
+            self.lbl_fill_replace.setText(tr("替换后"))
+        if hasattr(self, "ed_fill_replace"):
+            self.ed_fill_replace.setPlaceholderText(tr("替换成…（可空=删除该段）"))
+        if hasattr(self, "cmb_fill_preset"):
+            self.cmb_fill_preset.setToolTip(tr("常用值：点选填入常量"))
+        if hasattr(self, "btn_fill_expr"):
+            self.btn_fill_expr.setToolTip(tr("打开表达式构建器"))
+        if hasattr(self, "btn_fill_filtered"):
+            self.btn_fill_filtered.setText(tr("更新筛选行"))
+            self.btn_fill_filtered.setToolTip(tr("更新当前表格筛选后的全部行（含未滚到的）"))
+        if hasattr(self, "btn_fill_selected"):
+            self.btn_fill_selected.setText(tr("更新选中"))
+            self.btn_fill_selected.setToolTip(tr("仅更新地图/表中已选中的要素"))
+        self._on_fill_mode_changed()
 
     def _resolved_toolbar_order(self):
         saved = self._settings.load_toolbar_order()
@@ -1448,7 +1514,7 @@ class AttributeTableDialog(QDialog):
         filter_group = self._theme_host("filterGroup")
         filter_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         filter_lay = filter_group.layout()
-        self.lbl_search = self._theme_label("过滤", "#2a5a32")
+        self.lbl_search = self._theme_label(tr("过滤"), "#2a5a32")
         filter_lay.addWidget(self.lbl_search)
         self.cmb_filter_field = QComboBox()
         self._make_combo_shrinkable(self.cmb_filter_field, min_chars=5, min_px=72)
@@ -1469,7 +1535,7 @@ class AttributeTableDialog(QDialog):
         screen_group = self._theme_host("screenGroup")
         screen_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         screen_lay = screen_group.layout()
-        self.lbl_quick_filter = self._theme_label("筛选", "#8a3a3a")
+        self.lbl_quick_filter = self._theme_label(tr("筛选"), "#8a3a3a")
         screen_lay.addWidget(self.lbl_quick_filter)
         self.cmb_quick_mode = QComboBox()
         self._make_combo_shrinkable(self.cmb_quick_mode, min_chars=4, min_px=72)
@@ -1488,7 +1554,7 @@ class AttributeTableDialog(QDialog):
         freeze_group = self._theme_host("freezeGroup")
         freeze_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
         freeze_lay = freeze_group.layout()
-        self.lbl_freeze = self._theme_label("冻结", "#6a5420")
+        self.lbl_freeze = self._theme_label(tr("冻结"), "#6a5420")
         freeze_lay.addWidget(self.lbl_freeze)
         self.cmb_freeze = QComboBox()
         self._make_combo_shrinkable(self.cmb_freeze, min_chars=8, min_px=96)
@@ -1510,7 +1576,8 @@ class AttributeTableDialog(QDialog):
         fill = QHBoxLayout(self.fill_bar)
         fill.setContentsMargins(0, 2, 0, 0)
         fill.setSpacing(4)
-        fill.addWidget(self._theme_label("赋值：", "#4a3d66"))
+        self.lbl_fill = self._theme_label(tr("赋值："), "#4a3d66")
+        fill.addWidget(self.lbl_fill)
         self.cmb_fill_field = QComboBox()
         self._make_combo_shrinkable(self.cmb_fill_field, min_chars=8, min_px=100)
         self.cmb_fill_field.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
@@ -1521,23 +1588,11 @@ class AttributeTableDialog(QDialog):
         fill.addWidget(self._theme_label("=", "#4a3d66"))
         self.cmb_fill_mode = QComboBox()
         self.cmb_fill_mode.addItem(tr("常量"), "const")
-        self.cmb_fill_mode.addItem(tr("只填空白"), "blank")
-        self.cmb_fill_mode.addItem(tr("序号"), "seq")
-        self.cmb_fill_mode.addItem(tr("前缀+序号"), "prefix_seq")
         self.cmb_fill_mode.addItem(tr("前后序号"), "around_seq")
         self.cmb_fill_mode.addItem(tr("前后加字"), "affix")
         self.cmb_fill_mode.addItem(tr("表达式"), "expr")
         self.cmb_fill_mode.addItem(tr("替换"), "replace")
-        self.cmb_fill_mode.setToolTip(
-            tr("常量：直接填 1 或文字；也可输入字段名引用其内容\n"
-            "只填空白：同上，但已有内容的格子不动\n"
-            "序号：按当前表筛选顺序递增。位数可选不补零、自动或指定位数\n"
-            "前缀+序号：如填 A，不补零为 A1、A2；4 位为 A0001\n"
-            "前后序号：在已有文字前面或后面加上序号（只选一边），原文字保留，序号用位数补零\n"
-            "前后加字：在已有文字前或后追加，空白不动\n"
-            "表达式：QGIS 表达式\n"
-            "替换：对目标字段做部分文字替换（一格多处全部替换）")
-        )
+        self.cmb_fill_mode.setToolTip(self._fill_mode_tip())
         self._make_combo_shrinkable(self.cmb_fill_mode, min_chars=5, min_px=96)
         self._theme_combo(self.cmb_fill_mode, "#7b5ea8")
         self.cmb_fill_mode.currentIndexChanged.connect(self._on_fill_mode_changed)
@@ -1545,7 +1600,7 @@ class AttributeTableDialog(QDialog):
         self._fill_width_group = self._theme_host("fillWidthGroup")
         self._fill_width_group.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         width_lay = self._fill_width_group.layout()
-        self.lbl_fill_width = self._theme_label("位数", "#2a4568")
+        self.lbl_fill_width = self._theme_label(tr("位数"), "#2a4568")
         self.cmb_fill_width = QComboBox()
         self.cmb_fill_width.addItem(tr("不补零"), "none")
         self.cmb_fill_width.addItem(tr("自动"), "auto")
@@ -1565,7 +1620,7 @@ class AttributeTableDialog(QDialog):
         self._fill_side_group = self._theme_host("fillSideGroup")
         self._fill_side_group.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
         side_lay = self._fill_side_group.layout()
-        self.lbl_fill_seq_side = self._theme_label("加在", "#6a4530")
+        self.lbl_fill_seq_side = self._theme_label(tr("加在"), "#6a4530")
         self.cmb_fill_seq_side = QComboBox()
         self.cmb_fill_seq_side.addItem(tr("后面"), "after")
         self.cmb_fill_seq_side.addItem(tr("前面"), "before")
@@ -1575,7 +1630,7 @@ class AttributeTableDialog(QDialog):
         side_lay.addWidget(self.lbl_fill_seq_side)
         side_lay.addWidget(self.cmb_fill_seq_side)
         fill.addWidget(self._fill_side_group)
-        self.lbl_fill_prefix = self._theme_label("前面", "#4a3d66")
+        self.lbl_fill_prefix = self._theme_label(tr("前面"), "#4a3d66")
         self.ed_fill_prefix = QLineEdit()
         self.ed_fill_prefix.setClearButtonEnabled(True)
         self.ed_fill_prefix.setPlaceholderText(tr("加在现有文字前，可空"))
@@ -1584,7 +1639,7 @@ class AttributeTableDialog(QDialog):
         self.ed_fill_prefix.setToolTip(tr("加在已有文字前面。空白单元格不会被改成只有这段字。"))
         fill.addWidget(self.lbl_fill_prefix)
         fill.addWidget(self.ed_fill_prefix, 1)
-        self.lbl_fill_suffix = self._theme_label("后面", "#4a3d66")
+        self.lbl_fill_suffix = self._theme_label(tr("后面"), "#4a3d66")
         self.ed_fill_suffix = QLineEdit()
         self.ed_fill_suffix.setClearButtonEnabled(True)
         self.ed_fill_suffix.setPlaceholderText(tr("加在现有文字后，可空"))
@@ -1623,7 +1678,7 @@ class AttributeTableDialog(QDialog):
         self._fill_field_completer.setMaxVisibleItems(12)
         self.ed_fill.setCompleter(self._fill_field_completer)
         fill.addWidget(self.ed_fill, 1)
-        self.lbl_fill_find = self._theme_label("替换前", "#4a3d66")
+        self.lbl_fill_find = self._theme_label(tr("替换前"), "#4a3d66")
         fill.addWidget(self.lbl_fill_find)
         self.ed_fill_find = QLineEdit()
         self.ed_fill_find.setClearButtonEnabled(True)
@@ -1631,7 +1686,7 @@ class AttributeTableDialog(QDialog):
         self.ed_fill_find.setMinimumWidth(48)
         self._theme_line(self.ed_fill_find, "#7b5ea8")
         fill.addWidget(self.ed_fill_find, 1)
-        self.lbl_fill_replace = self._theme_label("替换后", "#4a3d66")
+        self.lbl_fill_replace = self._theme_label(tr("替换后"), "#4a3d66")
         fill.addWidget(self.lbl_fill_replace)
         self.ed_fill_replace = QLineEdit()
         self.ed_fill_replace.setClearButtonEnabled(True)
@@ -3412,20 +3467,23 @@ class AttributeTableDialog(QDialog):
         self._update_status()
 
     def _show_help(self):
+        from qgis.PyQt.QtWidgets import QTabWidget
+
+        from .i18n import current_language
+        from .i18n.help_pages import pages_for
+
         ver = plugin_version()
         dlg = QDialog(self)
         dlg.setWindowTitle(tr("帮助 — 字段备注表 %s") % ver)
-        dlg.resize(560, 420)
+        dlg.resize(720, 560)
         lay = QVBoxLayout(dlg)
-        browser = QTextBrowser()
-        browser.setOpenExternalLinks(False)
-        from .i18n import current_language
-        from .i18n.catalog import LANG_EN
-        from .i18n.help_en import HELP_HTML_EN
-
-        html = HELP_HTML_EN if current_language() == LANG_EN else HELP_HTML
-        browser.setHtml(html.replace("__VERSION__", ver))
-        lay.addWidget(browser)
+        tabs = QTabWidget()
+        for title, html in pages_for(current_language()):
+            browser = QTextBrowser()
+            browser.setOpenExternalLinks(False)
+            browser.setHtml(html)
+            tabs.addTab(browser, title)
+        lay.addWidget(tabs, 1)
         btns = QDialogButtonBox(QDialogButtonBox.Close)
         localize_button_box(btns)
         btns.rejected.connect(dlg.reject)
@@ -3540,7 +3598,7 @@ class AttributeTableDialog(QDialog):
         is_affix = mode == "affix"
         is_around = mode == "around_seq"
         self.btn_fill_expr.setEnabled(mode == "expr")
-        show_width = mode in ("seq", "prefix_seq", "around_seq")
+        show_width = mode == "around_seq"
         fill_on = not is_replace and not is_affix and not is_around
         if hasattr(self, "ed_fill_find"):
             self.ed_fill.setVisible(fill_on)
@@ -3566,9 +3624,6 @@ class AttributeTableDialog(QDialog):
         self._relayout_fill_bar(is_affix, is_replace, fill_on)
         tips = {
             "const": "常量，或输入字段名引用其内容（如 TYPE；空=NULL）",
-            "blank": "只写入空白单元格。已有内容不动。空=NULL，也可填字段名",
-            "seq": "起始序号，默认 1。位数选自动或指定位数时补零（仅文本字段）",
-            "prefix_seq": "前缀，如 A 或 H1-。位数作用在数字上，如 A001",
             "around_seq": "在已有文字前或后加上序号，原文字保留。空白只写序号",
             "affix": "前面、后面至少填一边。只改已有文字",
             "expr": "QGIS 表达式，如 \"POP\" + 1 或 $id",
@@ -3595,7 +3650,7 @@ class AttributeTableDialog(QDialog):
         if hasattr(self, "cmb_fill_mode"):
             mode = self.cmb_fill_mode.currentData()
         names = []
-        if mode in ("const", "blank"):
+        if mode == "const":
             target = None
             if hasattr(self, "cmb_fill_field"):
                 target = self.cmb_fill_field.currentData()
@@ -3691,7 +3746,7 @@ class AttributeTableDialog(QDialog):
         if hasattr(self, "cmb_fill_mode"):
             mode = self.cmb_fill_mode.currentData()
         has = self.cmb_fill_preset.count() > 1
-        self.cmb_fill_preset.setVisible(mode in ("const", "blank", "expr") and has)
+        self.cmb_fill_preset.setVisible(mode in ("const", "expr") and has)
 
     def _on_fill_preset_chosen(self, index):
         if index <= 0 or not hasattr(self, "ed_fill"):
@@ -4244,9 +4299,6 @@ class AttributeTableDialog(QDialog):
         if mode == "replace":
             self._run_replace(layer, field, field_idx, field_name, fids, selected_only)
             return
-        if mode == "blank":
-            self._run_fill_blank(layer, field, field_idx, field_name, fids, selected_only)
-            return
         if mode == "around_seq":
             self._run_fill_around_seq(layer, field, field_idx, field_name, fids, selected_only)
             return
@@ -4254,46 +4306,19 @@ class AttributeTableDialog(QDialog):
             self._run_fill_affix(layer, field, field_idx, field_name, fids, selected_only)
             return
 
-        seq_start = 1
-        seq_width = 0
-        seq_order = None
-        if mode in ("seq", "prefix_seq"):
-            if mode == "seq" and content.strip():
-                num = try_parse_number(content)
-                if num is None:
-                    QMessageBox.warning(self, tr("赋值"), tr("序号模式请输入起始数字，或留空从 1 开始。"))
-                    return
-                seq_start = int(round(num))
-            seq_order = [fid for fid in self.model.fids() if fid in set(fids)]
-            if selected_only and not seq_order:
-                seq_order = list(fids)
-            width_choice = "none"
-            if hasattr(self, "cmb_fill_width"):
-                width_choice = self.cmb_fill_width.currentData()
-            seq_width = sequence_pad_width(width_choice, seq_start, len(seq_order))
-            if seq_width > 0 and not self._field_stores_text(field):
-                QMessageBox.warning(
-                    self,
-                    tr("赋值"),
-                    tr("补零只会留在文本字段里。当前字段是数字类型，前导零存不住。"
-                    "请改成文本字段，或把位数选成「不补零」。"),
-                )
-                return
-
-        scope_tip = "选中" if selected_only else "筛选"
+        scope_tip = tr("选中") if selected_only else tr("筛选")
         const_kind, const_payload = (None, None)
         if mode == "const":
             const_kind, const_payload = self._parse_const_fill_input(content)
         if not self._pending_targets_all_empty(layer, {field_name: True}, fids):
             if const_kind == "field":
-                confirm_msg = (
+                confirm_msg = tr(
                     "将用字段「%s」的内容写入「%s」共 %s 条（%s）记录，继续？"
-                    % (const_payload, field_name, len(fids), scope_tip)
-                )
+                ) % (const_payload, field_name, len(fids), scope_tip)
             else:
-                confirm_msg = (
-                    f"将向字段「{field_name}」写入 {len(fids)} 条（{scope_tip}）记录，继续？"
-                )
+                confirm_msg = tr(
+                    "将向字段「%s」写入 %s 条（%s）记录，继续？"
+                ) % (field_name, len(fids), scope_tip)
             if (
                 QMessageBox.question(
                     self,
@@ -4333,18 +4358,6 @@ class AttributeTableDialog(QDialog):
                 for fid in fids:
                     values[fid] = val
 
-        elif mode == "seq":
-            for i, fid in enumerate(seq_order):
-                number = seq_start + i
-                raw = format_padded_int(number, seq_width) if seq_width > 0 else number
-                values[fid] = self._coerce_value_for_field(field, raw)
-
-        elif mode == "prefix_seq":
-            prefix = content
-            for i, fid in enumerate(seq_order):
-                token = format_padded_int(i + 1, seq_width)
-                values[fid] = self._coerce_value_for_field(field, "%s%s" % (prefix, token))
-
         elif mode == "expr":
             values = self._eval_fill_expression(layer, field, fids, content)
             if values is None:
@@ -4360,7 +4373,10 @@ class AttributeTableDialog(QDialog):
                     4000,
                 )
             else:
-                self.status.showMessage(f"赋值完成：已更新 {updated} 行 → {field_name}", 4000)
+                self.status.showMessage(
+                    tr("赋值完成：已更新 %s 行 → %s") % (updated, field_name),
+                    4000,
+                )
 
     def _fill_row_order(self, fids, selected_only):
         order = [fid for fid in self.model.fids() if fid in set(fids)]
@@ -4372,72 +4388,6 @@ class AttributeTableDialog(QDialog):
         if hasattr(self, "cmb_fill_width"):
             return self.cmb_fill_width.currentData()
         return "none"
-
-    def _run_fill_blank(self, layer, field, field_idx, field_name, fids, selected_only):
-        content = self.ed_fill.text()
-        kind, payload = self._parse_const_fill_input(content)
-        fetched = self.model._fetch_attributes(fids, [field_idx])
-        empty_fids = [
-            fid
-            for fid in fids
-            if self._attr_is_empty(fetched.get(fid, {}).get(field_idx, NULL))
-        ]
-        if not empty_fids:
-            QMessageBox.information(self, tr("赋值"), tr("范围内没有空白单元格，已有内容不会改。"))
-            return
-        scope_tip = "选中" if selected_only else "筛选"
-        skipped = len(fids) - len(empty_fids)
-        if skipped:
-            if kind == "field":
-                confirm_msg = (
-                    "只把字段「%s」写入「%s」的空白单元格，共 %s 条（%s）。"
-                    "已有内容 %s 条不动。继续？"
-                    % (payload, field_name, len(empty_fids), scope_tip, skipped)
-                )
-            else:
-                confirm_msg = (
-                    "只写入「%s」的空白单元格，共 %s 条（%s）。已有内容 %s 条不动。继续？"
-                    % (field_name, len(empty_fids), scope_tip, skipped)
-                )
-            if QMessageBox.question(self, tr("赋值确认"), confirm_msg) != QMessageBox.Yes:
-                return
-        src_field = None
-        values = {}
-        if kind == "field":
-            src_field = payload
-            copied = self._copy_field_values(layer, field, empty_fids, src_field)
-            if copied is None:
-                QMessageBox.warning(self, tr("赋值"), tr("找不到字段「%s」。") % src_field)
-                return
-            values = copied
-        else:
-            if kind == "null":
-                raw = NULL
-            else:
-                raw = payload
-                if isinstance(raw, str):
-                    resolved, missing = self._resolve_const_write(raw)
-                    if missing:
-                        QMessageBox.information(
-                            self,
-                            tr("赋值"),
-                            tr("变量「%s」不存在，无法写入。") % "、".join(missing),
-                        )
-                        return
-                    raw = resolved
-            val = self._coerce_value_for_field(field, raw)
-            for fid in empty_fids:
-                values[fid] = val
-        updated = self._commit_attribute_values(layer, field_idx, field_name, values, "赋值")
-        if updated:
-            self.status.showMessage(
-                tr("已填空白 %s 行，跳过已有内容 %s 行 → %s") % (updated, skipped, field_name),
-                4000,
-            )
-        elif not skipped:
-            self.status.showMessage(tr("赋值完成：已更新 0 行 → %s") % field_name, 4000)
-        else:
-            self.status.showMessage(tr("空白单元格的值没有变化 → %s") % field_name, 4000)
 
     def _run_fill_around_seq(self, layer, field, field_idx, field_name, fids, selected_only):
         """Add a padded sequence before or after each cell's current text."""
@@ -4469,9 +4419,9 @@ class AttributeTableDialog(QDialog):
                 sample = "%s → %s" % (text, raw)
         if sample is None and order:
             token = format_padded_int(1, width)
-            sample = "（空白）→ %s" % token
-        scope_tip = "选中" if selected_only else "筛选"
-        side = "前面" if place == "before" else "后面"
+            sample = tr("（空白）→ %s") % token
+        scope_tip = tr("选中") if selected_only else tr("筛选")
+        side = tr("前面") if place == "before" else tr("后面")
         if (
             QMessageBox.question(
                 self,
@@ -4512,7 +4462,7 @@ class AttributeTableDialog(QDialog):
         if not values:
             QMessageBox.information(self, tr("赋值"), tr("范围内没有已有文字，空白单元格不会被改。"))
             return
-        scope_tip = "选中" if selected_only else "筛选"
+        scope_tip = tr("选中") if selected_only else tr("筛选")
         skipped = len(fids) - len(values)
         if (
             QMessageBox.question(

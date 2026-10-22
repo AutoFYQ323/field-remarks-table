@@ -5,6 +5,7 @@ from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import QComboBox, QLineEdit, QStyledItemDelegate
 from qgis.core import NULL
 
+from .i18n import tr
 from .remarks_store import normalize_meanings
 from .value_utils import field_kind, value_text
 
@@ -286,11 +287,11 @@ class ValueMapDelegate(QStyledItemDelegate):
             return super().createEditor(parent, option, index)
         combo = QComboBox(parent)
         combo.setEditable(False)
-        combo.addItem("(空)")
+        combo.addItem(tr("(空)"))
         combo.setItemData(0, True, EMPTY_FLAG_ROLE)
         for _label, stored, display in items:
             combo.addItem(display or _label, stored)
-            combo.setItemData(combo.count() - 1, "值：%s" % stored, Qt.ToolTipRole)
+            combo.setItemData(combo.count() - 1, tr("值：%s") % stored, Qt.ToolTipRole)
         return combo
 
     def _uses_text_editor(self, index):

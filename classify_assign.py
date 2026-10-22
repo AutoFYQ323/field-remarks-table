@@ -3,6 +3,8 @@
 
 import re
 
+from .i18n import tr
+
 from qgis.core import (
     NULL,
     QgsCategorizedSymbolRenderer,
@@ -137,25 +139,25 @@ def layer_categories(layer):
       label, assignments, hint, symbol, assignable
     """
     if layer is None or not hasattr(layer, "renderer"):
-        return [], "请选择一个矢量图层"
+        return [], tr("请选择一个矢量图层")
     try:
         renderer = unwrap_renderer(layer.renderer())
         if renderer is None:
-            return [], "当前图层没有符号化"
+            return [], tr("当前图层没有符号化")
         if isinstance(renderer, QgsCategorizedSymbolRenderer):
             return _from_categorized(layer, renderer), ""
         if isinstance(renderer, QgsRuleBasedRenderer):
             return _from_rules(layer, renderer), ""
         if isinstance(renderer, QgsGraduatedSymbolRenderer):
-            return [], "当前是渐变符号化，无法反推成确定字段值"
+            return [], tr("当前是渐变符号化，无法反推成确定字段值")
         rtype = ""
         try:
             rtype = renderer.type()
         except Exception:
             rtype = renderer.__class__.__name__
-        return [], "当前符号化不是分类/规则（%s），没有可点选的分类" % rtype
+        return [], tr("当前符号化不是分类/规则（%s），没有可点选的分类") % rtype
     except Exception as exc:
-        return [], "读取分类失败：%s" % exc
+        return [], tr("读取分类失败：%s") % exc
 
 
 _WRITE_CHUNK = 2500
@@ -340,28 +342,28 @@ def category_keys_for_fids(layer, items, fids):
 def apply_assignments(layer, assignments, fids):
     """Write assignments to fids. Returns (updated_count, error, changed_fids)."""
     if layer is None:
-        return 0, "没有图层", []
+        return 0, tr("没有图层"), []
     if not assignments:
-        return 0, "该分类没有可反推的字段值", []
+        return 0, tr("该分类没有可反推的字段值"), []
     if not fids:
-        return 0, "请先在地图或属性表中选中要素", []
+        return 0, tr("请先在地图或属性表中选中要素"), []
     if not layer.isEditable():
         try:
             ok = layer.startEditing()
         except Exception:
             ok = False
         if not ok:
-            return 0, "无法开始编辑该图层", []
+            return 0, tr("无法开始编辑该图层"), []
     try:
         prepared = _prepare_assignments(layer, assignments)
     except ValueError as exc:
         return 0, str(exc), []
     if not prepared:
-        return 0, "规则里的字段在当前图层上不存在", []
+        return 0, tr("规则里的字段在当前图层上不存在"), []
     changed = _assignments_to_write(layer, fids, prepared)
     if not changed:
         return 0, "", []
-    updated, err = _write_attribute_map(layer, changed, "快速命名")
+    updated, err = _write_attribute_map(layer, changed, tr("快速命名"))
     return updated, err, list(changed.keys()) if updated else []
 
 
@@ -399,43 +401,43 @@ def copy_geoms_and_assign(source, dest, fids, assignments):
     Same layer is attribute-only (no copy).
     """
     if dest is None:
-        return 0, "没有分类图层", None
+        return 0, tr("没有分类图层"), None
     if not assignments:
-        return 0, "该分类没有可反推的字段值", None
+        return 0, tr("该分类没有可反推的字段值"), None
     if layers_are_same(source, dest):
         return apply_assignments(dest, assignments, fids)
     if source is None:
-        return 0, "请先选中要复制的图层要素", None
+        return 0, tr("请先选中要复制的图层要素"), None
     if layer_geom_kind(source) != layer_geom_kind(dest) or layer_geom_kind(dest) < 0:
-        return 0, "几何类型不同，无法复制进分类图层（点/线/面须同类）", None
+        return 0, tr("几何类型不同，无法复制进分类图层（点/线/面须同类）"), None
     if not fids:
-        return 0, "请先在来源图层选中要素", None
+        return 0, tr("请先在来源图层选中要素"), None
     try:
         prepared = _prepare_assignments(dest, assignments)
     except ValueError as exc:
         return 0, str(exc), None
     if not prepared:
-        return 0, "规则里的字段在分类图层上不存在", None
+        return 0, tr("规则里的字段在分类图层上不存在"), None
     if not dest.isEditable():
         try:
             ok = dest.startEditing()
         except Exception:
             ok = False
         if not ok:
-            return 0, "无法开始编辑分类图层", None
+            return 0, tr("无法开始编辑分类图层"), None
     transform = None
     try:
         if source.crs() != dest.crs() and source.crs().isValid() and dest.crs().isValid():
             transform = QgsCoordinateTransform(source.crs(), dest.crs(), QgsProject.instance())
             if not transform.isValid():
-                return 0, "来源图层和分类图层的坐标系无法转换，没有复制", None
+                return 0, tr("来源图层和分类图层的坐标系无法转换，没有复制"), None
     except Exception as exc:
-        return 0, "坐标系转换失败，没有复制：%s" % exc, None
+        return 0, tr("坐标系转换失败，没有复制：%s") % exc, None
     try:
         dest_wkb = dest.wkbType()
     except Exception:
         dest_wkb = None
-    dest.beginEditCommand("快速命名")
+    dest.beginEditCommand(tr("快速命名"))
     added = 0
     try:
         req = QgsFeatureRequest().setFilterFids([int(fid) for fid in fids])
@@ -455,11 +457,11 @@ def copy_geoms_and_assign(source, dest, fids, assignments):
             if transform is not None:
                 if g.transform(transform) != 0:
                     dest.destroyEditCommand()
-                    return 0, "要素 %s 坐标转换失败，没有复制" % feat.id(), None
+                    return 0, tr("要素 %s 坐标转换失败，没有复制") % feat.id(), None
             parts = _geometry_for_dest(g, dest_wkb)
             if not parts:
                 dest.destroyEditCommand()
-                return 0, "要素 %s 的几何无法转成分类图层的几何类型" % feat.id(), None
+                return 0, tr("要素 %s 的几何无法转成分类图层的几何类型") % feat.id(), None
             for part in parts:
                 newf = QgsFeature(dest_fields)
                 newf.setGeometry(part)
@@ -467,11 +469,11 @@ def copy_geoms_and_assign(source, dest, fids, assignments):
                     newf.setAttribute(idx, value)
                 if not dest.addFeature(newf):
                     dest.destroyEditCommand()
-                    return 0, "复制要素失败", None
+                    return 0, tr("复制要素失败"), None
                 added += 1
         if not added:
             dest.destroyEditCommand()
-            return 0, "没有可复制的几何", None
+            return 0, tr("没有可复制的几何"), None
         dest.endEditCommand()
         return added, "", None
     except Exception as exc:
@@ -553,7 +555,7 @@ def _write_attribute_map(layer, changed, command_name):
                 part = dict(items[i : i + _WRITE_CHUNK])
                 if not bool(layer.changeAttributeValues(part)):
                     layer.destroyEditCommand()
-                    return 0, "写入失败"
+                    return 0, tr("写入失败")
                 updated += len(part)
             layer.endEditCommand()
             return updated, ""
@@ -573,7 +575,7 @@ def _write_attribute_map(layer, changed, command_name):
                 layer.endEditCommand()
                 return updated, ""
             layer.destroyEditCommand()
-            return 0, "写入失败"
+            return 0, tr("写入失败")
     except Exception as exc:
         try:
             layer.destroyEditCommand()
@@ -583,7 +585,7 @@ def _write_attribute_map(layer, changed, command_name):
 
 
 def notify_open_attribute_tables(layer, field_names, force_reload=False):
-    """Refresh an open 属性表 Plus after writes from another window."""
+    """Refresh an open attribute table after writes from another window."""
     if layer is None:
         return
     names = list(field_names or [])
@@ -655,20 +657,20 @@ def refresh_legend_class_counts(layer):
     not layer attribute edits and does not write shp/gpkg.
     """
     if layer is None:
-        return "没有图层"
+        return tr("没有图层")
     renderer = None
     try:
         renderer = layer.renderer()
     except Exception:
         renderer = None
     if renderer is None:
-        return "图层没有符号化"
+        return tr("图层没有符号化")
     try:
         clone = renderer.clone()
     except Exception as exc:
-        return "无法复制符号化：%s" % exc
+        return tr("无法复制符号化：%s") % exc
     if clone is None:
-        return "无法复制符号化"
+        return tr("无法复制符号化")
     try:
         layer.setRenderer(clone)
     except Exception as exc:
@@ -679,14 +681,14 @@ def refresh_legend_class_counts(layer):
 def save_edits_via_qgis(layer, iface):
     """Trigger QGIS Digitizing 'Save Layer Edits' for this layer. No custom recount."""
     if layer is None:
-        return "没有图层"
+        return tr("没有图层")
     if iface is None:
-        return "无法调用 QGIS 保存"
+        return tr("无法调用 QGIS 保存")
     try:
         if not layer.isEditable():
             return ""
     except Exception:
-        return "图层无法保存"
+        return tr("图层无法保存")
     prev = None
     try:
         prev = iface.activeLayer()
@@ -696,7 +698,7 @@ def save_edits_via_qgis(layer, iface):
         if prev is None or not layers_are_same(prev, layer):
             iface.setActiveLayer(layer)
     except Exception:
-        return "无法切到要保存的图层"
+        return tr("无法切到要保存的图层")
     action = None
     for name in ("actionSaveActiveLayerEdits", "actionSaveEdits"):
         getter = getattr(iface, name, None)
@@ -720,7 +722,7 @@ def save_edits_via_qgis(layer, iface):
         except Exception:
             action = None
     if action is None:
-        return "找不到 QGIS 自带的保存编辑"
+        return tr("找不到 QGIS 自带的保存编辑")
     try:
         action.trigger()
     except Exception as exc:
@@ -772,7 +774,7 @@ def _from_categorized(layer, renderer):
         filter_expr = ""
         if is_field:
             if _is_blank_value(value):
-                hint = "其它值 / 空类，无法反推赋值"
+                hint = tr("其它值 / 空类，无法反推赋值")
             else:
                 assignments = {attr: value}
                 hint = format_assignments(assignments)
@@ -786,7 +788,7 @@ def _from_categorized(layer, renderer):
             hint = (
                 format_assignments(assignments)
                 if assignments
-                else "表达式分类无法反推字段值"
+                else tr("表达式分类无法反推字段值")
             )
         items.append(
             {
@@ -839,9 +841,9 @@ def _walk_rules(rule, items, inherited, seen, depth):
             pass  # nosec B110
         items.append(
             {
-                "label": label or "ELSE（其余）",
+                "label": label or tr("ELSE（其余）"),
                 "assignments": {},
-                "hint": "ELSE（其余）规则，无法反推赋值",
+                "hint": tr("ELSE（其余）规则，无法反推赋值"),
                 "filter_expr": "",
                 "color": color,
                 "assignable": False,
@@ -1050,5 +1052,5 @@ def coerce_value_for_field(field, raw):
 
     status, value, note = coerce_for_field(field, raw)
     if status == "invalid":
-        raise ValueError("字段「%s」存不下值「%s」（%s）" % (field.name(), raw, note))
+        raise ValueError(tr("字段「%s」存不下值「%s」（%s）") % (field.name(), raw, note))
     return value

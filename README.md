@@ -26,7 +26,7 @@ If no vector layer is selected, the plugin asks you to pick one.
 - **Field-remark packs** — alias names, hover notes, and insert meanings, stored per named pack and shared across projects
 - **Pack variables** — `{{title}}` placeholders resolved when inserting values
 - **Quick naming** — write values back from categorized / rule-based symbology
-- **Batch fill** — constants, padded sequences, expressions, find/replace
+- **Batch fill** — constant, sequence around text, add text, expression, find/replace
 - **Paste by feature id** — copy a filtered column, edit it outside, paste back by `#fid`
 - **KMZ / CSV export** — KMZ can follow single / categorized / graduated colors
 - **Field manager** and unique-value statistics
@@ -78,6 +78,13 @@ GNU GPL v2 or later. See `LICENSE`.
 1. Zip the plugin folder so the archive root is `attribute_table/` with `metadata.txt` inside (no `__pycache__`, no `.git`).
 2. Upload the zip on the plugin page at plugins.qgis.org (or update the version there as required).
 
+## Version 1.18.6 (high level)
+
+- Field remarks help expanded: display versus write, packs, enable and matching, variables, value map, quick insert
+- Help is split into five pages
+- Fill modes are constant, sequence around text, add text, expression, and replace
+- Plugin windows that are already open follow the Chinese / English switch
+
 ## Version 1.18.5 (high level)
 
 - Flake8: remove duplicate `localize_button_box` in `i18n/runtime.py` (marketplace quality scan)
@@ -107,3 +114,9 @@ GNU GPL v2 or later. See `LICENSE`.
 
 源码：https://github.com/AutoFYQ323/field-remarks-table  
 上架 QGIS 插件库仍需本地打 zip 后在 plugins.qgis.org 上传，不会随 GitHub 自动更新。
+
+## 1.18.6
+
+- 帮助分成五页：属性表、字段备注、快速命名、字段映射、线方向。字段备注一页写了显示和写入、启用与匹配、变量、值映射、快速插入。
+- 赋值保留：常量、前后序号、前后加字、表达式、替换。
+- 已经打开的插件窗口，切换中文或英文后立刻更换界面文字。

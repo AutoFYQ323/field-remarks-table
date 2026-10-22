@@ -766,6 +766,7 @@ class RemarksHubDialog(QDialog):
         self.btn_mean_restore.setText(tr("恢复默认"))
         self.btn_mean_restore.setToolTip(tr("把选中的值映射项说明恢复成 QGIS 当前描述"))
         self.btn_mean_del.setText(tr("删除选中"))
+        self._update_check_status()
         self._sync_enable_buttons()
         self._reload_combo()
         self._refresh_layer_caption()
@@ -1492,7 +1493,7 @@ class RemarksHubDialog(QDialog):
         text = meaning_display(data)
         origin = self._value_map_origin_text(data, defaults)
         if origin:
-            return "%s　　原 %s" % (text, origin)
+            return tr("%s　　原 %s") % (text, origin)
         return text
 
     def _value_map_origin_text(self, meaning, defaults=None):
@@ -1878,11 +1879,11 @@ class RemarksHubDialog(QDialog):
         from .remarks_remap import self_check_summary
 
         self._sync_placeholder_ui()
-        text = "当前项目还没有图层配置。"
+        text = tr("当前项目还没有图层配置。")
         try:
             text = self_check_summary(self.session)
         except Exception:
-            text = "无法核对当前配置。"
+            text = tr("无法核对当前配置。")
         if hasattr(self, "lbl_status"):
             self.lbl_status.setText(text)
             self.lbl_status.setToolTip(text)
@@ -2199,7 +2200,7 @@ class QuickNameDialog(QDialog):
         self.chk_pin.toggled.connect(self._on_pin_toggled)
         self.cmb_autosave = QComboBox()
         for ms, label in self._AUTOSAVE_CHOICES:
-            self.cmb_autosave.addItem(label, ms)
+            self.cmb_autosave.addItem(tr(label), ms)
         self.cmb_autosave.setCurrentIndex(0)
         self.cmb_autosave.setSizeAdjustPolicy(QComboBox.AdjustToContents)
         self.cmb_autosave.setToolTip(
@@ -2248,6 +2249,10 @@ class QuickNameDialog(QDialog):
             pass  # nosec B110
         self._bind_layer(self._qgis_vector_layer())
         self._reload_timer.start(0)
+        try:
+            language_changed().connect(self._apply_language)
+        except Exception:
+            pass  # nosec B110
 
     def on_theme_changed(self):
         lbl = getattr(self, "lbl_layer", None)
@@ -2271,8 +2276,42 @@ class QuickNameDialog(QDialog):
             QgsProject.instance().layersWillBeRemoved.disconnect(self._on_layers_removed)
         except Exception:
             pass  # nosec B110
+        try:
+            language_changed().disconnect(self._apply_language)
+        except Exception:
+            pass  # nosec B110
         QuickNameDialog._instance = None
         super().closeEvent(event)
+
+    def _apply_language(self, *_args):
+        self.setWindowTitle(tr("快速命名"))
+        self.chk_pin.setText(tr("钉住图层"))
+        self.chk_pin.setToolTip(
+            tr("钉住当前分类图层。在本层选中要素再点分类：只改属性、不复制。"
+            "在其他层选中再点分类：把几何复制进钉住层，再按该类规则赋值。"
+            "来源图层不改；钉住层不增加来源字段。")
+        )
+        self.chk_skip_confirm.setText(tr("勾选后点分类不再确认，直接赋值"))
+        self.chk_skip_confirm.setToolTip(tr("默认不勾选：会弹出确认。勾选后直接写入。"))
+        self.btn_legend_count.setText(tr("刷新图例计数"))
+        self.cmb_autosave.blockSignals(True)
+        current = self.cmb_autosave.currentData()
+        for i, (ms, label) in enumerate(self._AUTOSAVE_CHOICES):
+            if self.cmb_autosave.itemData(i) == ms:
+                self.cmb_autosave.setItemText(i, tr(label))
+        idx = self.cmb_autosave.findData(current)
+        if idx >= 0:
+            self.cmb_autosave.setCurrentIndex(idx)
+        self.cmb_autosave.blockSignals(False)
+        self.cmb_autosave.setToolTip(
+            tr("默认「不自动保存」：还能撤销/回滚，QGIS 图例数量不会马上变。"
+            "选「N秒后保存」：先只写入，等 N 秒再点一次 QGIS 自带的「保存图层编辑」。"
+            "连续命名会按当前秒数重新计时，只存一次。中途改成不自动保存则取消这次预约。"
+            "图例由 QGIS 自己刷。会保存该层当前所有未保存修改，这次不能再撤销。"
+            "关掉窗口会立刻补存。3 秒已验证能跟上图例；1 秒可能仍偏赶。")
+        )
+        self._refresh_layer_caption()
+        self.reload()
 
     @staticmethod
     def _layer_in(layer, layer_ids):
@@ -2505,8 +2544,8 @@ class QuickNameDialog(QDialog):
                     QApplication.restoreOverrideCursor()
             other_used = False
             for info in items:
-                label = info.get("label") or "(未命名)"
-                hint = info.get("hint") or ""
+                label = info.get("label") or tr("(未命名)")
+                hint = tr(info.get("hint") or "")
                 text = label
                 if hint and hint != label:
                     text = "%s  [%s]" % (label, hint)
@@ -2576,17 +2615,16 @@ class QuickNameDialog(QDialog):
         same = layers_are_same(source, dest)
         if not self.chk_skip_confirm.isChecked():
             if same:
-                msg = "已选中 %s 个要素。\n将归属到分类「%s」。\n写入：%s\n继续？" % (
+                msg = tr("已选中 %s 个要素。\n将归属到分类「%s」。\n写入：%s\n继续？") % (
                     len(fids),
                     cat,
                     writes,
                 )
             else:
-                msg = (
+                msg = tr(
                     "将把 %s 个要素从「%s」复制到「%s」，并归属分类「%s」。\n"
                     "来源图层不改。写入：%s\n继续？"
-                    % (len(fids), source.name(), dest.name(), cat, writes)
-                )
+                ) % (len(fids), source.name(), dest.name(), cat, writes)
             reply = QMessageBox.question(self, tr("快速命名"), msg)
             if reply != QMessageBox.Yes:
                 return

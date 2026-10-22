@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-from ...i18n import tr
+from ...i18n import language_changed, tr
 """从光交往用户检查线数字化方向，并报告主干配线的结构硬错误。先出临时点，窗口不挡地图，再全部翻转或翻转勾选。"""
 import time
 from collections import defaultdict, deque
@@ -646,17 +646,19 @@ class LineDirDialog(QDialog):
             hint_text = tr("不挡地图，窗口置顶。检查页是这次的硬错误、软错误和警告；可修复页是方向反了的线。全部翻转=这些线一次翻；翻转勾选=只翻表里打勾的。")
         else:
             hint_text = tr("不挡地图，窗口置顶。全部翻转=所有方向反了的线；翻转勾选=只翻表里打勾的。")
-        hint = QLabel(hint_text)
+        self.hint = QLabel(hint_text)
+        hint = self.hint
         hint.setWordWrap(True)
         root.addWidget(hint)
-        tabs = QTabWidget()
+        self.tabs = QTabWidget()
+        tabs = self.tabs
         self.txt_check = QTextEdit()
         self.txt_check.setReadOnly(True)
         self.txt_tree = QTextEdit()
         self.txt_tree.setReadOnly(True)
         self.table = QTableWidget()
         self.table.setColumnCount(6)
-        self.table.setHorizontalHeaderLabels(["修", tr("类型"), tr("图层"), "FID", tr("名称"), tr("说明")])
+        self.table.setHorizontalHeaderLabels([tr("修"), tr("类型"), tr("图层"), "FID", tr("名称"), tr("说明")])
         self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.setAlternatingRowColors(True)
@@ -687,7 +689,7 @@ class LineDirDialog(QDialog):
             self.btn_auto.setToolTip(tr("不管表格勾选，把检查到的全部「方向反了」的线一次翻转。"))
             self.btn_auto.clicked.connect(self._do_auto)
         self.btn_pick = buttons.addButton(tr("翻转勾选"), action_role)
-        buttons.addButton(tr("关闭"), reject_role)
+        self.btn_close = buttons.addButton(tr("关闭"), reject_role)
         self.btn_pick.setEnabled(bool(reversible))
         if self._free:
             self.btn_pick.setToolTip(tr("只翻转打勾的线。方向反了默认打勾，伪成环默认不勾。"))
@@ -697,6 +699,10 @@ class LineDirDialog(QDialog):
         buttons.rejected.connect(self.close)
         root.addWidget(buttons)
         self._fill()
+        try:
+            language_changed().connect(self._apply_language)
+        except Exception:
+            pass  # nosec B110
         register_tool_window(self)
 
     def _fill(self):
@@ -734,8 +740,9 @@ class LineDirDialog(QDialog):
             html.append(tr("<div>（无）</div>"))
         html.append(tr("<b>图层参与</b>（走到 / 筛出）"))
         for row in result.get("participation") or []:
+            role_name = ROLE_LABEL.get(row["role"], row["role"])
             html.append("<div>· [{}] {}　{} / {}</div>".format(
-                ROLE_LABEL.get(row["role"], row["role"]),
+                _esc(tr(role_name) if role_name else ""),
                 _esc(row["layer_name"]),
                 row["used"],
                 row["extracted"],
@@ -758,6 +765,7 @@ class LineDirDialog(QDialog):
                 chk.setCheckState(CHECKED)
             self.table.setItem(i, 0, chk)
             kind_text = row.get("type_label") or ROLE_LABEL.get(row.get("role"), row.get("role") or "")
+            kind_text = tr(kind_text) if kind_text else ""
             values = [
                 kind_text,
                 row.get("layer_name") or "",
@@ -876,7 +884,35 @@ class LineDirDialog(QDialog):
             return
         self._apply(picked, tr("翻转勾选"))
 
+    def _apply_language(self, *_args):
+        if self._free:
+            self.setWindowTitle(tr("线方向检查"))
+            self.hint.setText(tr("不挡地图，窗口置顶。打勾的翻转，不打勾的不动。方向反了默认打勾，伪成环默认不勾。"))
+            self.btn_pick.setToolTip(tr("只翻转打勾的线。方向反了默认打勾，伪成环默认不勾。"))
+        elif (self.result or {}).get("kind") == "audit":
+            self.setWindowTitle(tr("NTAL 全面检测"))
+            self.hint.setText(tr("不挡地图，窗口置顶。检查页是这次的硬错误、软错误和警告；可修复页是方向反了的线。全部翻转=这些线一次翻；翻转勾选=只翻表里打勾的。"))
+            self.btn_pick.setToolTip(tr("只翻转「可修复」表里打勾的线，可先对照地图去掉不确定的。"))
+        else:
+            self.setWindowTitle(tr("NTAL 全面检测"))
+            self.hint.setText(tr("不挡地图，窗口置顶。全部翻转=所有方向反了的线；翻转勾选=只翻表里打勾的。"))
+            self.btn_pick.setToolTip(tr("只翻转「可修复」表里打勾的线，可先对照地图去掉不确定的。"))
+        self.tabs.setTabText(0, tr("检查"))
+        self.tabs.setTabText(1, tr("明细"))
+        self.tabs.setTabText(2, tr("可修复"))
+        self.table.setHorizontalHeaderLabels([tr("修"), tr("类型"), tr("图层"), "FID", tr("名称"), tr("说明")])
+        if self.btn_auto is not None:
+            self.btn_auto.setText(tr("全部翻转"))
+            self.btn_auto.setToolTip(tr("不管表格勾选，把检查到的全部「方向反了」的线一次翻转。"))
+        self.btn_pick.setText(tr("翻转勾选"))
+        self.btn_close.setText(tr("关闭"))
+        self._fill()
+
     def closeEvent(self, event):
+        try:
+            language_changed().disconnect(self._apply_language)
+        except Exception:
+            pass  # nosec B110
         global _DIR_DLG
         if _DIR_DLG is self:
             _DIR_DLG = None

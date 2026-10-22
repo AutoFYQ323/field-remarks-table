@@ -4,7 +4,7 @@
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import QDialog, QVBoxLayout
 
-from ..i18n import tr
+from ..i18n import language_changed, tr
 from .field_map.transfer_tab import TransferTab
 from .window_theme import register_tool_window
 
@@ -48,6 +48,14 @@ class FieldMapDialog(QDialog):
         layout.addWidget(self.transfer_tab)
         self.transfer_tab.refresh_layers()
         register_tool_window(self)
+        try:
+            language_changed().connect(self._apply_language)
+        except Exception:
+            pass  # nosec B110
+
+    def _apply_language(self, *_args):
+        self.setWindowTitle(tr("字段映射复制"))
+        self.transfer_tab.apply_language()
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -57,5 +65,9 @@ class FieldMapDialog(QDialog):
             pass  # nosec B110
 
     def closeEvent(self, event):
+        try:
+            language_changed().disconnect(self._apply_language)
+        except Exception:
+            pass  # nosec B110
         FieldMapDialog._instance = None
         super().closeEvent(event)

@@ -135,7 +135,7 @@ class UniqueValuesDialog(QDialog):
             self._keys.append(key)
             count = len(fids)
             if key == BLANK_KEY:
-                text, label, sort_val = "(空)", "", (0, 0.0, "")
+                text, label, sort_val = tr("(空)"), "", (0, 0.0, "")
             else:
                 text = value_text(raw)
                 label = label_for(raw) or ""
