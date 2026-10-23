@@ -3,12 +3,27 @@
 
 LANG_ZH = "zh"
 LANG_EN = "en"
+LANG_ES = "es"
+LANG_FR = "fr"
+LANG_AR = "ar"
+
+# First-launch match uses the language code before the region (es_MX -> es).
+_LOCALE_PREFIX = (
+    ("zh", LANG_ZH),
+    ("es", LANG_ES),
+    ("fr", LANG_FR),
+    ("ar", LANG_AR),
+    ("en", LANG_EN),
+)
 
 _EN = {
     # language / common
     "语言": "Language",
     "中文": "Chinese",
     "英文": "English",
+    "西班牙文": "Spanish",
+    "法文": "French",
+    "阿拉伯文": "Arabic",
     "确定": "OK",
     "取消": "Cancel",
     "是": "Yes",
@@ -105,7 +120,7 @@ _EN = {
     "悬停时显示在中文名下面，不写入字段、不进插入下拉":
         "Shown under the display name on hover; not written to the field",
     "含义说明（双击一行改说明；值映射项后面的「原」不变，不能删除）：":
-        "Meanings (double-click to edit; value-map「原」rows stay, cannot delete):",
+        "Meanings (double-click to edit; value-map rows marked was stay, cannot delete):",
     "中文，如 盒子": "Label, e.g. Box",
     "常量": "Const",
     "写入值，如 FAT；可插入变量": "Value to write, e.g. FAT; variables allowed",
@@ -182,22 +197,39 @@ _EN.update(
 
 
 def available_languages():
+    """Chinese msgids. The language menu translates each label."""
     return (
         (LANG_ZH, "中文"),
-        (LANG_EN, "English"),
+        (LANG_EN, "英文"),
+        (LANG_ES, "西班牙文"),
+        (LANG_FR, "法文"),
+        (LANG_AR, "阿拉伯文"),
     )
 
 
+def known_languages():
+    return tuple(code for code, _label in available_languages())
+
+
 def detect_initial_language(qgis_locale=None, system_locale=None):
-    """Prefer QGIS locale, then system. Default zh for zh*; else en."""
+    """Prefer QGIS locale, then the system locale.
+
+    A supported code (zh / en / es / fr / ar) is used as-is.
+    Any other non-empty locale, such as German, uses English.
+    When both locales are empty, Chinese is the fallback.
+    """
+    saw = False
     for raw in (qgis_locale, system_locale):
         text = str(raw or "").strip().lower().replace("_", "-")
         if not text:
             continue
-        if text.startswith("zh"):
-            return LANG_ZH
+        saw = True
+        primary = text.split("-", 1)[0]
+        for prefix, lang in _LOCALE_PREFIX:
+            if primary == prefix:
+                return lang
         return LANG_EN
-    return LANG_ZH
+    return LANG_ZH if not saw else LANG_EN
 
 
 def tr(msgid, *args, **kwargs):

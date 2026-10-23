@@ -6,6 +6,8 @@ import re
 from qgis.PyQt.QtCore import QDate, QDateTime, QTime, QVariant, Qt
 from qgis.core import NULL
 
+from .i18n import tr
+
 _INT_RE = re.compile(r"^[+-]?\d+$")
 _NUM_RE = re.compile(r"^[+-]?(\d+\.?\d*|\.\d+)([eE][+-]?\d+)?$")
 
@@ -159,7 +161,7 @@ def coerce_for_field(field, raw):
         except Exception:
             limit = 0
         if limit > 0 and len(text) > limit:
-            return "toolong", text, "超过字段长度 %s" % limit
+            return "toolong", text, tr("超过字段长度 %s") % limit
         return "ok", text, ""
 
     if kind in ("int", "real"):
@@ -172,14 +174,14 @@ def coerce_for_field(field, raw):
                 return "ok", NULL, ""
             num = _parse_number_text(raw)
             if num is None:
-                return "invalid", None, "不是数字"
+                return "invalid", None, tr("不是数字")
         else:
-            return "invalid", None, "不是数字"
+            return "invalid", None, tr("不是数字")
         if kind == "real":
             return "ok", float(num), ""
         if isinstance(num, float):
             if num != num or num in (float("inf"), float("-inf")):
-                return "invalid", None, "不是有效数字"
+                return "invalid", None, tr("不是有效数字")
             rounded = int(round(num))
             status = "ok" if rounded == num else "rounded"
             num = rounded
@@ -187,10 +189,10 @@ def coerce_for_field(field, raw):
             status = "ok"
         try:
             if field.type() == QVariant.Int and not (-(2 ** 31) <= num < 2 ** 31):
-                return "invalid", None, "超出整数范围"
+                return "invalid", None, tr("超出整数范围")
         except Exception:
             pass  # nosec B110
-        return status, int(num), ("小数已四舍五入" if status == "rounded" else "")
+        return status, int(num), (tr("小数已四舍五入") if status == "rounded" else "")
 
     if kind == "bool":
         if isinstance(raw, bool):
@@ -198,7 +200,7 @@ def coerce_for_field(field, raw):
         if isinstance(raw, (int, float)):
             if raw in (0, 1):
                 return "ok", bool(raw), ""
-            return "invalid", None, "不是真/假"
+            return "invalid", None, tr("不是真/假")
         text = str(raw).strip().lower()
         if text == "":
             return "ok", NULL, ""
@@ -206,7 +208,7 @@ def coerce_for_field(field, raw):
             return "ok", True, ""
         if text in _FALSE_TEXT:
             return "ok", False, ""
-        return "invalid", None, "不是真/假"
+        return "invalid", None, tr("不是真/假")
 
     if kind in ("date", "datetime", "time"):
         if kind == "date":
@@ -234,7 +236,7 @@ def coerce_for_field(field, raw):
         else:
             parsed = _parse_time(text)
         if parsed is None:
-            return "invalid", None, "不是有效日期/时间"
+            return "invalid", None, tr("不是有效日期/时间")
         return "ok", parsed, ""
 
     if isinstance(raw, str):

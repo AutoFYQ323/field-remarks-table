@@ -12,7 +12,7 @@ PAGES_ZH = (
 <h3>使用说明</h3>
 <ul>
 <li><b>打开</b>：工具栏按钮、菜单「矢量 → Field Remarks Table」，或图层右键。先在图例里选中矢量图层。</li>
-<li><b>语言</b>：工具栏最左边。第一次打开跟着 QGIS 语言，其次是系统语言，之后记住你的选择。切换后，已经打开的本插件窗口立刻换成对应语言。</li>
+<li><b>语言</b>：工具栏上的语言按钮。第一次打开跟着 QGIS 语言，其次是系统语言，之后记住你的选择。可选中文、英文、西班牙文、法文、阿拉伯文。切换后，已经打开的本插件窗口立刻换成对应语言。阿拉伯语下，本插件窗口的按钮和标题从右向左，表格里的属性值仍从左向右。</li>
 <li><b>双击左侧序号</b>：选中该要素并缩放到地图。</li>
 <li><b>单击列标题</b>：按该列排序。看起来像数字的文字按数值排。</li>
 <li><b>排序后状态栏右侧</b>：纯数字列显示筛选合计和全部合计。其它列查重名（忽略大小写），有重名红色，没有则绿色。</li>
@@ -141,7 +141,7 @@ Field remarks, quick naming, field mapping, and line direction each have their o
 <h3>How to use</h3>
 <ul>
 <li><b>Open</b> from the toolbar, <b>Vector → Field Remarks Table</b>, or the layer context menu. Select a vector layer in the Layers panel first.</li>
-<li><b>Language</b> is the leftmost toolbar button. The first launch follows the QGIS locale, then the system locale, and the choice is remembered. Switching updates plugin windows that are already open.</li>
+<li><b>Language</b> is the toolbar language button. The first launch follows the QGIS locale, then the system locale, and the choice is remembered. Choices are Chinese, English, Spanish, French, and Arabic. Switching updates plugin windows that are already open. In Arabic, buttons and titles in this plugin's windows run right to left. Values in the table stay left to right.</li>
 <li><b>Double-click the row number</b> to select the feature and zoom to it.</li>
 <li><b>Click a column header</b> to sort. Numeric text is sorted as a number.</li>
 <li><b>After a sort</b>, the status bar shows a filtered total and a full total for numeric columns. Other columns report duplicates, ignoring case.</li>
@@ -261,8 +261,20 @@ Endpoints count as the same point only when they are close enough. A gap stops t
 
 
 def pages_for(language):
-    from .catalog import LANG_EN
+    from .catalog import LANG_AR, LANG_EN, LANG_ES, LANG_FR
 
     if language == LANG_EN:
         return PAGES_EN
+    if language == LANG_ES:
+        from .help_es import PAGES as pages
+
+        return pages
+    if language == LANG_FR:
+        from .help_fr import PAGES as pages
+
+        return pages
+    if language == LANG_AR:
+        from .help_ar import PAGES as pages
+
+        return pages
     return PAGES_ZH

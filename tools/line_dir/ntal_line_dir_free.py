@@ -486,10 +486,10 @@ def run_free_line_dir(point_layer, point_filter, point_fid, line_pairs, toleranc
                 "fid": first["fid"],
                 "role": "线",
                 "issue": "pseudo_cycle",
-                "type_label": "伪成环",
+                "type_label": tr("伪成环"),
                 "label": label,
                 "multipart": bool(first.get("multipart")),
-                "message": "伪成环：两边不靠这条线也能从起点走到。默认不勾，打勾才对调两端。",
+                "message": tr("伪成环：两边不靠这条线也能从起点走到。默认不勾，打勾才对调两端。"),
             })
             continue
         rev_parts = [edge for edge in parts if edge in reversible_parts]
@@ -588,7 +588,7 @@ def run_free_line_dir(point_layer, point_filter, point_fid, line_pairs, toleranc
         "tree_text": "\n".join(tree),
         "summary_lines": summary_lines,
         "suggestions": suggestions,
-        "source_label": "通用线方向",
+        "source_label": tr("通用线方向"),
         "writes": [],
         "end_mark_edges": end_mark_edges,
     }

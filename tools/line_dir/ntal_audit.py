@@ -83,7 +83,7 @@ def _want(selected, key):
 class AuditPickDialog(QDialog):
     def __init__(self, parent=None):
         super(AuditPickDialog, self).__init__(parent)
-        self.setWindowTitle("选择要检查的网络问题")
+        self.setWindowTitle(tr("选择要检查的网络问题"))
         self.setMinimumWidth(520)
         root = QVBoxLayout(self)
         hint = QLabel(
@@ -93,14 +93,14 @@ class AuditPickDialog(QDialog):
         root.addWidget(hint)
         self.boxes = []
         for key, level, text in CHECKS:
-            box = QCheckBox("{}　{}".format(level, text))
+            box = QCheckBox("{}　{}".format(tr(level), tr(text)))
             box.setChecked(key not in CHECKS_OFF_BY_DEFAULT)
             box.setProperty("check_id", key)
             self.boxes.append(box)
             root.addWidget(box)
         row = QHBoxLayout()
-        btn_all = QPushButton("全选")
-        btn_inv = QPushButton("反选")
+        btn_all = QPushButton(tr("全选"))
+        btn_inv = QPushButton(tr("反选"))
         btn_all.clicked.connect(self._select_all)
         btn_inv.clicked.connect(self._invert)
         row.addWidget(btn_all)
@@ -108,8 +108,8 @@ class AuditPickDialog(QDialog):
         row.addStretch(1)
         root.addLayout(row)
         buttons = QDialogButtonBox()
-        buttons.addButton("开始检测", QDialogButtonBox.ButtonRole.AcceptRole)
-        buttons.addButton("取消", QDialogButtonBox.ButtonRole.RejectRole)
+        buttons.addButton(tr("开始检测"), QDialogButtonBox.ButtonRole.AcceptRole)
+        buttons.addButton(tr("取消"), QDialogButtonBox.ButtonRole.RejectRole)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
         root.addWidget(buttons)
@@ -195,14 +195,14 @@ def run_audit(host, selected, progress=None):
     tolerance = float(host.tolerance or 0)
     config_errors = []
     if tolerance <= 0:
-        config_errors.append("吸附容差必须大于 0。")
+        config_errors.append(tr("吸附容差必须大于 0。"))
     need_net = selected - {"direction"}
     if need_net and not (occ_layers or splice_layers or fat_layers or user_layers or cable_layers or drop_layers):
-        config_errors.append("请先在图层配置里选择要检测的点线图层。")
+        config_errors.append(tr("请先在图层配置里选择要检测的点线图层。"))
     if "direction" in selected and not occ_layers:
-        config_errors.append("线方向从光交往外走，请先配置光交。")
+        config_errors.append(tr("线方向从光交往外走，请先配置光交。"))
     if "direction" in selected and not (cable_layers or drop_layers):
-        config_errors.append("线方向至少需要光缆或皮线。")
+        config_errors.append(tr("线方向至少需要光缆或皮线。"))
     if config_errors:
         return {"ok": False, "config_errors": config_errors}
 
@@ -529,7 +529,7 @@ def run_audit(host, selected, progress=None):
         "warn": warn,
         "tolerance": tolerance,
         "reversible": reversible,
-        "source_label": "全面检测",
+        "source_label": tr("全面检测"),
         "notes": notes,
     }
     out.update(result_meta(spec))
@@ -607,7 +607,7 @@ def open_audit(host):
         return
     selected = dlg.selected()
     if not selected:
-        QMessageBox.information(host, "NTAL 全面检测", "没有勾选检查项。")
+        QMessageBox.information(host, tr("NTAL 全面检测"), tr("没有勾选检查项。"))
         return
     try:
         progress_parent = host.iface.mainWindow() if host.iface is not None else host
@@ -622,16 +622,16 @@ def open_audit(host):
     finally:
         progress.close()
     if not result.get("ok"):
-        text = "\n".join(result.get("config_errors") or ["配置不完整"])
-        QMessageBox.warning(host, "NTAL 全面检测", text)
+        text = "\n".join(result.get("config_errors") or [tr("配置不完整")])
+        QMessageBox.warning(host, tr("NTAL 全面检测"), text)
         try:
             host.log.setPlainText(text)
         except Exception:
             pass  # nosec B110
         return
     lines = [
-        "组网骨架固定（光交→主干→接头→配线→分纤盒→入户）。命名方案见参数「方案」页。",
-        "硬错误 {}，软错误 {}，警告 {}。".format(
+        tr("组网骨架固定（光交→主干→接头→配线→分纤盒→入户）。命名方案见参数「方案」页。"),
+        tr("硬错误 {}，软错误 {}，警告 {}。").format(
             len(result.get("hard") or []),
             len(result.get("soft") or []),
             len(result.get("warn") or []),
@@ -639,18 +639,18 @@ def open_audit(host):
     ]
     lines.extend(result.get("notes") or [])
     if added:
-        lines.append("已生成图层：" + "、".join(added))
+        lines.append(tr("已生成图层：") + tr("、").join(added))
     else:
-        lines.append("勾选的类里没有发现问题。")
-    lines.append("结果窗置顶、不挡地图。检查页看问题列表，可修复页只列方向反了的线。")
+        lines.append(tr("勾选的类里没有发现问题。"))
+    lines.append(tr("结果窗置顶、不挡地图。检查页看问题列表，可修复页只列方向反了的线。"))
     result["summary_lines"] = lines
     detail = []
     for item in result.get("hard") or []:
-        detail.append("硬错误 " + (item.get("message") or ""))
+        detail.append(tr("硬错误") + " " + (item.get("message") or ""))
     for item in result.get("soft") or []:
-        detail.append("软错误 " + (item.get("message") or ""))
+        detail.append(tr("软错误") + " " + (item.get("message") or ""))
     for item in result.get("warn") or []:
-        detail.append("警告 " + (item.get("message") or ""))
+        detail.append(tr("警告") + " " + (item.get("message") or ""))
     result["tree_text"] = "\n".join(detail)
     try:
         host.log.setPlainText("\n".join(lines))

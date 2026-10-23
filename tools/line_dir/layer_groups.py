@@ -165,9 +165,9 @@ def match_report(layers_cfg):
             if code_field and code_field not in names:
                 missing.append(tr("找不到字段：{}（图层 {}）").format(code_field, name))
     if not configured:
-        return "还没有配置任何图层。"
+        return tr("还没有配置任何图层。")
     if not missing:
-        return "所配置的图层和字段都能找到。"
+        return tr("所配置的图层和字段都能找到。")
     return "\n".join(missing)
 
 
@@ -281,7 +281,7 @@ class CategoryFilterDialog(QDialog):
         self.value_list.clear()
         items, err = list_layer_categories(self.layer, include_unchecked=self._include_unchecked)
         if err:
-            self.hint.setText(err + "。没有可筛选的分组时，将使用该图层全部要素。")
+            self.hint.setText(tr("%s。没有可筛选的分组时，将使用该图层全部要素。") % err)
             return
         keys = [info["key"] for info in items]
         QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
@@ -1063,7 +1063,7 @@ class ParamDialog(QDialog):
                     lambda _idx, box=combo: box.setToolTip(box.currentData(tip_role) or "")
                 )
                 self.combo_action_scheme[action] = combo
-                form.addRow(ACTION_TITLES.get(action, action), combo)
+                form.addRow(tr(ACTION_TITLES.get(action, action)), combo)
             combo = self.combo_action_scheme[action]
             combo.addItem(title, sid)
             combo.setItemData(combo.count() - 1, tooltip, tip_role)

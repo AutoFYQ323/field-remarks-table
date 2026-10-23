@@ -1043,7 +1043,7 @@ class RemarksHubDialog(QDialog):
                         _style_preview_item(mean_item, "meaning")
                         field_item.addChild(mean_item)
             if shown == 0:
-                _add_empty("配置的图层、字段在当前工程全部有效。")
+                _add_empty(tr("配置的图层、字段在当前工程全部有效。"))
 
         rebuild()
         lay.addWidget(tree, 1)
@@ -1223,12 +1223,12 @@ class RemarksHubDialog(QDialog):
         if not selected:
             return
         if len(selected) == 1:
-            filename = "属性表Plus(%s).json" % safe_pack_filename(selected[0][0])
+            filename = tr("属性表Plus(%s).json") % safe_pack_filename(selected[0][0])
         else:
-            filename = "属性表Plus(多项目).json"
+            filename = tr("属性表Plus(多项目).json")
         default = os.path.join(os.path.expanduser("~"), filename)
         path, _filt = QFileDialog.getSaveFileName(
-            self, "导出备注项目", default, "备注项目 (*.json);;所有文件 (*.*)"
+            self, tr("导出备注项目"), default, tr("备注项目 (*.json);;所有文件 (*.*)")
         )
         if not path:
             return
@@ -1250,9 +1250,9 @@ class RemarksHubDialog(QDialog):
         self._flush_current()
         path, _filt = QFileDialog.getOpenFileName(
             self,
-            "导入备注项目",
+            tr("导入备注项目"),
             os.path.expanduser("~"),
-            "备注项目 (*.json);;所有文件 (*.*)",
+            tr("备注项目 (*.json);;所有文件 (*.*)"),
         )
         if not path:
             return
@@ -1304,11 +1304,11 @@ class RemarksHubDialog(QDialog):
         self.remarksChanged.emit()
         extra = ""
         if newer:
-            extra = "\n文件版本较新，已按能识别的部分导入。"
+            extra = tr("\n文件版本较新，已按能识别的部分导入。")
         if len(imported) == 1:
-            tip = "已导入项目「%s」。%s" % (imported[0], extra)
+            tip = tr("已导入项目「%s」。%s") % (imported[0], extra)
         else:
-            tip = "已导入 %s 个项目。%s" % (len(imported), extra)
+            tip = tr("已导入 %s 个项目。%s") % (len(imported), extra)
         QMessageBox.information(self, tr("导入"), tip.strip())
         self._update_check_status()
 
@@ -1330,7 +1330,7 @@ class RemarksHubDialog(QDialog):
             self._style_field_item(item, name)
             self.list.addItem(item)
         if self._layer is not None:
-            layer_item = QListWidgetItem("%s (图层)" % self._layer.name())
+            layer_item = QListWidgetItem(tr("%s (图层)") % self._layer.name())
             layer_item.setData(Qt.UserRole, LAYER_ITEM_KEY)
             layer_item.setToolTip(tr("图层备注：图例悬停显示中文名和悬停说明，不用于赋值"))
             self.list.addItem(layer_item)
@@ -1364,7 +1364,7 @@ class RemarksHubDialog(QDialog):
         if name == LAYER_ITEM_KEY:
             if self._layer is None:
                 return
-            text = "%s (图层)" % self._layer.name()
+            text = tr("%s (图层)") % self._layer.name()
         else:
             fields_map = self._work.get("fields") or {}
             entry = normalize_field(fields_map.get(name) or empty_field())
@@ -1973,8 +1973,8 @@ class RemarksHubDialog(QDialog):
             return ""
         resolved, missing = resolve_var_template(raw, self.session.current_variables())
         if missing:
-            return "缺少变量：%s" % "、".join(missing)
-        return "当前写入：%s" % resolved
+            return tr("缺少变量：%s") % tr("、").join(missing)
+        return tr("当前写入：%s") % resolved
 
 
 class VariablesDialog(QDialog):
@@ -2509,7 +2509,7 @@ class QuickNameDialog(QDialog):
             return
         name = dest.name()
         if self.chk_pin.isChecked():
-            text = "钉住：%s" % name
+            text = tr("钉住：%s") % name
         else:
             text = name
         if self.list.count():

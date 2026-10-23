@@ -3,7 +3,7 @@
 
 from qgis.PyQt.QtCore import QLocale, QObject, QSettings, pyqtSignal
 
-from .catalog import LANG_EN, LANG_ZH, detect_initial_language
+from .catalog import LANG_EN, LANG_ZH, detect_initial_language, known_languages
 
 _SETTINGS = "AttributeTablePlus/ui_language"
 _hub = None
@@ -33,7 +33,7 @@ def _stored():
 
 def current_language():
     stored = _stored()
-    if stored in (LANG_ZH, LANG_EN):
+    if stored in known_languages():
         return stored
     qloc = ""
     try:
@@ -54,19 +54,35 @@ def current_language():
     return lang
 
 
+def _normalize_lang(lang):
+    text = str(lang or "").strip().lower().replace("_", "-")
+    primary = text.split("-", 1)[0]
+    if primary in known_languages():
+        return primary
+    return LANG_ZH
+
+
 def set_language(lang):
-    lang = LANG_EN if str(lang).lower().startswith("en") else LANG_ZH
+    lang = _normalize_lang(lang)
     try:
         QSettings().setValue(_SETTINGS, lang)
+    except Exception:
+        pass  # nosec B110
+    try:
+        from .. import theme
+
+        theme.refresh_direction()
     except Exception:
         pass  # nosec B110
     hub().changed.emit(lang)
     return lang
 
 
-def translate(msgid, *args, **kwargs):
-    text = msgid if isinstance(msgid, str) else str(msgid)
-    if current_language() == LANG_EN and text:
+def _lookup(msgid):
+    lang = current_language()
+    if lang == LANG_ZH or not msgid:
+        return None
+    if lang == LANG_EN:
         from . import messages_en
 
         mapped = messages_en.EN.get(msgid)
@@ -74,8 +90,17 @@ def translate(msgid, *args, **kwargs):
             from . import messages_en_extra
 
             mapped = messages_en_extra.EXTRA.get(msgid)
-        if mapped is not None:
-            text = mapped
+        return mapped
+    from .locales import load_text
+
+    return load_text(lang).get(msgid)
+
+
+def translate(msgid, *args, **kwargs):
+    text = msgid if isinstance(msgid, str) else str(msgid)
+    mapped = _lookup(text)
+    if mapped is not None:
+        text = mapped
     if args or kwargs:
         try:
             text = text % (args if args else kwargs) if args else text % kwargs

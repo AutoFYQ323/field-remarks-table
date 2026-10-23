@@ -286,7 +286,7 @@ class MultiCheckCombo(QComboBox):
             text = labels[0]
             tip = labels[0]
         else:
-            joined = "、".join(labels)
+            joined = tr("、").join(labels)
             text = joined if len(joined) <= 18 else (tr("已选 %d 项") % len(labels))
             tip = joined
         edit = self.lineEdit()
@@ -785,13 +785,14 @@ class AttributeTableDialog(QDialog):
             name = icon_ref[len("plugin:") :]
             icons_dir = os.path.join(os.path.dirname(__file__), "icons")
             from .i18n import current_language
-            from .i18n.catalog import LANG_EN
+            from .i18n.catalog import LANG_ZH
 
-            if name.startswith("lang_") or current_language() == LANG_EN:
-                en_dir = os.path.join(icons_dir, "en")
-                en_path = os.path.join(en_dir, name)
-                if os.path.exists(en_path):
-                    icons_dir = en_dir
+            lang = current_language()
+            if lang != LANG_ZH:
+                lang_dir = os.path.join(icons_dir, lang)
+                lang_path = os.path.join(lang_dir, name)
+                if os.path.exists(lang_path):
+                    icons_dir = lang_dir
             path = os.path.join(icons_dir, name)
             if os.path.exists(path) and name.lower().endswith(".svg"):
                 return QIcon(path)
@@ -904,19 +905,25 @@ class AttributeTableDialog(QDialog):
 
     def _language_icon_ref(self):
         from .i18n import current_language
-        from .i18n.catalog import LANG_EN
+        from .i18n.catalog import LANG_ZH
 
-        if current_language() == LANG_EN:
-            return "plugin:lang_24.png"
-        return "plugin:lang_zh_24.png"
+        if current_language() == LANG_ZH:
+            return "plugin:lang_zh_24.png"
+        return "plugin:lang_24.png"
 
     def _show_language_menu(self):
         from .i18n import current_language, set_language
-        from .i18n.catalog import LANG_EN, LANG_ZH
 
         menu = QMenu(self)
         current = current_language()
-        for key, label in ((LANG_ZH, tr("中文")), (LANG_EN, "English")):
+        labels = (
+            ("zh", tr("中文")),
+            ("en", tr("英文")),
+            ("es", tr("西班牙文")),
+            ("fr", tr("法文")),
+            ("ar", tr("阿拉伯文")),
+        )
+        for key, label in labels:
             act = menu.addAction(label)
             act.setCheckable(True)
             act.setChecked(key == current)
@@ -2577,9 +2584,9 @@ class AttributeTableDialog(QDialog):
         self.model.sort_by_field(name, ascending)
         self._update_row_header_width()
         self._refresh_column_stats(name)
-        arrow = "升序" if ascending else "降序"
+        arrow = tr("升序") if ascending else tr("降序")
         label = self._field_labels.get(name, name)
-        self.status.showMessage(f"按 {label} {arrow}（智能数字）排序", 2000)
+        self.status.showMessage(tr("按 %s %s（智能数字）排序") % (label, arrow), 2000)
         self._update_status()
 
     def _set_fill_field(self, field_name):
@@ -2869,7 +2876,7 @@ class AttributeTableDialog(QDialog):
             return
         self._select_fids_on_layer(
             fids,
-            "「%s」有 %d 个值重复，已选中 %d 条要素（仅统计当前表格行，空值不算）"
+            tr("「%s」有 %d 个值重复，已选中 %d 条要素（仅统计当前表格行，空值不算）")
             % (label, dup_values, len(fids)),
         )
 
@@ -2884,7 +2891,7 @@ class AttributeTableDialog(QDialog):
             return
         self._select_fids_on_layer(
             slot[1],
-            "「%s」已选中 %d 条空值（NULL 或空白，仅统计当前表格行）" % (label, len(slot[1])),
+            tr("「%s」已选中 %d 条空值（NULL 或空白，仅统计当前表格行）") % (label, len(slot[1])),
         )
 
     def _show_unique_values(self, field_name):
@@ -2910,7 +2917,7 @@ class AttributeTableDialog(QDialog):
 
         def on_select(fids, n_values):
             self._select_fids_on_layer(
-                fids, "已选中 %d 个值对应的 %d 条要素" % (n_values, len(fids))
+                fids, tr("已选中 %d 个值对应的 %d 条要素") % (n_values, len(fids))
             )
 
         def on_filter(checked):
@@ -2995,7 +3002,7 @@ class AttributeTableDialog(QDialog):
         fids = [f for f in fids if f is not None]
         if not fids:
             return
-        self._select_fids_on_layer(fids, "已选中 %d 行" % len(fids))
+        self._select_fids_on_layer(fids, tr("已选中 %d 行") % len(fids))
 
     def _add_colored_menu_action(self, menu, text, color):
         """Menu row with its own text color. Plain QAction follows the theme."""
@@ -3038,7 +3045,7 @@ class AttributeTableDialog(QDialog):
             return
         clipboard.setText("\n".join(lines))
         label = self._field_labels.get(field_name, field_name)
-        self.status.showMessage(f"已复制列「{label}」共 {len(values)} 行到剪贴板", 4000)
+        self.status.showMessage(tr("已复制列「%s」共 %s 行到剪贴板") % (label, len(values)), 4000)
 
     def _app_clipboard(self):
         clipboard = QApplication.clipboard()
@@ -3153,8 +3160,8 @@ class AttributeTableDialog(QDialog):
         rows = parsed["rows"]
         missing = self._missing_feature_ids(layer, [fid for fid, _val in rows])
         if missing:
-            sample = "、".join(str(fid) for fid in missing[:8])
-            extra = "" if len(missing) <= 8 else " 等 %s 个" % len(missing)
+            sample = tr("、").join(str(fid) for fid in missing[:8])
+            extra = "" if len(missing) <= 8 else tr(" 等 %s 个") % len(missing)
             QMessageBox.warning(
                 self,
                 tr("粘贴回列"),
@@ -3162,18 +3169,18 @@ class AttributeTableDialog(QDialog):
             )
             return
         sample = "\n".join(
-            "编号 %s → %s" % (fid, raw if raw != "" else "（空）") for fid, raw in rows[:3]
+            tr("编号 %s → %s") % (fid, raw if raw != "" else tr("（空）")) for fid, raw in rows[:3]
         )
         if target_field and target_field != src_field:
             question = (
-                "剪贴板来自字段「%s」，将按编号写入当前列「%s」，共 %s 行。\n"
-                "对的是编号，不是表格第几行。下面顺序可以不连着，不会错位。\n%s\n继续？"
+                tr("剪贴板来自字段「%s」，将按编号写入当前列「%s」，共 %s 行。\n"
+                "对的是编号，不是表格第几行。下面顺序可以不连着，不会错位。\n%s\n继续？")
                 % (src_field, target_field, len(rows), sample)
             )
         else:
             question = (
-                "将按编号写回字段「%s」，共 %s 行。\n"
-                "对的是编号，不是表格第几行。下面顺序可以不连着，不会错位。\n%s\n继续？"
+                tr("将按编号写回字段「%s」，共 %s 行。\n"
+                "对的是编号，不是表格第几行。下面顺序可以不连着，不会错位。\n%s\n继续？")
                 % (field_name, len(rows), sample)
             )
         if QMessageBox.question(self, tr("粘贴回列"), question) != QMessageBox.Yes:
@@ -3329,7 +3336,7 @@ class AttributeTableDialog(QDialog):
                 if reply == QMessageBox.Save:
                     if not layer.commitChanges():
                         errs = layer.commitErrors()
-                        msg = "\n".join(errs) if isinstance(errs, (list, tuple)) else (errs or "未知错误")
+                        msg = "\n".join(errs) if isinstance(errs, (list, tuple)) else (errs or tr("未知错误"))
                         QMessageBox.warning(self, tr("保存失败"), msg)
                         self.act_toggle_edit.setChecked(True)
                         return
@@ -3355,7 +3362,7 @@ class AttributeTableDialog(QDialog):
             return
         if not layer.commitChanges():
             errs = layer.commitErrors()
-            msg = "\n".join(errs) if isinstance(errs, (list, tuple)) else (errs or "未知错误")
+            msg = "\n".join(errs) if isinstance(errs, (list, tuple)) else (errs or tr("未知错误"))
             QMessageBox.warning(self, tr("保存失败"), msg)
             layer.startEditing()
         else:
@@ -3389,9 +3396,9 @@ class AttributeTableDialog(QDialog):
         if not fids:
             QMessageBox.information(self, tr("删除"), tr("没有选中的要素。"))
             return
-        if QMessageBox.question(self, tr("删除"), f"删除选中的 {len(fids)} 个要素？") != QMessageBox.Yes:
+        if QMessageBox.question(self, tr("删除"), tr("删除选中的 %s 个要素？") % len(fids)) != QMessageBox.Yes:
             return
-        layer.beginEditCommand("删除要素")
+        layer.beginEditCommand(tr("删除要素"))
         try:
             ok = bool(layer.deleteFeatures(list(fids)))
         except Exception:
@@ -3556,12 +3563,12 @@ class AttributeTableDialog(QDialog):
         finally:
             QApplication.restoreOverrideCursor()
         self.status.showMessage(
-            f"KMZ 已导出：写入 {written}，跳过无几何 {skipped} → {path}", 6000
+            tr("KMZ 已导出：写入 %s，跳过无几何 %s → %s") % (written, skipped, path), 6000
         )
         QMessageBox.information(
             self,
             tr("导出 KMZ"),
-            f"完成。\n写入要素：{written}\n跳过（无几何）：{skipped}\n\n{path}",
+            tr("完成。\n写入要素：%s\n跳过（无几何）：%s\n\n%s") % (written, skipped, path),
         )
 
     def _relayout_fill_bar(self, is_affix, is_replace, fill_on):
@@ -3960,6 +3967,7 @@ class AttributeTableDialog(QDialog):
         )
 
     def _fill_target_fids(self, selected_only=False, title="赋值", scope=None):
+        title = tr(title)
         layer = self._layer
         if layer is None:
             return None
@@ -4042,6 +4050,7 @@ class AttributeTableDialog(QDialog):
         return resolve_var_template(value, self._pack_variables())
 
     def _resolve_pending_or_warn(self, pending, title="快速插入"):
+        title = tr(title)
         resolved = {}
         missing = []
         seen = set()
@@ -4067,7 +4076,7 @@ class AttributeTableDialog(QDialog):
             QMessageBox.information(
                 self,
                 title,
-                tr("变量「%s」不存在，无法写入。") % "、".join(missing),
+                tr("变量「%s」不存在，无法写入。") % tr("、").join(missing),
             )
             return None
         return resolved
@@ -4082,7 +4091,7 @@ class AttributeTableDialog(QDialog):
         fids = self._fill_target_fids(title="快速插入", scope=scope)
         if not fids:
             return
-        scope_tip = {"selected": "选中", "filtered": "筛选", "all": "全部"}.get(scope, scope)
+        scope_tip = {"selected": tr("选中"), "filtered": tr("筛选"), "all": tr("全部")}.get(scope, scope)
         if confirm and not self._pending_targets_all_empty(layer, pending, fids):
             lines = "\n".join(
                 "  %s = %s" % (name, self._pending_shown(val))
@@ -4092,7 +4101,7 @@ class AttributeTableDialog(QDialog):
                 QMessageBox.question(
                     self,
                     tr("快速插入"),
-                    f"将按快速插入行写入 {len(fids)} 条（{scope_tip}）：\n{lines}\n继续？",
+                    tr("将按快速插入行写入 %s 条（%s）：\n%s\n继续？") % (len(fids), scope_tip, lines),
                 )
                 != QMessageBox.Yes
             ):
@@ -4101,7 +4110,7 @@ class AttributeTableDialog(QDialog):
         skipped = 0
         multi = len(pending) > 1
         if multi:
-            layer.beginEditCommand("快速插入")
+            layer.beginEditCommand(tr("快速插入"))
         try:
             for field_name, raw in pending.items():
                 field_idx = layer.fields().indexFromName(field_name)
@@ -4132,8 +4141,8 @@ class AttributeTableDialog(QDialog):
                     layer.destroyEditCommand()
         self.quick_fill.clear_pending(list(pending.keys()))
         if total:
-            extra = "，%s 列因表达式失败已跳过" % skipped if skipped else ""
-            self.status.showMessage(f"快速插入完成：更新 {total} 处{extra}", 4000)
+            extra = tr("，%s 列因表达式失败已跳过") % skipped if skipped else ""
+            self.status.showMessage(tr("快速插入完成：更新 %s 处%s") % (total, extra), 4000)
         elif skipped:
             self.status.showMessage(tr("快速插入：表达式未能写入任何行"), 4000)
 
@@ -4147,7 +4156,7 @@ class AttributeTableDialog(QDialog):
         box = QMessageBox(self)
         box.setWindowTitle(tr("快速插入"))
         shown = combo.currentText() if combo is not None else str(value)
-        box.setText(f"将「{shown}」写入字段「{field_name}」")
+        box.setText(tr("将「%s」写入字段「%s」") % (shown, field_name))
         btn_all = box.addButton(tr("更新全部"), QMessageBox.ActionRole)
         btn_filt = box.addButton(tr("更新筛选项"), QMessageBox.ActionRole)
         btn_sel = box.addButton(tr("更新选中"), QMessageBox.ActionRole)
@@ -4196,7 +4205,7 @@ class AttributeTableDialog(QDialog):
         )
         if updated:
             self.status.showMessage(
-                f"快速插入：{updated} 行 → {field_name} = {value}", 4000
+                tr("快速插入：%s 行 → %s = %s") % (updated, field_name, value), 4000
             )
 
     def _open_fill_expression_builder(self):
@@ -4239,29 +4248,29 @@ class AttributeTableDialog(QDialog):
         def samples(items):
             out = []
             for fid, issue in items[:4]:
-                raw = value_text(issue.raw) or "（空）"
+                raw = value_text(issue.raw) or tr("（空）")
                 if issue.status == "rounded":
-                    out.append("    编号 %s：%s → %s" % (fid, raw, issue.value))
+                    out.append(tr("    编号 %s：%s → %s") % (fid, raw, issue.value))
                 else:
-                    out.append("    编号 %s：%s（%s）" % (fid, raw, issue.note))
+                    out.append(tr("    编号 %s：%s（%s）") % (fid, raw, issue.note))
             if len(items) > 4:
                 out.append("    …")
             return "\n".join(out)
 
-        lines = ["字段「%s」本次要写入 %s 条。" % (field_name, total + len(invalid))]
+        lines = [tr("字段「%s」本次要写入 %s 条。") % (field_name, total + len(invalid))]
         if invalid:
-            lines.append("\n%s 条和字段类型不符，写不进去，会跳过：\n%s" % (len(invalid), samples(invalid)))
+            lines.append(tr("\n%s 条和字段类型不符，写不进去，会跳过：\n%s") % (len(invalid), samples(invalid)))
         if rounded:
-            lines.append("\n%s 条是小数，整数字段会四舍五入：\n%s" % (len(rounded), samples(rounded)))
+            lines.append(tr("\n%s 条是小数，整数字段会四舍五入：\n%s") % (len(rounded), samples(rounded)))
         if toolong:
             lines.append(
-                "\n%s 条文字超过字段长度，保存时数据源可能截断或拒绝：\n%s"
+                tr("\n%s 条文字超过字段长度，保存时数据源可能截断或拒绝：\n%s")
                 % (len(toolong), samples(toolong))
             )
         if total <= 0:
             QMessageBox.warning(self, command_name, "\n".join(lines) + tr("\n\n没有可写入的值。"))
             return False
-        lines.append("\n继续写入其余 %s 条？" % total)
+        lines.append(tr("\n继续写入其余 %s 条？") % total)
         return QMessageBox.question(self, command_name, "\n".join(lines)) == QMessageBox.Yes
 
     def _run_fill(self, selected_only=False):
@@ -4350,7 +4359,7 @@ class AttributeTableDialog(QDialog):
                             QMessageBox.information(
                                 self,
                                 tr("赋值"),
-                                tr("变量「%s」不存在，无法写入。") % "、".join(missing),
+                                tr("变量「%s」不存在，无法写入。") % tr("、").join(missing),
                             )
                             return
                         raw = resolved
@@ -4549,7 +4558,7 @@ class AttributeTableDialog(QDialog):
             QMessageBox.warning(
                 self,
                 tr("赋值"),
-                f"表达式错误（FID {eval_error[0]}）：{eval_error[1]}",
+                tr("表达式错误（FID %s）：%s") % (eval_error[0], eval_error[1]),
             )
             return None
         return values
@@ -4584,18 +4593,17 @@ class AttributeTableDialog(QDialog):
             QMessageBox.information(
                 self,
                 tr("替换"),
-                f"当前范围内没有匹配「{find_text}」。",
+                tr("当前范围内没有匹配「%s」。") % find_text,
             )
             return
 
-        scope_tip = "选中" if selected_only else "筛选"
+        scope_tip = tr("选中") if selected_only else tr("筛选")
         if (
             QMessageBox.question(
                 self,
                 tr("替换确认"),
-                f"字段「{field_name}」（{scope_tip}）\n"
-                f"将「{find_text}」替换为「{replace_text}」\n"
-                f"命中 {rows} 行 / {occ} 处，继续？",
+                tr("字段「%s」（%s）\n将「%s」替换为「%s」\n命中 %s 行 / %s 处，继续？")
+                % (field_name, scope_tip, find_text, replace_text, rows, occ),
             )
             != QMessageBox.Yes
         ):
@@ -4604,13 +4612,14 @@ class AttributeTableDialog(QDialog):
         updated = self._commit_attribute_values(layer, field_idx, field_name, values, "替换", skip_unchanged=False)
         if updated:
             self.status.showMessage(
-                f"替换完成：{updated} 行 / {occ} 处 → {field_name}",
+                tr("替换完成：%s 行 / %s 处 → %s") % (updated, occ, field_name),
                 4000,
             )
 
     def _commit_attribute_values(
         self, layer, field_idx, field_name, values, command_name, skip_unchanged=True, in_command=False
     ):
+        command_name = tr(command_name)
         if not values:
             return 0
         invalid, rounded, toolong = [], [], []
@@ -4786,7 +4795,7 @@ class AttributeTableDialog(QDialog):
         qgis_fmt = dlg.use_qgis_format()
         coerce_num = dlg.coerce_numeric_text()
         path, _ = QFileDialog.getSaveFileName(
-            self, "导出 CSV", os.path.expanduser("~"), "CSV (*.csv)"
+            self, tr("导出 CSV"), os.path.expanduser("~"), tr("CSV (*.csv)")
         )
         if not path:
             return
@@ -4803,11 +4812,11 @@ class AttributeTableDialog(QDialog):
         finally:
             QApplication.restoreOverrideCursor()
 
-        tip_scope = "全部要素" if scope == ExportCsvDialog.SCOPE_ALL else "当前表格"
-        tip_fmt = "QGIS格式" if qgis_fmt else "自定义列序"
-        tip_num = "数字文本" if coerce_num else "原文"
+        tip_scope = tr("全部要素") if scope == ExportCsvDialog.SCOPE_ALL else tr("当前表格")
+        tip_fmt = tr("QGIS格式") if qgis_fmt else tr("自定义列序")
+        tip_num = tr("数字文本") if coerce_num else tr("原文")
         self.status.showMessage(
-            f"已导出（{tip_scope} / {tip_fmt} / {tip_num}）：{path}", 5000
+            tr("已导出（%s / %s / %s）：%s") % (tip_scope, tip_fmt, tip_num, path), 5000
         )
 
     @staticmethod
@@ -4984,7 +4993,7 @@ class AttributeTableDialog(QDialog):
             reasons.append(tr("筛选"))
         if not reasons:
             return tr("没有匹配的行")
-        return tr("没有匹配的行：%s，可清除或把范围切回「全部要素」") % "、".join(reasons)
+        return tr("没有匹配的行：%s，可清除或把范围切回「全部要素」") % tr("、").join(reasons)
 
     def _update_stats_label(self):
         """Bottom-right: selection-cell stats, or column sort stats."""
@@ -5143,7 +5152,7 @@ class AttributeTableDialog(QDialog):
             QMessageBox.warning(self, tr("复制"), tr("当前 QGIS 无复制要素动作。"))
             return
         if self._with_layer_as_active(lambda: act.trigger()):
-            self.status.showMessage(f"已复制 {n} 个要素到剪贴板", 3000)
+            self.status.showMessage(tr("已复制 %s 个要素到剪贴板") % n, 3000)
 
     def _cut_features(self):
         layer = self._layer
@@ -5162,7 +5171,7 @@ class AttributeTableDialog(QDialog):
             return
         if self._with_layer_as_active(lambda: act.trigger()):
             self.reload_table()
-            self.status.showMessage(f"已剪切 {n} 个要素", 3000)
+            self.status.showMessage(tr("已剪切 %s 个要素") % n, 3000)
 
     def _paste_features(self):
         layer = self._layer

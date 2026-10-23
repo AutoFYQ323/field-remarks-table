@@ -809,25 +809,25 @@ def run_analysis(occ_layers, splice_layers, fat_layers, cable_layers,
         write_field = write_field or dist_write_field
     config_errors = []
     if not occ_layers:
-        config_errors.append("请选择光交点图层。")
+        config_errors.append(tr("请选择光交点图层。"))
     if not fat_layers:
-        config_errors.append("请选择分纤盒点图层。")
+        config_errors.append(tr("请选择分纤盒点图层。"))
     if not cable_layers:
-        config_errors.append("请选择光缆图层。")
+        config_errors.append(tr("请选择光缆图层。"))
     if not hh_field:
-        config_errors.append("请选择分纤盒户数字段（线赋值按此字段读取）。")
+        config_errors.append(tr("请选择分纤盒户数字段（线赋值按此字段读取）。"))
     if not write_field:
-        config_errors.append("请选择光缆户数写入字段。")
+        config_errors.append(tr("请选择光缆户数写入字段。"))
     if tolerance <= 0:
-        config_errors.append("吸附容差必须大于 0。")
+        config_errors.append(tr("吸附容差必须大于 0。"))
     if fat_layers and hh_field:
         missing = [layer.name() for layer in fat_layers if hh_field not in layer.fields().names()]
         if missing:
-            config_errors.append("户数字段「{}」不在分纤盒图层：{}".format(hh_field, "、".join(missing)))
+            config_errors.append(tr("户数字段「{}」不在分纤盒图层：{}").format(hh_field, tr("、").join(missing)))
     if cable_layers and write_field:
         missing = [layer.name() for layer in cable_layers if write_field not in layer.fields().names()]
         if missing:
-            config_errors.append("光缆户数写入字段「{}」不在图层：{}".format(write_field, "、".join(missing)))
+            config_errors.append(tr("光缆户数写入字段「{}」不在图层：{}").format(write_field, tr("、").join(missing)))
     if config_errors:
         return {"ok": False, "config_errors": config_errors}
 
@@ -1030,7 +1030,7 @@ def _build_tree_text(occ_rows, node_map, edge_map, result):
         lines.append(occ["label"])
         outs = list(outgoing.get(occ["id"], []))
         if not outs:
-            lines.append("  （无出线）")
+            lines.append(tr("  （无出线）"))
             continue
         for j, eid in enumerate(outs):
             edge = edge_map.get(eid)
@@ -1231,31 +1231,31 @@ def run_fat_analysis(fat_layers, user_layers, drop_layers,
                      drop_hh_field="", mode="fat", scheme=None):
     config_errors = []
     if not fat_layers:
-        config_errors.append("请选择分纤盒点图层。")
+        config_errors.append(tr("请选择分纤盒点图层。"))
     if not user_layers:
-        config_errors.append("请选择用户点图层。")
+        config_errors.append(tr("请选择用户点图层。"))
     if not drop_layers:
-        config_errors.append("请选择皮线图层。")
+        config_errors.append(tr("请选择皮线图层。"))
     if mode != "drop" and not fat_write_field:
-        config_errors.append("请选择分纤盒写入字段。")
+        config_errors.append(tr("请选择分纤盒写入字段。"))
     if not drop_hh_field:
-        config_errors.append("请选择皮线户数字段。")
+        config_errors.append(tr("请选择皮线户数字段。"))
     if not user_hh_field:
-        config_errors.append("请选择用户户数字段。")
+        config_errors.append(tr("请选择用户户数字段。"))
     if tolerance <= 0:
-        config_errors.append("吸附容差必须大于 0。")
+        config_errors.append(tr("吸附容差必须大于 0。"))
     if fat_layers and fat_write_field:
         missing = [layer.name() for layer in fat_layers if fat_write_field not in layer.fields().names()]
         if missing:
-            config_errors.append("分纤盒写入字段「{}」不在图层：{}".format(fat_write_field, "、".join(missing)))
+            config_errors.append(tr("分纤盒写入字段「{}」不在图层：{}").format(fat_write_field, tr("、").join(missing)))
     if user_layers and user_hh_field:
         missing = [layer.name() for layer in user_layers if user_hh_field not in layer.fields().names()]
         if missing:
-            config_errors.append("用户户数字段「{}」不在图层：{}".format(user_hh_field, "、".join(missing)))
+            config_errors.append(tr("用户户数字段「{}」不在图层：{}").format(user_hh_field, tr("、").join(missing)))
     if drop_layers and drop_hh_field:
         missing = [layer.name() for layer in drop_layers if drop_hh_field not in layer.fields().names()]
         if missing:
-            config_errors.append("皮线户数字段「{}」不在图层：{}".format(drop_hh_field, "、".join(missing)))
+            config_errors.append(tr("皮线户数字段「{}」不在图层：{}").format(drop_hh_field, tr("、").join(missing)))
     if config_errors:
         return {"ok": False, "config_errors": config_errors}
 

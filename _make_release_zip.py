@@ -5,10 +5,10 @@ import zipfile
 
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
 PLUGIN_NAME = "attribute_table"
-OUT = os.path.join(os.path.dirname(PLUGIN_DIR), "attribute_table-1.18.6.zip")
+OUT = os.path.join(os.path.dirname(PLUGIN_DIR), "attribute_table-1.18.7.zip")
 
 SKIP_DIRS = {".git", "__pycache__", ".cursor", ".vscode"}
-SKIP_FILES = {".bandit", "_make_release_zip.py", "_bandit_fix.py"}
+SKIP_FILES = {".bandit", "_make_release_zip.py", "_bandit_fix.py", "check_i18n.py"}
 SKIP_SUFFIX = (".pyc", ".pyo")
 
 
@@ -24,6 +24,13 @@ def should_skip(rel_parts, name):
 
 
 def main():
+    import subprocess
+    import sys
+
+    check = os.path.join(PLUGIN_DIR, "check_i18n.py")
+    result = subprocess.call([sys.executable, check])
+    if result != 0:
+        raise SystemExit(result)
     if os.path.isfile(OUT):
         os.remove(OUT)
     count = 0

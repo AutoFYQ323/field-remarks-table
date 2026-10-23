@@ -210,11 +210,34 @@ def apply(widget, theme=None):
             pass  # nosec B110
 
 
+def apply_direction(widget):
+    """Arabic uses right-to-left for plugin chrome. Other languages stay left-to-right."""
+    if widget is None:
+        return
+    try:
+        from qgis.PyQt.QtCore import Qt
+
+        from .i18n.catalog import LANG_AR
+        from .i18n.runtime import current_language
+
+        direction = Qt.RightToLeft if current_language() == LANG_AR else Qt.LeftToRight
+        widget.setLayoutDirection(direction)
+    except Exception:
+        return
+
+
+def refresh_direction():
+    _windows[:] = [w for w in _windows if _alive(w)]
+    for widget in list(_windows):
+        apply_direction(widget)
+
+
 def register(widget):
     """Theme a top-level window now and whenever the theme changes."""
     _windows[:] = [w for w in _windows if _alive(w) and w is not widget]
     _windows.append(widget)
     apply(widget)
+    apply_direction(widget)
 
 
 def set_theme(key):
