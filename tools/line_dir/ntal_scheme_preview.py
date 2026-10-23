@@ -247,7 +247,7 @@ def _qt_enum(owner, *names):
 
 def _table(headers):
     table = QTableWidget(0, len(headers))
-    table.setHorizontalHeaderLabels(list(headers))
+    table.setHorizontalHeaderLabels([tr(text) for text in headers])
     table.setEditTriggers(_qt_enum(QAbstractItemView, "EditTrigger.NoEditTriggers", "NoEditTriggers"))
     table.setSelectionMode(_qt_enum(QAbstractItemView, "SelectionMode.NoSelection", "NoSelection"))
     table.setFocusPolicy(_qt_enum(Qt, "FocusPolicy.NoFocus", "NoFocus"))
@@ -288,12 +288,12 @@ class SchemePreviewPane(QWidget):
         self.setMinimumWidth(480)
         root = QVBoxLayout(self)
         root.setContentsMargins(8, 0, 0, 0)
-        title = QLabel("看懂当前选项")
+        title = QLabel(tr("看懂当前选项"))
         title.setStyleSheet("font-weight: 700;")
         root.addWidget(title)
         self.combo_focus = QComboBox()
         for key in ACTION_KEYS:
-            self.combo_focus.addItem(ACTION_TITLES[key], key)
+            self.combo_focus.addItem(tr(ACTION_TITLES[key]), key)
         self.combo_focus.currentIndexChanged.connect(self.refresh_sim)
         root.addWidget(self.combo_focus)
         self.lbl_scheme = QLabel("")
@@ -304,26 +304,26 @@ class SchemePreviewPane(QWidget):
         self.lbl_tip.setWordWrap(True)
         self.lbl_tip.setStyleSheet("color: #555;")
         root.addWidget(self.lbl_tip)
-        sim_lab = QLabel("模拟预览（固定示意网，不读图层）")
+        sim_lab = QLabel(tr("模拟预览（固定示意网，不读图层）"))
         sim_lab.setStyleSheet("font-weight: 700;")
         root.addWidget(sim_lab)
         self.sim_table = _table(("场景", "对象", "将写成", "说明"))
         self.sim_table.setMinimumHeight(140)
         root.addWidget(self.sim_table, 3)
-        test_lab = QLabel("实际测试（读当前图层，不写入）")
+        test_lab = QLabel(tr("实际测试（读当前图层，不写入）"))
         test_lab.setStyleSheet("font-weight: 700;")
         root.addWidget(test_lab)
         btn_row = QHBoxLayout()
         self.spin_limit = QSpinBox()
         self.spin_limit.setRange(1, 200)
         self.spin_limit.setValue(20)
-        self.spin_limit.setPrefix("最多 ")
-        self.spin_limit.setSuffix(" 条")
-        self.btn_test = QPushButton("运行测试")
-        self.btn_audit = QPushButton("全面检测")
-        self.btn_test.setToolTip("按左边当前方案和上面选的功能，对图层跑一遍分析。只出表，不写字段、不出临时图层。")
+        self.spin_limit.setPrefix(tr("最多 "))
+        self.spin_limit.setSuffix(tr(" 条"))
+        self.btn_test = QPushButton(tr("运行测试"))
+        self.btn_audit = QPushButton(tr("全面检测"))
+        self.btn_test.setToolTip(tr("按左边当前方案和上面选的功能，对图层跑一遍分析。只出表，不写字段、不出临时图层。"))
         self.btn_audit.setToolTip(
-            "用本窗里还没确定的容差、角度、六个方案做全面检测。只出表，不写字段、不翻线、不出图层。"
+            tr("用本窗里还没确定的容差、角度、六个方案做全面检测。只出表，不写字段、不翻线、不出图层。")
         )
         self.btn_test.clicked.connect(self.run_live_test)
         self.btn_audit.clicked.connect(self.run_live_audit)
@@ -335,7 +335,7 @@ class SchemePreviewPane(QWidget):
         self.test_table = _table(("对象", "原值", "将写成", "备注"))
         self.test_table.setMinimumHeight(140)
         root.addWidget(self.test_table, 3)
-        self.lbl_status = QLabel("换下拉会立刻改模拟预览。测试和全面检测用本窗当前参数，点取消不会保存。")
+        self.lbl_status = QLabel(tr("换下拉会立刻改模拟预览。测试和全面检测用本窗当前参数，点取消不会保存。"))
         self.lbl_status.setWordWrap(True)
         self.lbl_status.setStyleSheet("color: #555;")
         root.addWidget(self.lbl_status)
@@ -384,7 +384,7 @@ class SchemePreviewPane(QWidget):
     def run_live_test(self):
         host = self._dialog.parent() if self._dialog is not None else None
         if host is None or not hasattr(host, "_action_runner"):
-            self.lbl_status.setText("没有主窗口，跑不了实际测试。")
+            self.lbl_status.setText(tr("没有主窗口，跑不了实际测试。"))
             return
         action = self.current_action()
         runner, payload_fn, noun, _cmd = host._action_runner(action)
@@ -404,7 +404,7 @@ class SchemePreviewPane(QWidget):
     def run_live_audit(self):
         host = self._dialog.parent() if self._dialog is not None else None
         if host is None:
-            self.lbl_status.setText("没有主窗口，跑不了全面检测。")
+            self.lbl_status.setText(tr("没有主窗口，跑不了全面检测。"))
             return
         from .ntal_audit import CHECKS, CHECKS_OFF_BY_DEFAULT, run_audit
 

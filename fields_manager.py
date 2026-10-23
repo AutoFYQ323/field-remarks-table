@@ -306,7 +306,7 @@ class FieldsManagerDialog(QDialog):
             QMessageBox.information(self, tr("重命名"), tr("请先选择一个字段。"))
             return
         new, ok = QInputDialog.getText(
-            self, tr("重命名字段"), f"新名称（原名：{old}）：", text=old
+            self, tr("重命名字段"), tr("新名称（原名：%s）：") % old, text=old
         )
         if not ok:
             return
@@ -348,7 +348,7 @@ class FieldsManagerDialog(QDialog):
             QMessageBox.information(self, tr("删除字段"), tr("请先选择一个字段。"))
             return
         if (
-            QMessageBox.question(self, tr("删除字段"), f"确定删除字段「{name}」？")
+            QMessageBox.question(self, tr("删除字段"), tr("确定删除字段「%s」？") % name)
             != QMessageBox.Yes
         ):
             return

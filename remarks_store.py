@@ -17,6 +17,8 @@ import re
 
 from qgis.core import QgsProject
 
+from .i18n import tr
+
 
 SCOPE = "AttributeTablePlus"
 KEY = "remarks_json"
@@ -416,7 +418,7 @@ def meaning_resolved_tip(item, variables=None):
         return text
     resolved, missing = resolve_var_template(raw, variables)
     if missing:
-        return "%s（缺少变量：%s）" % (text, "、".join(missing))
+        return tr("%s（缺少变量：%s）") % (text, tr("、").join(missing))
     if resolved != format_var_template(raw):
         return "%s → %s" % (text, resolved)
     return text
@@ -786,7 +788,7 @@ def notify_user(message, level="warning"):
     try:
         from qgis.core import Qgis, QgsMessageLog
 
-        QgsMessageLog.logMessage(message, "属性表 Plus", Qgis.Warning)
+        QgsMessageLog.logMessage(message, tr("属性表 Plus"), Qgis.Warning)
     except Exception:
         pass  # nosec B110
     try:
@@ -795,9 +797,9 @@ def notify_user(message, level="warning"):
         if iface is not None:
             bar = iface.messageBar()
             if level == "critical":
-                bar.pushCritical("属性表 Plus", message)
+                bar.pushCritical(tr("属性表 Plus"), message)
             else:
-                bar.pushWarning("属性表 Plus", message)
+                bar.pushWarning(tr("属性表 Plus"), message)
     except Exception:
         pass  # nosec B110
 
@@ -945,7 +947,7 @@ def build_packs_file(items):
             continue
         cleaned.append((name, layers, variables))
     if not cleaned:
-        raise ValueError("没有可导出的项目。")
+        raise ValueError(tr("没有可导出的项目。"))
     if len(cleaned) == 1:
         return build_pack_file(cleaned[0][0], cleaned[0][1], cleaned[0][2])
     return {
@@ -982,19 +984,19 @@ def parse_pack_file(data):
     newer=True if file format is newer than this plugin; still import known keys.
     """
     if not isinstance(data, dict):
-        raise ValueError("不是有效的备注项目文件。")
+        raise ValueError(tr("不是有效的备注项目文件。"))
     kind = str(data.get("kind") or data.get("type") or "").strip()
     if kind != PACK_KIND:
-        raise ValueError("不是本插件导出的备注项目文件。")
+        raise ValueError(tr("不是本插件导出的备注项目文件。"))
     fmt = data.get("format")
     if fmt is None:
         fmt = PACK_FORMAT
     try:
         fmt = int(fmt)
     except (TypeError, ValueError):
-        raise ValueError("文件格式版本无法识别。")
+        raise ValueError(tr("文件格式版本无法识别。"))
     if fmt < 1:
-        raise ValueError("文件格式版本无法识别。")
+        raise ValueError(tr("文件格式版本无法识别。"))
     items = []
     packs_in = data.get("packs")
     if isinstance(packs_in, list) and packs_in:
@@ -1016,10 +1018,10 @@ def parse_pack_file(data):
                 if variables_in is None:
                     variables_in = pack.get("variables")
         if not isinstance(layers_in, dict):
-            raise ValueError("文件里没有图层配置。")
+            raise ValueError(tr("文件里没有图层配置。"))
         items.append((name, _clean_pack_layers(layers_in), normalize_variables(variables_in)))
     if not items:
-        raise ValueError("文件里没有可导入的项目。")
+        raise ValueError(tr("文件里没有可导入的项目。"))
     return items, fmt > PACK_FORMAT
 
 
@@ -1084,12 +1086,12 @@ class RemarksSession:
         if bstate == "ok" and backup:
             self._recovered = True
             notify_user(
-                "字段备注配置文件损坏，已从备份恢复。损坏的文件另存为：%s" % (moved or path)
+                tr("字段备注配置文件损坏，已从备份恢复。损坏的文件另存为：%s") % (moved or path)
             )
             return backup
         notify_user(
-            "字段备注配置文件损坏且没有可用备份，本次从空配置开始。"
-            "损坏的文件已另存为：%s" % (moved or "（改名失败，原文件未动）"),
+            tr("字段备注配置文件损坏且没有可用备份，本次从空配置开始。损坏的文件已另存为：%s")
+            % (moved or tr("（改名失败，原文件未动）")),
             level="critical",
         )
         if not moved:
@@ -1298,7 +1300,7 @@ class RemarksSession:
         except Exception as exc:
             if not getattr(self, "_save_error_shown", False):
                 self._save_error_shown = True
-                notify_user("字段备注保存失败：%s（%s）" % (exc, path), level="critical")
+                notify_user(tr("字段备注保存失败：%s（%s）") % (exc, path), level="critical")
 
     def set_enabled(self, enabled):
         self.enabled = bool(enabled) and not self.is_placeholder()

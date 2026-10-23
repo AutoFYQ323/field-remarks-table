@@ -35,7 +35,7 @@ If no vector layer is selected, the plugin asks you to pick one.
 
 ## Interface language and theme
 
-- **Language:** Simplified Chinese or English. The first launch follows the QGIS locale, then the system locale; the choice is remembered. Toolbar language control shows **CN** / **EN**.
+- **Language:** Simplified Chinese, English, Spanish, French, or Arabic. The language menu and the worded toolbar icons use that language only. The first launch follows the QGIS locale, then the system locale. `zh`, `es`, `fr`, `ar`, and `en` select that language. Any other locale, such as German, selects English. If both locales are empty, Chinese is used. The choice is remembered. Arabic lays out plugin buttons and titles from right to left. Values in the attribute table stay left to right. Layer names, field values, and text the user wrote are not translated.
 - **Theme:** Default (native QGIS), Sakura pink, or Mint fresh. The main attribute table, field remarks, field mapping, and line direction windows follow the same theme when you change it from the toolbar.
 
 ## Toolbar
@@ -50,7 +50,7 @@ Edits go through the layer edit buffer. Use the plugin Save / Rollback buttons, 
 - No extra Python packages
 - Windows, Linux, and macOS
 
-Metadata and this README are English; the plugin UI is Chinese or English as chosen above.
+Metadata and this README are English. The plugin UI follows the language chosen above.
 
 ## Differences from the built-in attribute table
 
@@ -75,8 +75,17 @@ GNU GPL v2 or later. See `LICENSE`.
 
 **plugins.qgis.org** does not pull automatically from GitHub. For each release you still:
 
-1. Zip the plugin folder so the archive root is `attribute_table/` with `metadata.txt` inside (no `__pycache__`, no `.git`).
-2. Upload the zip on the plugin page at plugins.qgis.org (or update the version there as required).
+1. From the plugin folder, run `python _make_release_zip.py`. It checks Chinese, English, Spanish, French, and Arabic, including the five help pages, then writes `attribute_table-<version>.zip` beside the plugin folder. The archive root is `attribute_table/` with `metadata.txt` inside. Do not zip the folder by hand in Explorer: that skips the language check.
+2. Upload that zip on the plugin page at plugins.qgis.org (or update the version there as required). New `tr()` strings must be filled in every language before this script will write the zip.
+
+## Version 1.18.7 (high level)
+
+- Spanish, French, and Arabic, in addition to Simplified Chinese and English
+- First launch follows the QGIS locale, then the system locale; the choice is remembered
+- The language menu and worded toolbar icons use the current language only
+- Arabic lays out plugin buttons and titles from right to left; attribute values stay left to right
+- Help has the same five pages in all five languages
+- Scheme option text, the sample preview grid, and per-issue line-direction messages stay in Chinese
 
 ## Version 1.18.6 (high level)
 
@@ -110,10 +119,17 @@ GNU GPL v2 or later. See `LICENSE`.
 
 入口：主工具栏、**矢量 → Field Remarks Table**、图层右键。
 
-主要功能：字段备注项目包、项目变量、从符号化快速命名、批量赋值、按要素编号回贴、KMZ/CSV 导出、字段映射复制、线方向检查。界面可选简体中文或英文；樱花粉/薄荷清新主题对主窗口、字段备注、映射与线方向窗口生效。
+主要功能：字段备注项目包、项目变量、从符号化快速命名、批量赋值、按要素编号回贴、KMZ/CSV 导出、字段映射复制、线方向检查。界面可选简体中文、英文、西班牙文、法文或阿拉伯文。语言菜单和带字的工具栏图标都只用当前这一种语言。阿拉伯文的按钮和标题从右向左，表格里的属性值仍从左向右。樱花粉/薄荷清新主题对主窗口、字段备注、映射与线方向窗口生效。
 
 源码：https://github.com/AutoFYQ323/field-remarks-table  
-上架 QGIS 插件库仍需本地打 zip 后在 plugins.qgis.org 上传，不会随 GitHub 自动更新。
+上架 QGIS 插件库不会随 GitHub 自动更新。在插件目录运行 `python _make_release_zip.py`：先检查五种语言有没有漏句，通过后才写出 zip。不要在资源管理器里把文件夹直接压成 zip。
+
+## 1.18.7
+
+- 界面增加西班牙文、法文、阿拉伯文。首次按 QGIS 语言，没有再看系统语言，之后记住选择。
+- 语言菜单和带字的工具栏图标只用当前这一种语言。阿拉伯文的按钮和标题从右向左，属性值仍从左向右。
+- 帮助五页五种语言都有。
+- 线方向的方案说明、模拟预览格子、逐条检测原文和结果图层名仍是中文。
 
 ## 1.18.6
 

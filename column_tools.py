@@ -246,7 +246,7 @@ class UniqueValuesDialog(QDialog):
         self._on_select(fids, len(checked))
 
     def _copy_table(self):
-        lines = ["值\t含义\t条数\t占比"]
+        lines = [tr("值\t含义\t条数\t占比")]
         for r in range(self.table.rowCount()):
             if self.table.isRowHidden(r):
                 continue

@@ -283,10 +283,10 @@ def run_line_dir_analysis(
     hard = []
     warn = []
     if not occ_rows:
-        hard.append({"kind": "config", "message": "光交图层筛选后没有可用点。", "refs": []})
+        hard.append({"kind": "config", "message": tr("光交图层筛选后没有可用点。"), "refs": []})
     edge_rows = list(cable_rows) + list(drop_rows)
     if not edge_rows:
-        hard.append({"kind": "config", "message": "没有可用的线。", "refs": []})
+        hard.append({"kind": "config", "message": tr("没有可用的线。"), "refs": []})
 
     node_rows = list(occ_rows) + list(splice_rows) + list(fat_rows) + list(user_rows)
     node_map = {row["id"]: row for row in node_rows}
@@ -590,7 +590,7 @@ def run_line_dir_analysis(
         "tree_text": "\n".join(tree),
         "summary_lines": summary_lines,
         "suggestions": suggestions,
-        "source_label": "线方向",
+        "source_label": tr("线方向"),
         "writes": [],
     }
     out.update(result_meta(scheme))

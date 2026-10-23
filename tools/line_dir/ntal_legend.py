@@ -215,22 +215,22 @@ def _leaf_rule_items(renderer):
 def list_layer_categories(layer, include_unchecked=False):
     """Return (items, error). items: key / label / color."""
     if layer is None or not hasattr(layer, "renderer"):
-        return [], "请选择一个矢量图层"
+        return [], tr("请选择一个矢量图层")
     renderer = unwrap_renderer(layer.renderer())
     if renderer is None:
-        return [], "当前图层没有符号化"
+        return [], tr("当前图层没有符号化")
     if not _is_classified(renderer):
         rtype = ""
         try:
             rtype = renderer.type()
         except Exception:
             rtype = renderer.__class__.__name__
-        return [], "当前符号化不是分类/规则（%s），没有可筛选的分组" % rtype
+        return [], tr("当前符号化不是分类/规则（%s），没有可筛选的分组") % rtype
     raw = []
     try:
         raw = list(renderer.legendSymbolItems() or [])
     except Exception as exc:
-        return [], "读取分类失败：%s" % exc
+        return [], tr("读取分类失败：%s") % exc
     parent_keys = set()
     for item in raw:
         try:
@@ -272,7 +272,7 @@ def list_layer_categories(layer, include_unchecked=False):
             seen.add(key)
             items.append(extra)
     if not items:
-        return [], "当前符号化没有可勾选的分组"
+        return [], tr("当前符号化没有可勾选的分组")
     return items, ""
 
 

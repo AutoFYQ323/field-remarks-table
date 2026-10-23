@@ -251,7 +251,9 @@ def export_layer_to_kmz(
     if layer.crs().isValid() and layer.crs() != dest_crs:
         xform = QgsCoordinateTransform(layer.crs(), dest_crs, QgsProject.instance())
         if not xform.isValid():
-            raise RuntimeError("无法从 %s 转换到 %s" % (layer.crs().authid(), dest_crs.authid()))
+            from .i18n import tr
+
+            raise RuntimeError(tr("无法从 %s 转换到 %s") % (layer.crs().authid(), dest_crs.authid()))
 
     fields = layer.fields()
     title_idx = fields.indexFromName(title_field) if title_field else -1

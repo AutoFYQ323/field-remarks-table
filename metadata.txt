@@ -2,7 +2,7 @@
 name=Field Remarks Table
 qgisMinimumVersion=3.34
 description=Complementary attribute table with field-remark packs, batch editing, quick naming from symbology, and KMZ export
-version=1.18.6
+version=1.18.7
 author=有余
 email=jd_sys_xx@163.com
 about=Field Remarks Table is a complementary attribute editor for vector layers. It does not replace QGIS built-in Attribute Table (F6) and does not intercept the default table shortcut.
@@ -19,7 +19,7 @@ about=Field Remarks Table is a complementary attribute editor for vector layers.
     2. Click the toolbar button, choose Vector > Field Remarks Table, or right-click the layer.
     3. Edit in the plugin window. Save and rollback use the layer edit buffer.
     Requirements: QGIS 3.34 or later. No extra Python packages. Works on Windows, Linux, and macOS.
-    The interface is Simplified Chinese or English. The first launch follows the QGIS locale, then the system locale, and the choice is remembered. Metadata and this About text are English.
+    The interface is Simplified Chinese, English, Spanish, French, or Arabic. The first launch follows the QGIS locale, then the system locale, and the choice is remembered. Arabic lays out plugin buttons and titles from right to left; attribute values stay left to right. Metadata and this About text are English.
     This plugin does not include binaries and has no external Python dependencies.
 icon=icon.png
 category=Vector
@@ -27,7 +27,13 @@ tags=attribute table, field remarks, aliases, editing, kmz, batch edit
 homepage=https://yuyouhui.online/tools/qgis/field-remarks-table/
 tracker=https://github.com/AutoFYQ323/field-remarks-table/issues
 repository=https://github.com/AutoFYQ323/field-remarks-table
-changelog=1.18.6
+changelog=1.18.7
+    - Add Spanish, French, and Arabic
+    - First launch follows the QGIS locale, then the system locale; the choice is remembered
+    - Worded toolbar icons and the language menu use the current language only
+    - Arabic lays out plugin buttons and titles from right to left; attribute values stay left to right
+    - Help pages are available in Chinese, English, Spanish, French, and Arabic
+    1.18.6
     - Field remarks help: what the pack shows, what it writes, enable, matching, variables, value map, and quick insert
     - Help opens on five pages: attribute table, field remarks, quick naming, field mapping, line direction
     - Fill bar keeps constant, sequence around text, add text, expression, and replace
