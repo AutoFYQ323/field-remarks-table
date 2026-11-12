@@ -258,7 +258,7 @@ def _table(headers):
     try:
         header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     except AttributeError:
-        header.setSectionResizeMode(QHeaderView.ResizeToContents)
+        header.setSectionResizeMode(QHeaderView.ResizeMode.ResizeToContents)
     table.verticalHeader().setDefaultSectionSize(22)
     return table
 

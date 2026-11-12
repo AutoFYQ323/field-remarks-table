@@ -1,33 +1,51 @@
 [general]
 name=Field Remarks Table
-qgisMinimumVersion=3.34
-description=Complementary attribute table with field-remark packs, batch editing, quick naming from symbology, and KMZ export
-version=1.18.7
-author=有余
+qgisMinimumVersion=3.28
+qgisMaximumVersion=4.99
+supportsQt6=True
+description=Field-remark packs, batch fill and replace, settings with shortcuts, field mapping from the clipboard, and multi-start line-direction check. QGIS 3.28 through 4.99
+version=1.18.11
+author=youyu
 email=jd_sys_xx@163.com
-about=Field Remarks Table is a complementary attribute editor for vector layers. It does not replace QGIS built-in Attribute Table (F6) and does not intercept the default table shortcut.
-    Unique features compared with the built-in table and other attribute-table plugins:
-    - Field-remark packs: alias names, hover notes, and insert meanings stored per named pack (shared across projects, not bound to one .qgz file)
-    - Pack variables such as {{title}} resolved when inserting values
-    - Quick naming from categorized or rule-based symbology
-    - Batch fill: constants, sequence around text, add text, expressions, find/replace
-    - Copy a filtered column and paste values back by feature id
-    - KMZ export with optional layer symbology colors
-    - Field manager, unique-value statistics, CSV export
-    How to use:
-    1. Select a vector layer in the Layers panel.
-    2. Click the toolbar button, choose Vector > Field Remarks Table, or right-click the layer.
-    3. Edit in the plugin window. Save and rollback use the layer edit buffer.
-    Requirements: QGIS 3.34 or later. No extra Python packages. Works on Windows, Linux, and macOS.
-    The interface is Simplified Chinese, English, Spanish, French, or Arabic. The first launch follows the QGIS locale, then the system locale, and the choice is remembered. Arabic lays out plugin buttons and titles from right to left; attribute values stay left to right. Metadata and this About text are English.
-    This plugin does not include binaries and has no external Python dependencies.
+about=Complementary attribute editor for vector layers. Does not replace the built-in Attribute Table (F6) or its default shortcut.
+    Compared with the built-in table and other attribute-table plugins, it focuses on:
+    - Field-remark packs: aliases, hover notes, and insert meanings in named packs shared across projects (not tied to one .qgz). Variables such as {{title}} when inserting values
+    - Batch fill: constants, sequence around text, add text, expressions, and replace (one box for Standard / Around the match / Whole field, then constant or expression)
+    - Settings: toolbar order, per-tool shortcuts (refused if QGIS already uses them), and parameters such as filter-follows-column and selected line length
+    - Field mapping copy from a project layer, a file, or the Copy Features clipboard (WKT/WKB, GeoJSON)
+    - Line-direction check: every filtered point on the start layer acts as a start; nearest start sets each line direction
+    Use: select a vector layer, open from the toolbar or Vector menu, edit in the plugin window; save and rollback use the layer edit buffer.
+    QGIS 3.28 through 4.99 (Qt 5 and Qt 6). No extra Python packages. UI: 中文, English, Español, Français, العربية, Deutsch, 日本語, 한국어; first launch follows QGIS then system locale; unmatched locales use English.
 icon=icon.png
 category=Vector
-tags=attribute table, field remarks, aliases, editing, kmz, batch edit
+tags=attribute table, field remarks, aliases, editing, batch edit, line direction, field mapping
 homepage=https://yuyouhui.online/tools/qgis/field-remarks-table/
 tracker=https://github.com/AutoFYQ323/field-remarks-table/issues
 repository=https://github.com/AutoFYQ323/field-remarks-table
-changelog=1.18.7
+changelog=1.18.11
+    - About lists each UI language in its own spelling: 中文, English, Español, Français, العربية, Deutsch, 日本語, 한국어
+    - Line direction: every line end is a junction. When several lines leave one point, each flows outward; branches are never errors
+    - Line direction: ends only matter on loops. A loop is cut at its end and both sides run toward it; ends off a loop change nothing. The result says how many ends cut a loop, and a pseudo-loop tells you to put an end there
+    - Line direction: large looped networks check much faster
+    - Settings → Parameters: Column headers (Field name only, Alias first, or Alias and field name)
+    - Settings → Parameters: Default fill method (Remember last, or always Const, Sequence around text, Add text around, Expression, or Replace)
+    - Saved expressions: a gear next to ε adds, edits, notes, reorders, and deletes expressions. Clicking the fill box drops them down; typing still works. An item shows as «note» expression and only the part after » runs, so an edit in the box runs without changing the saved one. The Replace write box has the same list
+    - Field manager: the Field remarks button is removed
+    1.18.10
+    - Replace is one box. Rest on Standard, Around the match, or Whole field, then pick a constant or an expression. Around the match also picks before or after. Sequence is no longer a replace write source. Find and write boxes stay
+    - Dropdown lists size to the real rows before they open, so the first open no longer shows a blank row at the bottom
+    - QGIS 3.28 through 4.99, Qt 5 and Qt 6. Dialogs and menus use the Qt 6 call, and new fields are created with QMetaType on Qt 6
+    - Field remarks: the current-pack list shows the full name, and Help on that row opens the Field remarks page
+    - Settings dialog replaces toolbar order: Toolbar / Shortcuts / Parameters tabs
+    - Per-tool keyboard shortcuts with conflict checking against QGIS; shortcuts work from the QGIS main window too
+    - Status line re-ordered: CRS, total, shown, selected, sort, edit state
+    - For line layers, the bottom center can show the total length of the selected features (geometry-computed, off by default)
+    - Quick filter follows the current column on non-categorized layers; categorized layers keep the category filter
+    - Field mapping: load the source from the QGIS Copy Features clipboard (WKT/WKB table, GeoJSON, or bare WKT)
+    - Line-direction check: all filtered points of the start layer act as starts at once (nearest start decides a line's direction); category filters apply to the start layer; no more picking a single start point
+    - Added German, Japanese, and Korean; the language menu now shows every language in its own spelling
+    - Removed KMZ export and Quick naming
+    1.18.7
     - Add Spanish, French, and Arabic
     - First launch follows the QGIS locale, then the system locale; the choice is remembered
     - Worded toolbar icons and the language menu use the current language only
@@ -35,7 +53,7 @@ changelog=1.18.7
     - Help pages are available in Chinese, English, Spanish, French, and Arabic
     1.18.6
     - Field remarks help: what the pack shows, what it writes, enable, matching, variables, value map, and quick insert
-    - Help opens on five pages: attribute table, field remarks, quick naming, field mapping, line direction
+    - Help opens on five pages: attribute table, field remarks, settings, field mapping, line direction
     - Fill bar keeps constant, sequence around text, add text, expression, and replace
     - Chinese / English labels update in plugin windows that are already open
     1.18.5

@@ -98,23 +98,37 @@ QGroupBox::title {{ color: {accent}; }}
 
 QToolBar {{ background-color: {panel}; border: 1px solid {border}; border-radius: 4px; spacing: 2px; padding: 1px; }}
 QToolBar::separator {{ background-color: {border}; width: 1px; margin: 4px 3px; }}
-QToolButton {{ background-color: transparent; color: {text}; border: 1px solid transparent; border-radius: 4px; padding: 2px; }}
+QToolButton {{
+    background-color: transparent; color: {text}; border: 1px solid transparent;
+    border-radius: 4px; padding: 2px;
+}}
 QToolButton:hover {{ background-color: {button_hover}; border-color: {border}; }}
 QToolButton:pressed, QToolButton:checked {{ background-color: {button_pressed}; border-color: {focus}; }}
 
-QPushButton {{ background-color: {button}; color: {text}; border: 1px solid {border}; border-radius: 4px; padding: 3px 12px; }}
+QPushButton {{
+    background-color: {button}; color: {text}; border: 1px solid {border};
+    border-radius: 4px; padding: 3px 12px;
+}}
 QPushButton:hover {{ background-color: {button_hover}; border-color: {focus}; }}
 QPushButton:pressed, QPushButton:checked {{ background-color: {button_pressed}; }}
 QPushButton:default {{ border-color: {focus}; }}
 QPushButton:disabled {{ color: {muted}; background-color: {panel}; border-color: {border}; }}
 
-QLineEdit, QComboBox {{ background-color: {base}; color: {text}; border: 1px solid {border}; border-radius: 3px; selection-background-color: {sel}; selection-color: {sel_text}; }}
+QLineEdit, QComboBox {{
+    background-color: {base}; color: {text}; border: 1px solid {border}; border-radius: 3px;
+    selection-background-color: {sel}; selection-color: {sel_text};
+}}
 QComboBox {{ padding: 2px 22px 2px 8px; min-width: 72px; }}
 QComboBox::drop-down {{ subcontrol-origin: padding; subcontrol-position: top right; width: 18px; border: none; }}
 QLineEdit:focus, QComboBox:focus {{ border-color: {focus}; }}
 QLineEdit:disabled, QComboBox:disabled {{ color: {muted}; background-color: {panel}; }}
-QComboBox QAbstractItemView {{ background-color: {base}; color: {text}; border: 1px solid {border}; selection-background-color: {sel}; selection-color: {sel_text}; outline: 0; }}
-QTableView QLineEdit, QTableView QComboBox, QTreeView QLineEdit, QListView QLineEdit {{ border: none; border-radius: 0; }}
+QComboBox QAbstractItemView {{
+    background-color: {base}; color: {text}; border: 1px solid {border};
+    selection-background-color: {sel}; selection-color: {sel_text}; outline: 0;
+}}
+QTableView QLineEdit, QTableView QComboBox, QTreeView QLineEdit, QListView QLineEdit {{
+    border: none; border-radius: 0;
+}}
 
 QTextEdit, QPlainTextEdit, QTextBrowser, QListWidget, QListView, QTreeWidget, QTreeView, QTableWidget, QTableView {{
     background-color: {base}; color: {text}; border: 1px solid {border};
@@ -124,10 +138,16 @@ QTextEdit, QPlainTextEdit, QTextBrowser, QListWidget, QListView, QTreeWidget, QT
 QListWidget::item:hover:!selected, QTreeWidget::item:hover:!selected {{ background-color: {hover}; }}
 
 QHeaderView {{ background-color: {header}; border: none; }}
-QHeaderView::section {{ background-color: {header}; color: {header_text}; border: none; border-right: 1px solid {grid}; border-bottom: 1px solid {border}; padding: 2px 4px; }}
+QHeaderView::section {{
+    background-color: {header}; color: {header_text}; border: none;
+    border-right: 1px solid {grid}; border-bottom: 1px solid {border}; padding: 2px 4px;
+}}
 QHeaderView::section:vertical {{ border-right: 1px solid {border}; border-bottom: 1px solid {grid}; padding: 0 4px; }}
 QHeaderView::section:checked {{ background-color: {button_pressed}; }}
-QTableCornerButton::section {{ background-color: {header}; border: none; border-right: 1px solid {grid}; border-bottom: 1px solid {border}; }}
+QTableCornerButton::section {{
+    background-color: {header}; border: none;
+    border-right: 1px solid {grid}; border-bottom: 1px solid {border};
+}}
 
 QScrollBar:vertical {{ background: {track}; width: 12px; margin: 0; border: none; }}
 QScrollBar:horizontal {{ background: {track}; height: 12px; margin: 0; border: none; }}
@@ -138,7 +158,11 @@ QScrollBar::add-line, QScrollBar::sub-line {{ width: 0; height: 0; border: none;
 QScrollBar::add-page, QScrollBar::sub-page {{ background: none; }}
 
 QTabWidget::pane {{ background-color: {window}; border: 1px solid {border}; border-radius: 3px; top: -1px; }}
-QTabBar::tab {{ background-color: {button}; color: {text}; border: 1px solid {border}; padding: 4px 12px; margin-right: 2px; border-top-left-radius: 4px; border-top-right-radius: 4px; }}
+QTabBar::tab {{
+    background-color: {button}; color: {text}; border: 1px solid {border};
+    padding: 4px 12px; margin-right: 2px;
+    border-top-left-radius: 4px; border-top-right-radius: 4px;
+}}
 QTabBar::tab:selected {{ background-color: {window}; color: {accent}; border-bottom-color: {window}; }}
 QTabBar::tab:hover:!selected {{ background-color: {button_hover}; }}
 
@@ -220,7 +244,7 @@ def apply_direction(widget):
         from .i18n.catalog import LANG_AR
         from .i18n.runtime import current_language
 
-        direction = Qt.RightToLeft if current_language() == LANG_AR else Qt.LeftToRight
+        direction = Qt.LayoutDirection.RightToLeft if current_language() == LANG_AR else Qt.LayoutDirection.LeftToRight
         widget.setLayoutDirection(direction)
     except Exception:
         return

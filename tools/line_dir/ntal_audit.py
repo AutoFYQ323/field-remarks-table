@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from ...i18n import tr
+from ...qt_compat import run_exec
 """全面检测。只读图层配置，不改赋值和命名的写入规则。"""
 import math
 from collections import defaultdict
@@ -86,9 +87,12 @@ class AuditPickDialog(QDialog):
         self.setWindowTitle(tr("选择要检查的网络问题"))
         self.setMinimumWidth(520)
         root = QVBoxLayout(self)
-        hint = QLabel(
-            tr('按下面每一类单独勾选。默认全部检查。反选会把当前勾选反过来。检测完会留下结果窗：硬错误、软错误、警告写在「检查」页，方向反了的线在「可修复」页，可以翻转。地图图层在「全面检测」组里，硬错误、软错误、警告分开。')
-        )
+        hint = QLabel(tr(
+            "按下面每一类单独勾选。默认全部检查。反选会把当前勾选反过来。"
+            "检测完会留下结果窗：硬错误、软错误、警告写在「检查」页，"
+            "方向反了的线在「可修复」页，可以翻转。"
+            "地图图层在「全面检测」组里，硬错误、软错误、警告分开。"
+        ))
         hint.setWordWrap(True)
         root.addWidget(hint)
         self.boxes = []
@@ -305,7 +309,6 @@ def run_audit(host, selected, progress=None):
             accumulate=False, scheme=spec,
         )
         incoming = struct.get("incoming") or {}
-        outgoing = struct.get("outgoing") or {}
         if _want(selected, "cycle"):
             for item in struct.get("hard") or []:
                 if item.get("kind") == "cycle":
@@ -361,7 +364,6 @@ def run_audit(host, selected, progress=None):
                     "接头后面没有配线：{}".format(row.get("label") or ""),
                     [("node", row["id"])],
                 ))
-        del outgoing
 
     if selected & {"drop_end", "drop_over", "user_drop", "user_multi", "fat_drop"}:
         links = []
@@ -602,7 +604,7 @@ def _check_codes(rows, title, ref_kind, warn):
 def open_audit(host):
     global _DIR_DLG
     dlg = AuditPickDialog(host)
-    accepted = dlg.exec() if hasattr(dlg, "exec") else dlg.exec_()
+    accepted = run_exec(dlg)
     if not accepted:
         return
     selected = dlg.selected()

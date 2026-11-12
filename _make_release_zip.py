@@ -4,11 +4,33 @@ import os
 import zipfile
 
 PLUGIN_DIR = os.path.dirname(os.path.abspath(__file__))
+REPO_ROOT = os.path.dirname(PLUGIN_DIR)
 PLUGIN_NAME = "attribute_table"
-OUT = os.path.join(os.path.dirname(PLUGIN_DIR), "attribute_table-1.18.7.zip")
+TEST_DIR = os.path.join(REPO_ROOT, "TEST")
+
+
+def _release_version():
+    meta = os.path.join(PLUGIN_DIR, "metadata.txt")
+    if not os.path.isfile(meta):
+        return "0.0.0"
+    with open(meta, encoding="utf-8") as handle:
+        for line in handle:
+            if line.startswith("version="):
+                return line.split("=", 1)[1].strip()
+    return "0.0.0"
+
 
 SKIP_DIRS = {".git", "__pycache__", ".cursor", ".vscode"}
-SKIP_FILES = {".bandit", "_make_release_zip.py", "_bandit_fix.py", "check_i18n.py"}
+SKIP_FILES = {
+    ".bandit",
+    ".flake8",
+    ".secrets.baseline",
+    "setup.cfg",
+    "tox.ini",
+    "_make_release_zip.py",
+    "_bandit_fix.py",
+    "check_i18n.py",
+}
 SKIP_SUFFIX = (".pyc", ".pyo")
 
 
@@ -31,10 +53,12 @@ def main():
     result = subprocess.call([sys.executable, check])
     if result != 0:
         raise SystemExit(result)
-    if os.path.isfile(OUT):
-        os.remove(OUT)
+    os.makedirs(TEST_DIR, exist_ok=True)
+    out_path = os.path.join(TEST_DIR, "attribute_table-%s.zip" % _release_version())
+    if os.path.isfile(out_path):
+        os.remove(out_path)
     count = 0
-    with zipfile.ZipFile(OUT, "w", zipfile.ZIP_DEFLATED) as zf:
+    with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zf:
         for dirpath, dirnames, filenames in os.walk(PLUGIN_DIR):
             dirnames[:] = [d for d in dirnames if d not in SKIP_DIRS]
             for name in filenames:
@@ -46,8 +70,8 @@ def main():
                 arc = "%s/%s" % (PLUGIN_NAME, rel.replace("\\", "/"))
                 zf.write(full, arc)
                 count += 1
-    size = os.path.getsize(OUT)
-    print("Wrote:", OUT)
+    size = os.path.getsize(out_path)
+    print("Wrote:", out_path)
     print("Files:", count)
     print("Size bytes:", size)
     print("Size MB:", round(size / (1024 * 1024), 2))

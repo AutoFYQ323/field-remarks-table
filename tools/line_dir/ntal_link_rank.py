@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 """接头第五段/第六段，以及分纤盒配线链路排名。户数多的号小，户数相同则更长的号小。"""
+from ...i18n import tr
 from .ntal_graph import (
     LINK_LENGTH_TIE_M,
     ROLE_FAT,
@@ -48,7 +49,7 @@ def _walk_chain(start_eid, splice_id, dist_graph, dist_adj, node_map, edge_map, 
         if current_edge in seen:
             hard.append({
                 "kind": "cycle",
-                "message": "配线成环：{}".format(
+                "message": tr("配线成环：{}").format(
                     (edge_map.get(current_edge) or {}).get("label") or current_edge
                 ),
                 "refs": [("edge", current_edge), ("node", current_from)],
@@ -60,7 +61,7 @@ def _walk_chain(start_eid, splice_id, dist_graph, dist_adj, node_map, edge_map, 
         if nxt is None:
             hard.append({
                 "kind": "dangling",
-                "message": "一端空：{}".format(label),
+                "message": tr("一端空：{}").format(label),
                 "refs": [("edge", current_edge), ("node", current_from)],
             })
             return None
@@ -68,7 +69,7 @@ def _walk_chain(start_eid, splice_id, dist_graph, dist_adj, node_map, edge_map, 
         if node is None or node.get("role") != ROLE_FAT:
             hard.append({
                 "kind": "bad_role",
-                "message": "接头配线另一端不是分纤盒：{}".format(label),
+                "message": tr("接头配线另一端不是分纤盒：{}").format(label),
                 "refs": [("edge", current_edge)] + ([("node", nxt)] if nxt else []),
             })
             return None
@@ -89,7 +90,7 @@ def _walk_chain(start_eid, splice_id, dist_graph, dist_adj, node_map, edge_map, 
         if fat_max_out is not None and len(outs) > fat_max_out:
             hard.append({
                 "kind": "fat_branch",
-                "message": "分纤盒分叉（出 {} 条配线）：{}".format(
+                "message": tr("分纤盒分叉（出 {} 条配线）：{}").format(
                     len(outs), node.get("label") or nxt
                 ),
                 "refs": [("node", nxt)] + [("edge", item) for item in outs],
@@ -103,7 +104,7 @@ def _walk_chain(start_eid, splice_id, dist_graph, dist_adj, node_map, edge_map, 
     if not fats:
         hard.append({
             "kind": "bad_role",
-            "message": "接头配线另一端不是分纤盒：{}".format(
+            "message": tr("接头配线另一端不是分纤盒：{}").format(
                 (edge_map.get(start_eid) or {}).get("label") or start_eid
             ),
             "refs": [("edge", start_eid), ("node", splice_id)],
@@ -112,7 +113,10 @@ def _walk_chain(start_eid, splice_id, dist_graph, dist_adj, node_map, edge_map, 
     return fats
 
 
-def collect_splice_chains(splice_ids, dist_graph, dist_adj, node_map, edge_map, hard, warn, warn_empty=False, scheme=None):
+def collect_splice_chains(
+    splice_ids, dist_graph, dist_adj, node_map, edge_map,
+    hard, warn, warn_empty=False, scheme=None,
+):
     """每个接头的每条出线走到串尾 = 一条链路。没有配线不占接头编号。"""
     claimed = {}
     chains = []
@@ -124,7 +128,7 @@ def collect_splice_chains(splice_ids, dist_graph, dist_adj, node_map, edge_map, 
             if dest == splice_id:
                 hard.append({
                     "kind": "self_loop",
-                    "message": "配线两端接到同一接头：{}".format(
+                    "message": tr("配线两端接到同一接头：{}").format(
                         (edge_map.get(eid) or {}).get("label") or eid
                     ),
                     "refs": [("edge", eid), ("node", splice_id)],
@@ -137,7 +141,7 @@ def collect_splice_chains(splice_ids, dist_graph, dist_adj, node_map, edge_map, 
                 node = node_map.get(splice_id) or {}
                 warn.append({
                     "kind": "splice_no_out",
-                    "message": "接头后面没有配线，没有分纤盒可命名：{}".format(node.get("label") or splice_id),
+                    "message": tr("接头后面没有配线，没有分纤盒可命名：{}").format(node.get("label") or splice_id),
                     "refs": [("node", splice_id)],
                 })
             continue
@@ -150,7 +154,7 @@ def collect_splice_chains(splice_ids, dist_graph, dist_adj, node_map, edge_map, 
                 if fat_id in claimed:
                     hard.append({
                         "kind": "fat_multi_in",
-                        "message": "分纤盒被多条配线占用：{}".format(
+                        "message": tr("分纤盒被多条配线占用：{}").format(
                             (node_map.get(fat_id) or {}).get("label") or fat_id
                         ),
                         "refs": [("node", fat_id), ("node", splice_id)],
@@ -169,7 +173,10 @@ def collect_splice_chains(splice_ids, dist_graph, dist_adj, node_map, edge_map, 
     return chains, claimed, skipped
 
 
-def rank_chains(chains, node_map, edge_map, work_crs, hard, link_base=1, link_mode="increment", box_mode="restart_01_per_chain"):
+def rank_chains(
+    chains, node_map, edge_map, work_crs, hard, link_base=1,
+    link_mode="increment", box_mode="restart_01_per_chain",
+):
     """按户数（多的在前）、首段配线长（长的在前）编号。户数且长度都相同则硬错误。
 
     link_mode=increment：第五段 = link_base、link_base+1…
@@ -186,7 +193,7 @@ def rank_chains(chains, node_map, edge_map, work_crs, hard, link_base=1, link_mo
             if hh_is_zero_or_empty(node):
                 hard.append({
                     "kind": "fat_hh_zero",
-                    "message": "分纤盒户数为 0 或空：{}".format(node.get("label") or fat_id),
+                    "message": tr("分纤盒户数为 0 或空：{}").format(node.get("label") or fat_id),
                     "refs": [("node", fat_id)],
                 })
                 zero = True
@@ -209,7 +216,7 @@ def rank_chains(chains, node_map, edge_map, work_crs, hard, link_base=1, link_mo
         if abs(a["hh"] - b["hh"]) < 1e-12 and abs(a["length"] - b["length"]) < LINK_LENGTH_TIE_M:
             hard.append({
                 "kind": "link_tie",
-                "message": "两条链路户数相同且到首盒距离差不到 1 毫米：{} / {}".format(
+                "message": tr("两条链路户数相同且到首盒距离差不到 1 毫米：{} / {}").format(
                     (edge_map.get(a["first_edge"]) or {}).get("label") or a["first_edge"],
                     (edge_map.get(b["first_edge"]) or {}).get("label") or b["first_edge"],
                 ),
@@ -258,7 +265,7 @@ def direct_chain_hh(chains, node_map, hard):
                     seen_zero.add(fat_id)
                     hard.append({
                         "kind": "fat_hh_zero",
-                        "message": "分纤盒户数为 0 或空：{}".format(node.get("label") or fat_id),
+                        "message": tr("分纤盒户数为 0 或空：{}").format(node.get("label") or fat_id),
                         "refs": [("node", fat_id)],
                     })
             try:
@@ -293,7 +300,7 @@ def assign_splice_numbers(root_id, children_map, subtree_hh, hard, node_map, mod
         right_node = node_map.get(right["id"]) or {}
         hard.append({
             "kind": "link_tie",
-            "message": "两条下接主干户数相同且到下一接头距离差不到 1 毫米：{} / {}".format(
+            "message": tr("两条下接主干户数相同且到下一接头距离差不到 1 毫米：{} / {}").format(
                 left_node.get("label") or left["id"],
                 right_node.get("label") or right["id"],
             ),

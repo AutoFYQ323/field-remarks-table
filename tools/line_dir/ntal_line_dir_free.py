@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-from ...i18n import tr
+from ...i18n import language_changed, tr
+from ...qt_compat import run_exec
 """通用线方向：自选一个起点和多个线图层，端点在容差内才相接，断口停下。不读正式图层配置。"""
-import heapq
 import json
 import math
 from collections import defaultdict
@@ -12,16 +12,12 @@ try:
     from qgis.core import QgsMapLayerProxyModel
 except ImportError:
     from qgis.gui import QgsMapLayerProxyModel
-from qgis.PyQt.QtCore import Qt, QVariant
+from qgis.PyQt.QtCore import QVariant
 from qgis.PyQt.QtWidgets import (
-    QAbstractItemView,
     QDialog,
     QDialogButtonBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
-    QListWidget,
-    QListWidgetItem,
     QMessageBox,
     QDoubleSpinBox,
     QPushButton,
@@ -43,13 +39,8 @@ from .ntal_engine import (
 from .ntal_legend import FeatureCategoryFilter, filter_is_narrow
 from ..window_theme import register_tool_window, resolve_tool_parent
 from .ntal_line_dir import LineDirDialog, _CheckProgress
+from .ntal_walk import _walk
 
-
-def _user_role():
-    try:
-        return Qt.ItemDataRole.UserRole
-    except AttributeError:
-        return Qt.ItemDataRole.UserRole
 
 _SETTINGS_KEY = "AttributeTablePlus/line_dir_free"
 _SETUP_DLG = None
@@ -83,7 +74,7 @@ def _layer_by_memory(layer_id, layer_name):
 
 
 def _parts_of(geom):
-    if geom is None or geom.isEmpty() or geom.type() != QgsWkbTypes.LineGeometry:
+    if geom is None or geom.isEmpty() or geom.type() != QgsWkbTypes.GeometryType.LineGeometry:
         return []
     if geom.isMultipart():
         parts = geom.asMultiPolyline() or []
@@ -122,9 +113,14 @@ class _UnionFind(object):
             self.parent[rb] = ra
 
 
-def _cluster_ends(start_xy, edges, tolerance, terminal_xys=None):
-    """起点、终点和每条线段的两端。距离不超过容差的端点合成一个节点。"""
-    coords = [start_xy]
+def _cluster_ends(start_xys, edges, tolerance, terminal_xys=None):
+    """起点（可多个）、终点和每条线段的两端。距离不超过容差的端点合成一个节点。
+
+    返回 (roots, used_roots, ends, terminals)：
+    roots 是全部起点所在节点的集合；used_roots 是其中真的接到线端点的节点。
+    """
+    coords = [tuple(xy) for xy in (start_xys or [])]
+    start_count = len(coords)
     term_indexes = []
     for xy in terminal_xys or []:
         term_indexes.append(len(coords))
@@ -151,12 +147,12 @@ def _cluster_ends(start_xy, edges, tolerance, terminal_xys=None):
                         ox, oy = coords[other]
                         if math.hypot(x - ox, y - oy) <= tolerance:
                             uf.union(index, other)
-    root = uf.find(0)
-    has_line = False
+    roots = set(uf.find(i) for i in range(start_count))
+    used_roots = set()
     for i in range(edge_base, count):
-        if uf.find(i) == root:
-            has_line = True
-            break
+        cluster = uf.find(i)
+        if cluster in roots:
+            used_roots.add(cluster)
     terminals = set()
     for index in term_indexes:
         terminals.add(uf.find(index))
@@ -165,100 +161,52 @@ def _cluster_ends(start_xy, edges, tolerance, terminal_xys=None):
         a = uf.find(edge_base + edge_index * 2)
         b = uf.find(edge_base + edge_index * 2 + 1)
         ends[edge["id"]] = (a, b)
-    return root, has_line, ends, terminals
+    return roots, used_roots, ends, terminals
 
 
-def _reachable_without(root, banned, adj, end_nodes):
-    seen = {root}
-    stack = [root]
-    banned = set(banned or [])
-    while stack:
-        node = stack.pop()
-        for eid in adj.get(node, ()):
-            if eid in banned:
-                continue
-            a, b = end_nodes[eid]
-            if a == b:
-                continue
-            other = b if node == a else a
-            if other not in seen:
-                seen.add(other)
-                stack.append(other)
-    return seen
+def _dist_point_seg(px, py, ax, ay, bx, by):
+    dx = bx - ax
+    dy = by - ay
+    len2 = dx * dx + dy * dy
+    if len2 <= 1e-18:
+        return math.hypot(px - ax, py - ay)
+    t = ((px - ax) * dx + (py - ay) * dy) / len2
+    if t < 0.0:
+        t = 0.0
+    elif t > 1.0:
+        t = 1.0
+    return math.hypot(px - (ax + t * dx), py - (ay + t * dy))
 
 
-def _pair_key(a, b):
-    return (a, b) if a <= b else (b, a)
+def _interior_terminal_edges(edges, terminal_xys, tolerance):
+    """终点贴在线的中间、但没贴到这条线任一端点。
 
-
-def _walk(root, edges, end_nodes, terminals=None):
-    """从起点往外走。终点走到就停。同一对端点上的线要一起拿掉，两头仍走得到才是伪成环。"""
-    edge_map = {edge["id"]: edge for edge in edges}
-    terminals = set(terminals or [])
-    adj = defaultdict(list)
-    bundles = defaultdict(list)
+    这种终点不在两根线的接头上，不能把环断开。
+    """
+    tol = float(tolerance or 0)
+    points = [xy for xy in (terminal_xys or []) if xy]
+    if tol <= 0 or not points:
+        return set()
+    hits = set()
     for edge in edges:
-        a, b = end_nodes[edge["id"]]
-        adj[a].append(edge["id"])
-        if b != a:
-            adj[b].append(edge["id"])
-            bundles[_pair_key(a, b)].append(edge["id"])
-    oriented = {}
-    self_loops = []
-    reached = {root}
-    heap = [(0.0, root)]
-    seen_nodes = set()
-    chords = []
-    while heap:
-        dist, node = heapq.heappop(heap)
-        if node in seen_nodes:
+        verts = edge.get("verts") or (edge.get("start"), edge.get("end"))
+        if not verts or len(verts) < 2:
             continue
-        seen_nodes.add(node)
-        if node in terminals and node != root:
-            continue
-        for eid in adj.get(node, ()):
-            a, b = end_nodes[eid]
-            if a == b:
-                if eid not in oriented:
-                    oriented[eid] = (node, node)
-                    self_loops.append(eid)
+        ax0, ay0 = verts[0]
+        bx0, by0 = verts[-1]
+        for tx, ty in points:
+            if math.hypot(tx - ax0, ty - ay0) <= tol or math.hypot(tx - bx0, ty - by0) <= tol:
                 continue
-            if eid in oriented:
+            for index in range(len(verts) - 1):
+                ax, ay = verts[index]
+                bx, by = verts[index + 1]
+                if _dist_point_seg(tx, ty, ax, ay, bx, by) <= tol:
+                    hits.add(edge["id"])
+                    break
+            else:
                 continue
-            other = b if node == a else a
-            if other in reached and other in terminals:
-                oriented[eid] = (node, other)
-                continue
-            if other in reached:
-                chords.append(eid)
-                continue
-            oriented[eid] = (node, other)
-            reached.add(other)
-            edge = edge_map[eid]
-            step = float(edge.get("length") or 0.0)
-            if step <= 0:
-                step = math.hypot(edge["start"][0] - edge["end"][0], edge["start"][1] - edge["end"][1])
-            heapq.heappush(heap, (dist + step, other))
-    pseudo = []
-    decided = set()
-    for eid in chords:
-        a, b = end_nodes[eid]
-        key = _pair_key(a, b)
-        if key in decided:
-            continue
-        decided.add(key)
-        bundle = bundles.get(key) or [eid]
-        alive = _reachable_without(root, bundle, adj, end_nodes)
-        if a in alive and b in alive:
-            for item in bundle:
-                if item not in oriented:
-                    pseudo.append(item)
-            continue
-        upstream, downstream = (a, b) if a in alive else (b, a)
-        for item in bundle:
-            if item not in oriented:
-                oriented[item] = (upstream, downstream)
-    return oriented, self_loops, pseudo
+            break
+    return hits
 
 
 def _collect_start_points(layer, flt, work_crs):
@@ -338,6 +286,7 @@ def _collect_part_edges(layer, flt, work_crs):
                     "src_end": (src[-1].x(), src[-1].y()),
                     "src_crs": _layer_crs(layer),
                     "length": _part_length(part),
+                    "verts": [(pt.x(), pt.y()) for pt in part],
                     "multipart": many,
                     "label": label,
                 })
@@ -346,7 +295,12 @@ def _collect_part_edges(layer, flt, work_crs):
     return edges
 
 
-def run_free_line_dir(point_layer, point_filter, point_fid, line_pairs, tolerance, progress=None, terminal_pairs=None):
+def run_free_line_dir(point_layer, point_filter, line_pairs, tolerance, progress=None, terminal_pairs=None):
+    """全部起点（起点图层分类筛选后的所有点）同时作为根往外走。
+
+    参考拓扑预览的组网规则：不挑起点，图层里筛选后剩几个点，就同时从几个点出发；
+    一条线的方向由先走到它的那个起点决定（离线近的先算）。
+    """
     errors = []
     pairs = []
     seen_layers = set()
@@ -359,8 +313,6 @@ def run_free_line_dir(point_layer, point_filter, point_fid, line_pairs, toleranc
         errors.append(tr("请选择点图层。"))
     if not pairs:
         errors.append(tr("请至少增加一个线图层。"))
-    if point_fid is None:
-        errors.append(tr("请在列表里点一个起点。"))
     if float(tolerance or 0) <= 0:
         errors.append(tr("吸附容差必须大于 0。请先在参数配置里设置。"))
     if errors:
@@ -370,13 +322,8 @@ def run_free_line_dir(point_layer, point_filter, point_fid, line_pairs, toleranc
     if progress is not None:
         progress.report(0.05, tr("正在读取起点"), force=True)
     points = _collect_start_points(point_layer, point_filter, work_crs)
-    start = None
-    for row in points:
-        if row["fid"] == point_fid:
-            start = row
-            break
-    if start is None:
-        return {"ok": False, "kind": "line_dir_free", "config_errors": [tr("筛选后的点里没有这个起点。")]}
+    if not points:
+        return {"ok": False, "kind": "line_dir_free", "config_errors": [tr("筛选后的起点图层里没有点。")]}
     if progress is not None:
         progress.report(0.2, tr("正在读取线"), force=True)
     edges = []
@@ -394,58 +341,78 @@ def run_free_line_dir(point_layer, point_filter, point_fid, line_pairs, toleranc
             continue
         seen_term.add(layer.id())
         terminals_pts.extend(_collect_start_points(layer, flt, work_crs))
-    root, has_line, end_nodes, terminals = _cluster_ends(
-        start["xy"], edges, float(tolerance), [row["xy"] for row in terminals_pts]
+    roots, used_roots, end_nodes, terminals = _cluster_ends(
+        [row["xy"] for row in points], edges, float(tolerance),
+        [row["xy"] for row in terminals_pts],
     )
-    if not has_line:
+    if not used_roots:
         return {
             "ok": False,
             "kind": "line_dir_free",
-            "config_errors": [tr("起点容差 {} 米内没有线的端点。缝更大的地方不会跨过去。").format(format_num(tolerance))],
+            "config_errors": [tr("全部起点在容差 {} 米内都没接到线的端点。缝更大的地方不会跨过去。").format(format_num(tolerance))],
         }
 
     if progress is not None:
         progress.report(0.7, tr("正在沿起点往外走"), force=True)
-    oriented, self_loops, pseudo = _walk(root, edges, end_nodes, terminals)
+    interior = _interior_terminal_edges(
+        edges, [row["xy"] for row in terminals_pts], float(tolerance)
+    )
+    oriented, self_loops, pseudo, cut_ends, ambiguous = _walk(
+        roots, edges, end_nodes, terminals, interior
+    )
     edge_map = {edge["id"]: edge for edge in edges}
     hard = []
     warn = []
     reversible_parts = []
     ok_count = 0
     tree = [
-        tr("从所选起点往外走。线的两端在容差内才算接到同一个点，缝更大就停下。"),
-        tr("容差 {} 米。起点 {}。").format(format_num(tolerance), start["label"]),
+        tr("从起点图层的全部点同时往外走，离线近的起点先算。线的两端在容差内才算接到同一个点，缝更大就停下。"),
+        tr("每个线端点是一个连接点：从一个点分出几条线，每条都顺着往外走，分叉不算错误。"),
+        tr("容差 {} 米。起点 {} 个（分类筛选后），接上线 {} 个。").format(
+            format_num(tolerance), len(points), len(used_roots)
+        ),
     ]
+    end_total = len(set(terminals) - set(roots))
+    if end_total:
+        tree.append(tr("终点 {} 处，其中 {} 处在环上，把环在那里断开；其余不在环上，不起作用。").format(
+            end_total, len(cut_ends)
+        ))
     loop_ids = set(self_loops)
     pseudo_ids = set(pseudo)
+    amb_ids = set(ambiguous)
+    # Unreached is the only hard error. A ring whose direction cannot be
+    # settled is not "fine": it is written to a temporary layer.
+    hard = []
     for eid in loop_ids:
         edge = edge_map[eid]
-        hard.append({
-            "kind": "self_loop",
-            "message": tr("两端接到同一点：{}").format(edge["label"]),
-            "refs": [("edge", eid), ("node", start["id"])],
-        })
         tree.append(tr("  自环  {}").format(edge["label"]))
     end_mark_edges = []
     for edge in edges:
         eid = edge["id"]
         if eid in loop_ids:
             continue
-        if eid in pseudo_ids:
+        if eid in amb_ids:
+            tree.append(tr("  方向无法判断  {}").format(edge["label"]))
             warn.append({
-                "kind": "pseudo_cycle",
-                "message": tr("伪成环：这条线两边的接头，不靠它也能从起点走到，方向定不下来，不翻转：{}").format(edge["label"]),
+                "kind": "dir_ambiguous",
+                "message": tr("方向无法判断：环上有多个终点，或终点不在接头上，无法确定该在哪一处断开。已写入临时图层。"),
                 "refs": [("edge", eid)],
             })
+            continue
+        if eid in pseudo_ids:
             tree.append(tr("  伪成环  {}").format(edge["label"]))
-            end_mark_edges.append(edge)
-            edge["mark_seq"] = len(end_mark_edges)
+            warn.append({
+                "kind": "pseudo_cycle",
+                "message": tr("伪成环：两边不靠这条线也能从起点走到，分不出方向。已写入临时图层。"),
+                "refs": [("edge", eid)],
+            })
             continue
         pair = oriented.get(eid)
         if pair is None:
+            # The only error left: unreachable from every start.
             warn.append({
                 "kind": "unreached_edge",
-                "message": tr("未从起点走到（中间断开，不跨缝）：{}").format(edge["label"]),
+                "message": tr("未从任何起点走到：{}").format(edge["label"]),
                 "refs": [("edge", eid)],
             })
             tree.append(tr("  未走到  {}").format(edge["label"]))
@@ -457,14 +424,6 @@ def run_free_line_dir(point_layer, point_filter, point_fid, line_pairs, toleranc
             tree.append(tr("  正向  {}").format(edge["label"]))
             continue
         if upstream == b:
-            msg = tr("数字化方向反了（终点在上游）：{}").format(edge["label"])
-            if edge.get("multipart"):
-                msg += tr("。多段线要各段都反了才整条翻转。")
-            warn.append({
-                "kind": "line_reversed",
-                "message": msg,
-                "refs": [("edge", eid), ("node", start["id"])],
-            })
             reversible_parts.append(edge)
             end_mark_edges.append(edge)
             edge["mark_seq"] = len(end_mark_edges)
@@ -476,9 +435,26 @@ def run_free_line_dir(point_layer, point_filter, point_fid, line_pairs, toleranc
     reversible = []
     for key, parts in by_fid.items():
         active = [edge for edge in parts if edge["id"] not in loop_ids]
+        if active and all(edge["id"] in amb_ids for edge in active):
+            first = active[0]
+            reversible.append({
+                "id": first["id"],
+                "layer": first["layer"],
+                "layer_name": first["layer_name"],
+                "fid": first["fid"],
+                "role": "线",
+                "issue": "dir_ambiguous",
+                "type_label": tr("方向无法判断"),
+                "label": first["label"] if not first.get("multipart") else _feature_label_from_edge(first),
+                "multipart": bool(first.get("multipart")),
+                "message": tr("方向无法判断：环上有多个终点，或终点不在接头上，无法确定该在哪一处断开。已写入临时图层。默认不勾。"),
+            })
+            continue
         if active and all(edge["id"] in pseudo_ids for edge in active):
             first = active[0]
-            label = _mark_name(active) or (first["label"] if not first.get("multipart") else _feature_label_from_edge(first))
+            label = _mark_name(active) or (
+                first["label"] if not first.get("multipart") else _feature_label_from_edge(first)
+            )
             reversible.append({
                 "id": first["id"],
                 "layer": first["layer"],
@@ -489,7 +465,7 @@ def run_free_line_dir(point_layer, point_filter, point_fid, line_pairs, toleranc
                 "type_label": tr("伪成环"),
                 "label": label,
                 "multipart": bool(first.get("multipart")),
-                "message": tr("伪成环：两边不靠这条线也能从起点走到。默认不勾，打勾才对调两端。"),
+                "message": tr("伪成环：两边不靠这条线也能从起点走到，分不出方向。已写入临时图层。默认不勾，打勾才对调两端。"),
             })
             continue
         rev_parts = [edge for edge in parts if edge in reversible_parts]
@@ -499,13 +475,10 @@ def run_free_line_dir(point_layer, point_filter, point_fid, line_pairs, toleranc
         all_rev = len(rev_parts) == len(parts) and len(reached) == len(parts)
         sample = parts[0]
         if not all_rev:
-            hard.append({
-                "kind": "dir_conflict",
-                "message": tr("多段线没有全部走到或各段方向不一致，不整条翻转：{}").format(
-                    _feature_label_from_edge(sample)
-                ),
-                "refs": [("edge", rev_parts[0]["id"])],
-            })
+            # Not an error either — the feature just cannot be flipped as a whole.
+            tree.append(tr("  各段未全走到或方向不一致，不整条翻转  {}").format(
+                _feature_label_from_edge(sample)
+            ))
             continue
         first = parts[0]
         msg = tr("数字化方向反了：{}").format(first["label"] if not first.get("multipart") else _feature_label_from_edge(first))
@@ -517,39 +490,61 @@ def run_free_line_dir(point_layer, point_filter, point_fid, line_pairs, toleranc
             "role": "线",
             "issue": "line_reversed",
             "type_label": "方向反了",
-            "label": _mark_name(parts) or (first["label"] if not first.get("multipart") else _feature_label_from_edge(first)),
+            "label": _mark_name(parts) or (
+                first["label"] if not first.get("multipart") else _feature_label_from_edge(first)
+            ),
             "multipart": bool(first.get("multipart")),
             "message": msg,
         })
 
     rev_n = sum(1 for row in reversible if row.get("issue") == "line_reversed")
+    unreached = sum(1 for item in warn if item.get("kind") == "unreached_edge")
     suggestions = [
         tr("方向反了 {} 条：可修复里默认打勾，用「翻转勾选」。伪成环也在表里，默认不勾。").format(rev_n),
         tr("修复只改线的顶点顺序，不改属性；写入编辑缓冲，需要你自己保存图层。"),
-        tr("端点距离大于容差就停下，不会把断开的下一段接上。"),
+        tr("线走到头断掉是正常现象，不算错误。"),
     ]
-    if self_loops:
-        suggestions.append(tr("自环 {} 处：线两端落在同一个点上，不翻转。").format(len(self_loops)))
+    if unreached:
+        suggestions.append(
+            tr("未走到 {} 段：无法从任何起点到达，这是唯一的错误。").format(unreached)
+        )
+    if not unreached and not pseudo_ids and not amb_ids:
+        suggestions.append(tr("所选线图层没有错误：每一段都能从起点走到。"))
     if pseudo_ids:
         suggestions.append(
-            tr("伪成环 {} 段：可修复里默认不勾。要翻就打勾。").format(len(pseudo_ids))
+            tr("伪成环 {} 段：环上没有终点，两头都能走到，分不出方向。已写入临时图层。环上只放一个终点、并且落在线的接头上，再检查一次才能定方向。").format(
+                len(pseudo_ids)
+            )
         )
-    unreached = sum(1 for item in warn if item.get("kind") == "unreached_edge")
-    if unreached:
-        suggestions.append(tr("未走到 {} 段：和起点这条链中间断开了，这些段不翻。").format(unreached))
-    if not rev_n and not hard and not unreached and not pseudo_ids:
+    if amb_ids:
+        suggestions.append(
+            tr("方向无法判断 {} 段：环上的终点不能唯一断开这个环。已写入临时图层，请在地图上查看。").format(
+                len(amb_ids)
+            )
+        )
+    if not rev_n and not unreached and not pseudo_ids and not amb_ids:
         suggestions.append(tr("从起点走到的线方向都正确。"))
 
-    node_map = {start["id"]: start}
+    node_map = {row["id"]: row for row in points}
     for edge in edges:
         edge["a"], edge["b"] = end_nodes[edge["id"]]
     summary_lines = [
-        tr("起点 {}。线 {} 段（要素按段走，多段线各段分开接）。").format(start["label"], len(edges)),
+        tr("起点 {} 个（分类筛选后），接上线 {} 个。线 {} 段（要素按段走，多段线各段分开接）。").format(
+            len(points), len(used_roots), len(edges)
+        ),
         tr("走到 {} 段，方向正确 {} 段，方向反了 {} 条要素，伪成环 {} 段。").format(
             len(oriented) - len(loop_ids), ok_count, rev_n, len(pseudo_ids)
         ),
-        tr("风险：硬错误 {}，软错误 {}（含方向反了）。").format(len(hard), len(warn)),
+        tr("错误（唯一一类）：未从任何起点走到 {} 段。").format(unreached),
         tr("分叉会每条都走。断口大于容差 {} 米就停。").format(format_num(tolerance)),
+    ]
+    if end_total:
+        summary_lines.append(
+            tr("终点 {} 处，其中 {} 处在环上，把环在那里断开；其余不在环上，不起作用。").format(
+                end_total, len(cut_ends)
+            )
+        )
+    summary_lines += [
         tr("建议："),
     ]
     summary_lines.extend("  · " + item for item in suggestions)
@@ -557,7 +552,7 @@ def run_free_line_dir(point_layer, point_filter, point_fid, line_pairs, toleranc
         {
             "role": "起点",
             "layer_name": point_layer.name(),
-            "used": 1,
+            "used": len(used_roots),
             "extracted": len(points),
             "ok": True,
         },
@@ -624,6 +619,21 @@ def _filter_caption(flt):
     return tr("{}类").format(len(labels))
 
 
+def _hint_text():
+    return tr(
+        "起点是起点图层筛选后的全部点，不用挑：有几个点就同时从几个点出发，离线近的先算。"
+        "线在左，终点在右，都可以加多条并各自筛选分类。终点可以不选。"
+        "每个线端点是一个连接点：从一个点分出多条线时，每条都顺着往外走，分叉不算错误。"
+        "终点只在线成环的地方起作用：环在终点处断开，两边的线各自朝终点走；不成环的地方放了终点也不起作用。"
+        "环上没有终点时，两头碰面的那条线分不出方向，叫伪成环，并写入临时图层。"
+        "环上有多个终点，或终点落在线的中间而不是接头上，也无法判断该在哪一处断开，这些线同样写入临时图层，不会当成方向正确。"
+    )
+
+
+def _end_tip():
+    return tr("可选。可增加多个终点图层，每条各自筛选分类。终点只在成环、并且能唯一断开时起作用：环上正好一个终点，并且落在线的接头上，环就在那里断开。不成环的地方放了也不起作用。没有唯一断开处时，方向无法判断的线会写入临时图层。")
+
+
 class FreeLineDirSetup(QDialog):
     def __init__(self, host, parent=None):
         super(FreeLineDirSetup, self).__init__(parent)
@@ -634,10 +644,9 @@ class FreeLineDirSetup(QDialog):
         self._point_filter = None
         self._memory = _load_memory()
         root = QVBoxLayout(self)
-        hint = QLabel(
-            tr('起点只用一个点。线在左，终点在右，都可以加多条并各自筛选分类。终点可以不选。走到终点就停。不选终点时，拿掉某条线后若有一头从起点走不到，就不叫伪成环。')
-        )
+        hint = QLabel(_hint_text())
         hint.setWordWrap(True)
+        self.hint = hint
         root.addWidget(hint)
         self.tol_label = QLabel(
             tr("端点按容差链式合并：A 靠近 B、B 靠近 C 时，三个端点算同一个点，即使 A 和 C 相距超过容差。端点很密的地方要留意。")
@@ -645,7 +654,8 @@ class FreeLineDirSetup(QDialog):
         self.tol_label.setWordWrap(True)
         root.addWidget(self.tol_label)
         tol_row = QHBoxLayout()
-        tol_row.addWidget(QLabel(tr("吸附容差（米）")))
+        self.lbl_tol_caption = QLabel(tr("吸附容差（米）"))
+        tol_row.addWidget(self.lbl_tol_caption)
         self.tol_spin = QDoubleSpinBox()
         self.tol_spin.setRange(0.01, 1000.0)
         self.tol_spin.setDecimals(2)
@@ -665,9 +675,10 @@ class FreeLineDirSetup(QDialog):
         root.addLayout(tol_row)
 
         point_row = QHBoxLayout()
-        point_row.addWidget(QLabel(tr("起点图层")))
+        self.lbl_point = QLabel(tr("起点图层"))
+        point_row.addWidget(self.lbl_point)
         self.point_combo = QgsMapLayerComboBox()
-        self.point_combo.setFilters(QgsMapLayerProxyModel.PointLayer)
+        self.point_combo.setFilters(QgsMapLayerProxyModel.Filter.PointLayer)
         self.btn_point_filter = QPushButton(tr("全部"))
         self.btn_point_filter.setToolTip(tr("按分类筛选。图例未勾选的分类也会列出来，勾上即可参与。"))
         point_row.addWidget(self.point_combo, 1)
@@ -684,24 +695,12 @@ class FreeLineDirSetup(QDialog):
             tr("终点"), "point", "", False, "●", "#c62828",
             hide_primary=True,
             include_unchecked=True,
-            group_tip=tr("可选。可增加多个终点图层，每条各自筛选分类。走到终点就停。"),
+            group_tip=_end_tip(),
         )
         tables = QHBoxLayout()
         tables.addWidget(self.line_table, 1)
         tables.addWidget(self.end_table, 1)
         root.addLayout(tables, 1)
-
-        search_row = QHBoxLayout()
-        search_row.addWidget(QLabel(tr("起点（筛选后的点，点一个）")))
-        self.point_search = QLineEdit()
-        self.point_search.setPlaceholderText(tr("搜索名称或 FID"))
-        self.point_search.setClearButtonEnabled(True)
-        self.point_search.textChanged.connect(self._apply_point_search)
-        search_row.addWidget(self.point_search, 1)
-        root.addLayout(search_row)
-        self.point_list = QListWidget()
-        self.point_list.setSelectionMode(QAbstractItemView.SelectionMode.SingleSelection)
-        root.addWidget(self.point_list, 1)
 
         try:
             buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -713,12 +712,59 @@ class FreeLineDirSetup(QDialog):
             buttons.button(QDialogButtonBox.StandardButton.Ok).setText(tr("开始"))
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
-        root.addWidget(buttons)
+        self._buttons = buttons
+        row = QHBoxLayout()
+        self.btn_save = QPushButton(tr("保存"))
+        self.btn_save.setAutoDefault(False)
+        self.btn_save.setToolTip(tr("保存当前选择的起点、线和终点图层。只有点这里，下次打开才会恢复这些图层。"))
+        self.btn_save.clicked.connect(self._save_layers)
+        row.addWidget(self.btn_save)
+        row.addStretch(1)
+        row.addWidget(buttons)
+        root.addLayout(row)
 
         self.point_combo.layerChanged.connect(self._on_point_layer)
         self.btn_point_filter.clicked.connect(self._edit_point_filter)
         self._restore()
+        try:
+            language_changed().connect(self._apply_language)
+        except Exception:
+            pass  # nosec B110
         register_tool_window(self)
+
+    def _apply_language(self, *_args):
+        self.setWindowTitle(tr("线方向检查"))
+        self.hint.setText(_hint_text())
+        self.tol_label.setText(tr(
+            "端点按容差链式合并：A 靠近 B、B 靠近 C 时，三个端点算同一个点，即使 A 和 C 相距超过容差。端点很密的地方要留意。"
+        ))
+        self.lbl_tol_caption.setText(tr("吸附容差（米）"))
+        self.lbl_point.setText(tr("起点图层"))
+        self.btn_point_filter.setToolTip(tr("按分类筛选。图例未勾选的分类也会列出来，勾上即可参与。"))
+        self.btn_point_filter.setText(_filter_caption(self._point_filter))
+        self.line_table.retranslate(
+            tr("线"),
+            tr("可增加多个线图层。每条线各自按分类筛选。"),
+        )
+        self.end_table.retranslate(
+            tr("终点"),
+            _end_tip(),
+        )
+        ok_btn = self._buttons.button(QDialogButtonBox.StandardButton.Ok)
+        if ok_btn is not None:
+            ok_btn.setText(tr("开始"))
+        cancel_btn = self._buttons.button(QDialogButtonBox.StandardButton.Cancel)
+        if cancel_btn is not None:
+            cancel_btn.setText(tr("取消"))
+        self.btn_save.setText(tr("保存"))
+        self.btn_save.setToolTip(tr("保存当前选择的起点、线和终点图层。只有点这里，下次打开才会恢复这些图层。"))
+
+    def closeEvent(self, event):
+        try:
+            language_changed().disconnect(self._apply_language)
+        except Exception:
+            pass  # nosec B110
+        super(FreeLineDirSetup, self).closeEvent(event)
 
     def _line_rows_from_memory(self, memory):
         rows = memory.get("line_rows")
@@ -742,12 +788,10 @@ class FreeLineDirSetup(QDialog):
         self.btn_point_filter.setText(_filter_caption(self._point_filter))
         self.line_table.set_group({"rows": self._line_rows_from_memory(memory)})
         self.end_table.set_group({"rows": memory.get("end_rows") if isinstance(memory.get("end_rows"), list) else []})
-        self._reload_points()
 
     def _on_point_layer(self, _layer):
         self._point_filter = None
         self.btn_point_filter.setText(_filter_caption(self._point_filter))
-        self._reload_points()
 
     def _edit_filter(self, layer, current):
         if layer is None:
@@ -759,7 +803,7 @@ class FreeLineDirSetup(QDialog):
             parent=self,
             include_unchecked=True,
         )
-        accepted = dlg.exec() if hasattr(dlg, "exec") else dlg.exec_()
+        accepted = run_exec(dlg)
         if not accepted:
             return current
         return dlg.result_filter()
@@ -767,7 +811,6 @@ class FreeLineDirSetup(QDialog):
     def _edit_point_filter(self):
         self._point_filter = self._edit_filter(self.point_combo.currentLayer(), self._point_filter)
         self.btn_point_filter.setText(_filter_caption(self._point_filter))
-        self._reload_points()
 
     def _line_pairs(self):
         pairs = []
@@ -791,50 +834,27 @@ class FreeLineDirSetup(QDialog):
             pairs.append((layer, item.get("filter")))
         return pairs
 
-    def _reload_points(self):
-        self.point_list.clear()
-        layer = self.point_combo.currentLayer()
-        if layer is None:
-            return
-        work_crs = working_crs_from_layers([layer] + [item[0] for item in self._line_pairs()])
-        rows = _collect_start_points(layer, self._point_filter, work_crs)
-        for row in rows:
-            item = QListWidgetItem("{}    #{}".format(row["label"], row["fid"]))
-            item.setData(_user_role(), row["fid"])
-            self.point_list.addItem(item)
-        if self.point_list.count() == 1:
-            self.point_list.setCurrentRow(0)
-        self._apply_point_search()
-
-    def _apply_point_search(self, _text=None):
-        needle = (self.point_search.text() or "").strip().lower()
-        for i in range(self.point_list.count()):
-            item = self.point_list.item(i)
-            item.setHidden(bool(needle) and needle not in item.text().lower())
-
-    def _selected_fid(self):
-        item = self.point_list.currentItem()
-        if item is None:
-            return None
-        return item.data(_user_role())
-
     def _accept(self):
         pairs = self._line_pairs()
         if self.point_combo.currentLayer() is None or not pairs:
             QMessageBox.warning(self, tr("通用线方向"), tr("请选择点图层，并至少增加一个线图层。"))
             return
-        if self._selected_fid() is None:
-            QMessageBox.warning(self, tr("通用线方向"), tr("请在列表里点一个起点。"))
-            return
+        self.accept()
+
+    def _layer_memory(self):
         point = self.point_combo.currentLayer()
-        _save_memory({
-            "point_layer_id": point.id(),
-            "point_layer_name": point.name(),
+        return {
+            "point_layer_id": point.id() if point is not None else "",
+            "point_layer_name": point.name() if point is not None else "",
             "point_filter": self._point_filter,
             "line_rows": self.line_table.get_group().get("rows") or [],
             "end_rows": self.end_table.get_group().get("rows") or [],
-        })
-        self.accept()
+        }
+
+    def _save_layers(self):
+        _save_memory(self._layer_memory())
+        self._memory = _load_memory()
+        QMessageBox.information(self, tr("线方向检查"), tr("已保存当前图层。下次打开会恢复这些图层。"))
 
     def values(self):
         return {
@@ -842,7 +862,6 @@ class FreeLineDirSetup(QDialog):
             "point_filter": self._point_filter,
             "line_pairs": self._line_pairs(),
             "terminal_pairs": self._end_pairs(),
-            "point_fid": self._selected_fid(),
         }
 
 
@@ -897,13 +916,13 @@ def _add_end_marks(result):
             "detail": detail,
         })
     layer = _add_temp_points(
-        tr("通用线方向_起点终点"),
+        "通用线方向_起点终点",
         rows,
         "#6a1b9a",
         [("label", QVariant.String), ("detail", QVariant.String)],
         fallback_crs=result.get("work_crs"),
-        checked=False,
-        source=tr("通用线方向"),
+        checked=True,  # 1.18.8: the start/end marks are on by default
+        source="通用线方向",
     )
     if layer is None:
         return []
@@ -915,7 +934,7 @@ def open_free_line_dir(host):
     parent = resolve_tool_parent(host)
     setup = FreeLineDirSetup(host, parent)
     _SETUP_DLG = setup
-    accepted = setup.exec() if hasattr(setup, "exec") else setup.exec_()
+    accepted = run_exec(setup)
     _SETUP_DLG = None
     if not accepted:
         return
@@ -929,7 +948,6 @@ def open_free_line_dir(host):
         result = run_free_line_dir(
             picked["point_layer"],
             picked["point_filter"],
-            picked["point_fid"],
             picked["line_pairs"],
             host.tolerance,
             progress=progress,
@@ -945,7 +963,7 @@ def open_free_line_dir(host):
             return
         progress.report(0.97, tr("正在生成临时图层"), force=True)
         added = add_issue_temp_layers(
-            [result], visible_kinds=("line_reversed",)
+            [result], visible_kinds=("line_reversed", "pseudo_cycle", "dir_ambiguous")
         )
         added.extend(_add_end_marks(result))
     finally:

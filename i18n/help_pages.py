@@ -8,11 +8,11 @@ PAGES_ZH = (
 <h3>功能介绍</h3>
 <p>这是 QGIS 自带属性表旁边的一张表，不替换 F6，也不占用 F6 的快捷键。
 用来看和改矢量图层的属性：排序、筛选、冻结列、批量赋值、按要素编号粘贴、导出。
-字段备注、快速命名、字段映射、线方向各自有一页。</p>
+字段备注、设置、字段映射、线方向各自有一页。</p>
 <h3>使用说明</h3>
 <ul>
 <li><b>打开</b>：工具栏按钮、菜单「矢量 → Field Remarks Table」，或图层右键。先在图例里选中矢量图层。</li>
-<li><b>语言</b>：工具栏上的语言按钮。第一次打开跟着 QGIS 语言，其次是系统语言，之后记住你的选择。可选中文、英文、西班牙文、法文、阿拉伯文。切换后，已经打开的本插件窗口立刻换成对应语言。阿拉伯语下，本插件窗口的按钮和标题从右向左，表格里的属性值仍从左向右。</li>
+<li><b>语言</b>：工具栏上的语言按钮。第一次打开跟着 QGIS 语言，其次是系统语言，之后记住你的选择。可选中文、英文、西班牙文、法文、阿拉伯文、德文、日文、韩文，菜单里每种语言都用它自己的写法显示。切换后，已经打开的本插件窗口立刻换成对应语言。阿拉伯语下，本插件窗口的按钮和标题从右向左，表格里的属性值仍从左向右。</li>
 <li><b>双击左侧序号</b>：选中该要素并缩放到地图。</li>
 <li><b>单击列标题</b>：按该列排序。看起来像数字的文字按数值排。</li>
 <li><b>排序后状态栏右侧</b>：纯数字列显示筛选合计和全部合计。其它列查重名（忽略大小写），有重名红色，没有则绿色。</li>
@@ -20,16 +20,20 @@ PAGES_ZH = (
 <li><b>列标题右键</b>：复制本列、带表头复制、可回贴复制、粘贴回本列、唯一值统计、选中重复值、选中空值、编辑备注。可回贴带要素编号，改的是第二列，按编号写回，不按行号对位。日期复制成 2024-09-01 这种文字。</li>
 <li><b>左侧序号右键</b>：按表格显示顺序选行，例如 10-50、1-20,35、80-（到末行）。</li>
 <li><b>拖列</b>：只改本窗口的显示顺序，不改图层字段顺序。关掉窗口后不记住。</li>
-<li><b>顶栏从左到右</b>：钉、范围、冻结、筛选、过滤。钉是蓝字时表跟着图例当前层走，红字时钉住当前层。范围有全部要素、仅选中、地图可见、仅已修改。冻结把一列固定在左边，左右表的行对齐。筛选是两个下拉：左边选分类或字段，右边多选，满足任一即留下；右边第一项「全部」表示这次不额外筛选。过滤是输入即搜，大约半秒生效。筛选和过滤同时起作用。</li>
+<li><b>顶栏从左到右</b>：钉、范围、冻结、筛选、过滤。蓝色图钉时表跟着图例当前层走，红色图钉时钉住当前层。范围有全部要素、仅选中、地图可见、仅已修改。冻结把一列固定在左边，左右表的行对齐。筛选是两个下拉：左边选分类或字段，右边多选，满足任一即留下；右边第一项「全部」表示这次不额外筛选。过滤是输入即搜，大约半秒生效。筛选和过滤同时起作用。</li>
 <li><b>未保存的修改</b>：单元格淡黄底，悬停写着还没保存。关掉窗口不额外弹窗，保存和回滚仍由 QGIS 管。</li>
 <li><b>写入校验</b>：手改、赋值、快速插入、粘贴回本列都会按字段类型检查。类型不符的跳过。小数写入整数会四舍五入，超长文字会先列出例子让你确认。表达式字段和不能编辑的连接字段只读。</li>
-<li><b>赋值</b>（只在编辑模式出现）：常量、前后序号、前后加字、表达式、替换。可更新筛选行或更新选中。常量可输入另一个字段名，把那一列抄过来；要写入和字段名一模一样的文字，用单引号包起来。前后序号在已有文字前面或后面加序号，原文字保留，位数可选不补零、自动或指定位数，补零只留在文本字段，空白格子只写序号。前后加字只改已有文字，空白不动。表达式用 QGIS 表达式。替换是字面量，一格里多处全部替换。</li>
+<li><b>赋值</b>（只在编辑模式出现）：常量、前后序号、前后加字、表达式、替换。可更新筛选行或更新选中。常量可输入另一个字段名，把那一列抄过来；要写入和字段名一模一样的文字，用单引号包起来。前后序号在已有文字前面或后面加序号，原文字保留，位数可选不补零、自动或指定位数，补零只留在文本字段，空白格子只写序号。前后加字只改已有文字，空白不动。表达式用 QGIS 表达式。替换有三种落点，默认「标准」，写入默认「常量」。标准只改命中的那段，一格里出现多次就都改。基于查找值在命中前面或后面插入，原文留下。所在字段只要命中，整格换成新内容。写入是固定文字，或按每个要素计算的表达式。模式在一个格子里，停在标准、基于查找值或所在字段上再选。默认区分大小写、部分匹配。这两个开关是图标：点亮区分大小写后 Ab 和 ab 不算同一个；点亮完整匹配后必须整格相等。空白格子不参与。常量留空表示删掉命中的那段。</li>
+<li><b>常用表达式</b>：赋值选「表达式」时，ε 右边多一个列表图标。打开后可添加、修改、备注、删除、上下移动常用表达式，也能进 QGIS 表达式构建器改。打字停一下会匹配已保存的表达式，右边箭头列出全部。双击全选，按住拖动可以选中文字，框本身仍是输入框。选中后显示为「«备注» 表达式」，例如 «长度» $length、«FYQ» round( $length / 1000, 2 )。运行的永远是 » 后面的部分：在框里改成 round( $length / 1000, 4 ) 就按改后的执行，保存的那条不变。不以 «…» 开头的内容按原样当表达式。替换的写入选「表达式」时，写入框也有同样的下拉。</li>
+<li><b>默认赋值方式</b>：在「设置 → 参数」里选打开属性表时赋值栏先用哪种方式：记住上次（默认，你手动换一次就记一次），或固定为常量、前后序号、前后加字、表达式、替换。</li>
 <li><b>全选 / 反选 / 取消选择</b>：全选和反选针对当前表格里的行。取消选择清空图层上的全部选中。</li>
 <li><b>列宽</b>：「适」按内容比例铺满窗口；「全」按内容撑开，可以超出窗口。仍可手动拖。</li>
 <li><b>复制 / 剪切 / 粘贴</b>：Ctrl+C 复制选中单元格的值。工具栏「复制」复制整条要素。要改完贴回：列标题用「复制本列（可回贴）」，第一列表头以 #fid 开头，不要改；只改第二列，再粘贴回本列。编号对不上、重复，或值列整列是空的，则一条都不写。</li>
-<li><b>导出</b>：CSV 可按数值写入纯数字文本。KMZ 可只导出当前表格里的行，也可用单一、分类、分级符号的颜色。规则符号不上色。坐标转不过去会报错。</li>
+<li><b>导出</b>：CSV 可按数值写入纯数字文本。</li>
 <li><b>字段管理</b>：增删改字段。若该字段在当前备注项目里还有中文名或含义，删除时会问要不要一起删掉备注。</li>
-<li><b>工具栏顺序</b>：最右侧「顺序」。可隐藏按钮、拖拽排序，本机记住。快速命名默认不放在工具栏上，在这里勾选后才出现。</li>
+<li><b>窗口标题</b>：图层名 - 坐标系 - 编辑状态。坐标系优先用 EPSG 代码。编辑状态是只读、编辑中，或编辑·未保存（写出改了几条）。</li>
+<li><b>状态栏</b>：底部分成三块，左 40% 是共、显示、选择、排序，中 20% 是线长（线图层且参数开启后，读几何自己算，不读字段），右 40% 是选中合计或列统计。共、显示、选择这三个数字加粗，平时黑色；显示或选择的个数和共不相等时，只把那个数字改成红色。线长的数字、重名里的数字也加粗。窗口窄时每块只显示装得下的字。</li>
+<li><b>设置</b>：最右侧齿轮。里面有三个页签：工具栏（按钮显示与顺序）、快捷键、参数。都本机记住。</li>
 <li><b>界面风格</b>：默认、樱花粉、薄荷清新。本插件各个窗口一起换，本机记住。</li>
 <li><b>窗口大小</b>：这一次 QGIS 开着时记住，退出后不保留。</li>
 </ul>
@@ -47,7 +51,8 @@ PAGES_ZH = (
 值映射字段写入的仍是原来的代码，你改的是旁边给人看的说明。</p>
 <h3>使用说明</h3>
 <ul>
-<li><b>第一次使用</b>：打开属性表，点工具栏上的字段备注。先在「项目管理」里新建一个项目并选中它。占位项目不能改。再到图例选中要配置的图层，左边点一个字段，填显示名和含义，最后点「启用」。</li>
+<li><b>第一次使用</b>：打开属性表，点工具栏上的字段备注。先在「项目管理」里新建一个项目并选中它。当前项目下拉会按名称撑开，长名称在弹出列表里也能看全。占位项目不能改。再到图例选中要配置的图层，左边点一个字段，填显示名和含义，最后点「启用」。</li>
+<li><b>帮助</b>：当前项目下拉的右边有「帮助」。打开的就是这一页，和工具栏帮助里的「字段备注」相同。窗口里改字段、含义、变量时可以随时打开，不用先回到属性表。</li>
 <li><b>图标颜色</b>：备注按钮只负责打开窗口，不是启用开关。彩色表示已经选了真正的项目，而且窗口里已启用。灰色表示停在占位项目，或还没启用。</li>
 <li><b>占位项目</b>：每次重新打开 QGIS，都从「默认（不可修改）」开始。它不能改、不能启用、不能配变量。这一次 QGIS 开着时，你选过的项目会记住；退出 QGIS 后再打开，又回到占位项目。项目里的配置本身还在，只要再选中并启用即可。</li>
 <li><b>项目管理</b>：新建、删除、重命名。名称不能和别的项目重复，也不能用占位名称。删项目会删掉这份配置，不改图层里的要素。</li>
@@ -75,20 +80,21 @@ PAGES_ZH = (
 """,
     ),
     (
-        "快速命名",
+        "设置",
         """
 <h3>功能介绍</h3>
-<p>按图层符号化里的分类或规则，给选中要素写入对应的字段值。它不依赖字段备注有没有启用。
-读的是全部分类，不管图例里勾没勾。点线面必须是同一类几何。</p>
+<p>工具栏最右侧的「设置」集中放三样东西：工具栏按钮的显示和顺序、每个工具的快捷键、以及运行参数。全部只存本机。</p>
 <h3>使用说明</h3>
 <ul>
-<li><b>入口</b>：属性表工具栏「顺序」里勾上「工具栏显示快速命名」，才会出现青绿的「快」图标。本机记住，默认不放。</li>
-<li><b>列表</b>：每一行是一个分类。括号里是本窗口自己维护的要素数量：打开或换图层时数一次，命名之后按刚写的条数加减。标题里图层名后面的总数等于下面分类之和，用来对照 QGIS 图例。</li>
-<li><b>点分类</b>：默认会先确认。勾上「点分类不再确认」之后直接写。</li>
-<li><b>钉住图层</b>：默认不勾。钉住分类图层 A 之后，在 A 上选中再点分类，只改属性、不复制几何。在别的图层上选中再点分类，把几何复制进 A，再按这个分类的规则赋值。来源图层不改，A 也不会多出来源字段。</li>
-<li><b>自动保存</b>：默认「不自动保存」，还能回滚，图例要等你在 QGIS 里保存才变。选「N 秒后保存」则先写入，大约 N 秒后点一次 QGIS 自带的保存图层编辑。连续命名按当前秒数重新计时，只存一次。关掉窗口会立刻补存。这一次会把该层还没保存的修改都写进去，不能再撤销。</li>
-<li><b>刷新图例计数</b>：只在你点的时候，把当前层的符号化原样设回去，让 QGIS 重算左侧分类后面的数量。不改要素，也不会自动刷。</li>
-<li><b>写不进去时</b>：渐变符号、无法反推字段的规则，点了会说明原因，不写。</li>
+<li><b>工具栏</b>：拖拽调整按钮顺序，分隔线也可以拖。取消勾选表示不在工具栏显示，顺序仍保留。「插入分隔线」在当前位置后面加一条，「恢复默认」回到安装时的样子。</li>
+<li><b>快捷键</b>：每个工具一行，点进输入框按组合键录制，按 Backspace 或 Delete 清除。只在 QGIS 窗口内响应，不是系统全局。已被其它行、表格内固定键（复制单元格、剪切、粘贴）或 QGIS 其它功能占用的组合键不会被接受，并写明被谁占用。属性表没打开时，在 QGIS 主窗口按快捷键会先打开属性表再执行对应功能。「清除全部」一次清空全部录制。</li>
+<li><b>参数</b>：
+「显示所选要素的线长度」：线图层时，属性表窗口底部中间显示当前所选要素的线长合计。读几何自己算，不读字段。默认关。
+「筛选跟随所选字段」：非分类图层时，表格里点到哪一列，「筛选」就切到哪个字段（已勾选的值重置为「全部」）；分类图层保持「分类筛选」不跟随。默认开。
+「快速筛选值上限」：「筛选」的值下拉最多列出多少个不同的值，值很多时只列前面这些。
+「线方向检查吸附容差（米）」：端点距离不超过这个值才算接上，默认 0.6。线方向检查窗口里的容差和这里联动。
+「列标题显示」：仅字段名（只显示数据源里的字段名）、别名优先（有别名或字段备注显示名时只显示它，没有就显示字段名）、别名和字段名（两行都显示，默认）。
+「编辑模式赋值方式默认」：记住上次（默认），或常量、前后序号、前后加字、表达式、替换中的一种。</li>
 </ul>
 """,
     ),
@@ -101,7 +107,7 @@ PAGES_ZH = (
 <h3>使用说明</h3>
 <ul>
 <li><b>入口</b>：属性表工具栏上的字段映射。窗口可以一直开着，切换语言会立刻换成本插件的英文或中文。</li>
-<li><b>选图层</b>：上面选源，下面选目标。可以用点、线、面过滤列表。源图层也可以从文件加载，包括 QGIS 能打开的矢量文件。</li>
+<li><b>选图层</b>：上面选源，下面选目标。可以用点、线、面过滤列表。源图层也可以从文件加载，包括 QGIS 能打开的矢量文件；或「从剪贴板加载」：先在源工程里用 QGIS「编辑 → 复制要素」，再点这个按钮，指定源坐标系后会建一个临时图层并自动选为源图层。</li>
 <li><b>对字段</b>：每一行是目标图层的一个字段，右边选源字段。可以按名称自动匹配。模糊匹配会忽略空格和下划线，只有能唯一对上时才填上。「隐藏已匹配源字段」打开时，已经用过的源字段不再出现在其它行里。关掉之后，同一个源字段可以配给多个目标字段，重复的会标红。</li>
 <li><b>复制选项</b>：可以只复制源图层里选中的要素。坐标系不同时，默认重投影到目标图层。</li>
 <li><b>开始复制</b>：写入目标图层的编辑缓冲。复制完要在目标图层上保存编辑，才会落到文件里。</li>
@@ -113,18 +119,20 @@ PAGES_ZH = (
         "线方向",
         """
 <h3>功能介绍</h3>
-<p>从你点的一个起点出发，沿相接的线往外走，找出数字化方向反了的线，并可以翻转顶点顺序。
+<p>从起点图层的全部点同时出发，沿相接的线往外走，找出数字化方向反了的线，并可以翻转顶点顺序。
+起点不再挑一个：分类筛选后剩几个点，就同时从几个点出发，一条线的方向由离它最近的那个起点决定。
 端点靠得够近才算接上。中间断开就停下，不会把下一段硬接上。不改属性，只改线的顶点顺序，写入编辑缓冲，需要你自己保存图层。</p>
+<p>检查只报一种错误：无法从任何起点走到的线。线走到头断掉是正常现象，不算错误。</p>
 <h3>使用说明</h3>
 <ul>
 <li><b>入口</b>：属性表工具栏上的线方向。</li>
-<li><b>吸附容差</b>：单位是米。A 靠近 B、B 靠近 C 时，三个端点会算成同一个点，即使 A 和 C 比容差更远。端点很密的地方要看清楚再设。</li>
-<li><b>起点图层</b>：选一个点图层。右边的「全部」是分类筛选：图例里没勾的分类也会列出来，勾上才参与。不筛选就是这个图层的全部点。</li>
+<li><b>吸附容差</b>：单位是米，默认 0.6（也可以在「设置 → 参数」里改）。A 靠近 B、B 靠近 C 时，三个端点会算成同一个点，即使 A 和 C 比容差更远。端点很密的地方要看清楚再设。</li>
+<li><b>起点图层</b>：选一个点图层。右边的「全部」是分类筛选：图例里没勾的分类也会列出来，勾上才参与；筛选剩下多少个点，就同时作为多少个起点。接不到任何线端的起点会跳过并在结果里说明。</li>
 <li><b>线</b>：至少加一个线图层。可以加多条，每条各自筛选分类。线在走向上被当成从左到右：起点一侧是线的起点，另一侧是线的终点。</li>
-<li><b>终点</b>：可以不选。选了之后，走到终点就停。不选终点时，拿掉某条线后如果有一头从起点走不到，就不把这种情况叫伪成环。</li>
-<li><b>点一个起点</b>：下面的列表是筛选之后的点，可以按名称或 FID 搜。必须点中一个再开始。</li>
+<li><b>分叉</b>：每个线端点都看成一个连接点。线走到一个点，从这里分出几条线时，每条都顺着往外走，方向都是离开这个点，不算错误。</li>
+<li><b>终点</b>：可以不选。终点只在线成环的地方起作用：环在终点处断开，等于线在终点互不连通，两边的线各自朝终点走。不成环的地方不需要终点，放了也不起作用，行走照常经过。环上没有终点时，近的起点先到，两头碰面的那条线分不出方向，叫伪成环，会写入临时图层，表里默认不勾。环上正好一个终点、并且落在线的接头上，环就在那里断开，再检查就能定方向。环上有多个终点，或终点落在线的中间而不是接头上（例如六条线围成一个环、每条线中间都有一个终点），无法判断该在哪一处断开，这些线也会写入临时图层，不会被当成方向正确。</li>
 <li><b>开始之后</b>：结果窗口置顶，不挡地图。方向反了的线默认打勾，伪成环默认不勾。「翻转勾选」只翻打了勾的线。一端空着、没挂上、方向互相矛盾的线不会动。</li>
-<li><b>临时图层</b>：会放出起点、终点或方向问题的临时点，方便在地图上对照。关掉结果窗口后，这些临时图层还在，不需要可以自己移除。</li>
+<li><b>临时图层</b>：会放出方向反了、伪成环、方向无法判断的临时点，默认打开，方便在地图上对照。关掉结果窗口后，这些临时图层还在，不需要可以自己移除。</li>
 </ul>
 """,
     ),
@@ -137,11 +145,11 @@ PAGES_EN = (
 <h3>What it does</h3>
 <p>This is a table beside the built-in QGIS attribute table. It does not replace F6 and does not take the F6 shortcut.
 Use it to view and edit a vector layer: sort, filter, freeze a column, fill values, paste by feature id, and export.
-Field remarks, quick naming, field mapping, and line direction each have their own page.</p>
+Field remarks, settings, field mapping, and line direction each have their own page.</p>
 <h3>How to use</h3>
 <ul>
 <li><b>Open</b> from the toolbar, <b>Vector → Field Remarks Table</b>, or the layer context menu. Select a vector layer in the Layers panel first.</li>
-<li><b>Language</b> is the toolbar language button. The first launch follows the QGIS locale, then the system locale, and the choice is remembered. Choices are Chinese, English, Spanish, French, and Arabic. Switching updates plugin windows that are already open. In Arabic, buttons and titles in this plugin's windows run right to left. Values in the table stay left to right.</li>
+<li><b>Language</b> is the toolbar language button. The first launch follows the QGIS locale, then the system locale, and the choice is remembered. Choices are Chinese, English, Spanish, French, Arabic, German, Japanese, and Korean; the menu shows each language in its own spelling. Switching updates plugin windows that are already open. In Arabic, buttons and titles in this plugin's windows run right to left. Values in the table stay left to right.</li>
 <li><b>Double-click the row number</b> to select the feature and zoom to it.</li>
 <li><b>Click a column header</b> to sort. Numeric text is sorted as a number.</li>
 <li><b>After a sort</b>, the status bar shows a filtered total and a full total for numeric columns. Other columns report duplicates, ignoring case.</li>
@@ -149,16 +157,20 @@ Field remarks, quick naming, field mapping, and line direction each have their o
 <li><b>Right-click a column header</b> to copy the column, copy with the header, copy for paste-back, paste back, show unique values, select duplicates, select blanks, or edit remarks. Paste-back keeps the feature id in column 1 (the header starts with #fid). Edit column 2 only. Values are written by id, not by row position. Dates are copied as 2024-09-01.</li>
 <li><b>Right-click a row number</b> to select displayed rows, for example 10-50, 1-20,35, or 80- through the last row.</li>
 <li><b>Drag a column</b> to change the order in this window only. The layer field order stays the same. The order is not kept after you close the window.</li>
-<li><b>Top bar, left to right</b>: pin, scope, freeze, category/field filter, text filter. Blue pin text follows the current legend layer. Red pin text keeps this layer. Scope is all features, selected, visible on the map, or modified in this edit session. Freeze locks one column on the left and keeps rows aligned. The filter has two boxes: a category or a field on the left, and values on the right (any checked value keeps the row). The first right-hand item, All, adds no extra filter. The text box filters as you type, after about half a second. Both filters apply together.</li>
+<li><b>Top bar, left to right</b>: pin, scope, freeze, category/field filter, text filter. A blue pin follows the current legend layer. A red pin keeps this layer. Scope is all features, selected, visible on the map, or modified in this edit session. Freeze locks one column on the left and keeps rows aligned. The filter has two boxes: a category or a field on the left, and values on the right (any checked value keeps the row). The first right-hand item, All, adds no extra filter. The text box filters as you type, after about half a second. Both filters apply together.</li>
 <li><b>Unsaved edits</b> use a pale yellow cell. Closing the window does not add another prompt. Save and rollback stay with QGIS.</li>
 <li><b>Value checks</b> apply to hand edits, fill, quick insert, and paste-back. Values that do not fit the field type are skipped. Decimals written into an integer field are rounded. Text that is longer than the field is listed before you confirm. Expression fields and non-editable joins are read-only.</li>
-<li><b>Fill</b> (edit mode only): constant, sequence around text, add text, expression, replace. Update filtered rows or update selected rows. A constant can be another field name, which copies that column. To write text that is exactly a field name, wrap it in single quotes. Sequence around text adds a number before or after existing text and keeps the original text. Width can be no padding, automatic, or a fixed width. Padding is kept only on text fields. A blank cell receives the number only. Add text changes existing text and leaves blanks alone. Expression uses a QGIS expression. Replace is literal and replaces every match in the cell.</li>
+<li><b>Fill</b> (edit mode only): constant, sequence around text, add text, expression, replace. Update filtered rows or update selected rows. A constant can be another field name, which copies that column. To write text that is exactly a field name, wrap it in single quotes. Sequence around text adds a number before or after existing text and keeps the original text. Width can be no padding, automatic, or a fixed width. Padding is kept only on text fields. A blank cell receives the number only. Add text changes existing text and leaves blanks alone. Expression uses a QGIS expression. Replace has three placements, defaulting to Standard, and the text written defaults to a constant. Standard changes only the matched text, including every match in one cell. Around the match inserts before or after it and keeps the original text. Whole field replaces the entire cell when it matches. What you write can be a fixed constant or an expression evaluated per feature. One box holds the three placements; rest on one to pick how it writes. Matching is case-sensitive and partial unless you turn on the whole-cell icon. Blank cells are skipped. An empty constant deletes the matched text.</li>
+<li><b>Saved expressions</b>: when Fill is on Expression, a list icon sits right of ε. It adds, edits, notes, deletes, and reorders saved expressions, and can open one in the QGIS expression builder. After a short pause, typing lists saved expressions that match. The arrow on the right lists them all. Double-click selects all the text, and dragging selects part of it. The box stays a text box. A picked item shows as «note» expression, for example «Length» $length or «FYQ» round( $length / 1000, 2 ). Only the part after » runs: change it to round( $length / 1000, 4 ) in the box and that runs, while the saved one stays. Text that does not start with «…» runs as typed. The Replace write box has the same list when it writes an expression.</li>
+<li><b>Default fill method</b>: in Settings → Parameters, choose the method the fill bar starts with: Remember last (default; it follows every change you make), or always Const, Sequence around text, Add text around, Expression, or Replace.</li>
 <li><b>Select all / invert / clear</b>: select all and invert use the current table rows. Clear drops the layer selection.</li>
 <li><b>Column width</b>: Fit spreads columns across the window. Full sizes them to their content and may extend past the window. You can still drag a width.</li>
 <li><b>Copy, cut, paste</b>: Ctrl+C copies the selected cell values. The toolbar Copy copies whole features. To edit and paste back, use Copy column (round-trip). Do not change the #fid column. If ids do not match, repeat, or the value column is entirely empty, nothing is written.</li>
-<li><b>Export</b>: CSV can write numeric text as numbers. KMZ can export only the current table rows and can use single, categorized, or graduated symbol colors. Rule-based symbols are not colored. A failed coordinate transform is reported.</li>
+<li><b>Export</b>: CSV can write numeric text as numbers.</li>
 <li><b>Field manager</b> adds, deletes, and renames fields. If the current remark pack still has a label or meanings for that field, delete asks whether to drop the remark too.</li>
-<li><b>Toolbar order</b> is the rightmost button. Hide buttons and drag to reorder. The choice is remembered on this computer. Quick naming is off the toolbar until you check it here.</li>
+<li><b>Window title</b>: layer name - CRS - edit state. The CRS prefers an EPSG code. The state is read-only, editing, or editing with unsaved changes and how many.</li>
+<li><b>Status bar</b>: three fixed shares. The left 40% is total, shown, selected, and sort. The middle 20% is line length for a line layer after you turn it on in Parameters, computed from geometry, never from a field. The right 40% is the selection total or the column statistics. The three counts are bold and black. If shown or selected is not the total, only that number turns red. The length number and the numbers inside a duplicate summary are bold too. A narrow window shows only what fits in each share.</li>
+<li><b>Settings</b> is the gear at the right end. It has three tabs: Toolbar, Shortcuts, and Parameters. All choices are remembered on this computer.</li>
 <li><b>Theme</b>: Default, Sakura pink, or Mint. Every window of this plugin follows it. The choice is remembered on this computer.</li>
 <li><b>Window size</b> is remembered while this QGIS session is open.</li>
 </ul>
@@ -176,7 +188,8 @@ While the pack is off, the attribute table edits as usual and does not apply the
 On a value-map field, the stored value stays the original code. You edit the description shown beside it.</p>
 <h3>How to use</h3>
 <ul>
-<li><b>First time</b>: open the attribute table and click Field remarks. In Packs, create a pack and select it. The placeholder pack cannot be edited. Select the layer in the legend, click a field on the left, fill in a display name and meanings, then click Enable.</li>
+<li><b>First time</b>: open the attribute table and click Field remarks. In Packs, create a pack and select it. The current-pack list grows with the name, and the open list shows the whole name. The placeholder pack cannot be edited. Select the layer in the legend, click a field on the left, fill in a display name and meanings, then click Enable.</li>
+<li><b>Help</b>: Help, to the right of the current pack, opens this same page. It is the Field remarks page from the toolbar Help. You can open it while editing fields, meanings, and variables, without going back to the table.</li>
 <li><b>Icon color</b>: the remarks button only opens the window. It is not the enable switch. Color means a real pack is selected and enabled. Gray means the placeholder pack, or that enable is off.</li>
 <li><b>Placeholder pack</b>: every new QGIS launch starts on Default (locked). It cannot be edited, enabled, or given variables. The pack you pick is remembered until you quit QGIS. The next launch starts on the placeholder again. The pack you built is still there. Select it and enable it again.</li>
 <li><b>Packs</b>: new, delete, and rename. The name must be unique and must not be the placeholder name. Deleting a pack deletes that setup. It does not change features on the layer.</li>
@@ -204,20 +217,21 @@ On a value-map field, the stored value stays the original code. You edit the des
 """,
     ),
     (
-        "Quick naming",
+        "Settings",
         """
 <h3>What it does</h3>
-<p>Write field values from categorized or rule-based symbology onto the selected features. It does not depend on field remarks being enabled.
-Every class is listed, whether or not the legend checkbox is on. Points, lines, and polygons must be the same geometry type.</p>
+<p>Settings, the gear at the right end of the toolbar, holds three things: which toolbar buttons show and in what order, a keyboard shortcut for each tool, and runtime parameters. Everything is stored on this computer only.</p>
 <h3>How to use</h3>
 <ul>
-<li><b>Open</b>: in the attribute table, open toolbar order and check Show quick naming on the toolbar. A green Quick button appears. The choice is remembered on this computer and is off by default.</li>
-<li><b>List</b>: each row is one class. The number in parentheses is kept by this window. It is counted when you open or change layers, then adjusted by how many features you just wrote. The total after the layer name equals the sum of the classes, so you can compare it with the QGIS legend.</li>
-<li><b>Click a class</b>: a confirmation appears unless you check the box to write immediately.</li>
-<li><b>Pin the layer</b> is off by default. After you pin categorized layer A, selecting features on A and clicking a class only updates attributes. Selecting features on another layer and clicking a class copies the geometry into A, then applies that class. The source layer is unchanged, and A does not gain the source fields.</li>
-<li><b>Auto-save</b> defaults to off, so you can still roll back. The legend counts change after you save in QGIS. Choose "save after N seconds" to write first, then trigger QGIS Save Layer Edits once after about N seconds. Further clicks restart that timer and save once. Closing the window saves immediately. That save writes every unsaved change on the layer and cannot be undone.</li>
-<li><b>Refresh legend counts</b> runs only when you click it. It sets the current renderer back onto the layer so QGIS recalculates the legend counts. It does not change features and does not run by itself.</li>
-<li><b>When a class cannot be written</b>, for example a graduated renderer or a rule with no field value, the click explains why and writes nothing.</li>
+<li><b>Toolbar</b>: drag to reorder buttons; separators can be dragged too. Unchecking a button hides it from the toolbar and keeps its place. Insert separator adds one after the current row. Reset default restores the installed layout.</li>
+<li><b>Shortcuts</b>: one row per tool. Click the box and press a combination to record it; Backspace or Delete clears it. Shortcuts only respond inside the QGIS window; they are not system-global. A combination already used by another row, by a fixed in-table key (copy cells, cut, paste), or by another QGIS feature is refused, and the holder is named. When the attribute table is closed, pressing the shortcut in the QGIS main window opens the table first, then runs the tool. Clear all empties every recording at once.</li>
+<li><b>Parameters</b>:
+"Show selected features' line length": for line layers, the bottom center of the attribute-table window shows the total length of the selected features. Computed from geometry, never from a field. Off by default.
+"Filter follows the current field": on non-categorized layers, the Filter switches to the column you click (checked values reset to All); categorized layers stay on Category filter. On by default.
+"Quick filter value limit": how many distinct values the Filter box lists at most. When there are more, only the first ones show.
+"Line-direction check snap tolerance (m)": ends count as connected only within this distance. Default 0.6. The tolerance box in the line-direction window follows this value.
+"Column headers": Field name only (the name in the data source), Alias first (the alias or field-remark display name when there is one, otherwise the field name), or Alias and field name (two lines, default).
+"Default fill method (edit mode)": Remember last (default), or one of Const, Sequence around text, Add text around, Expression, Replace.</li>
 </ul>
 """,
     ),
@@ -230,7 +244,7 @@ Geometry types must match. The source and target cannot be the same layer. Diffe
 <h3>How to use</h3>
 <ul>
 <li><b>Open</b> from Field mapping on the attribute-table toolbar. The window can stay open. Switching language updates its labels immediately.</li>
-<li><b>Layers</b>: source on the first row, target on the second. Filter the lists by point, line, or polygon. The source can also be loaded from a vector file QGIS can open.</li>
+<li><b>Layers</b>: source on the first row, target on the second. Filter the lists by point, line, or polygon. The source can also be loaded from a vector file QGIS can open, or with "From clipboard": first use QGIS Edit → Copy Features in the source project, then click the button, pick the source CRS, and a temporary layer is created and selected as the source.</li>
 <li><b>Fields</b>: each row is a target field. Choose the source field on the right. Match same names fills unique pairs. Fuzzy match ignores spaces and underscores and fills a pair only when it is unique. Hide matched source fields removes a source field from the other lists after it is used. Turn that off to map one source field to several targets. Repeats are marked in red.</li>
 <li><b>Options</b>: copy only features selected on the source. When coordinate systems differ, reprojection to the target is on by default.</li>
 <li><b>Copy now</b> writes into the target edit buffer. Save the target layer edits to store them in the file.</li>
@@ -242,18 +256,20 @@ Geometry types must match. The source and target cannot be the same layer. Diffe
         "Line direction",
         """
 <h3>What it does</h3>
-<p>Start from one point you pick, walk connected lines, find lines whose digitizing direction faces the wrong way, and flip vertex order.
+<p>Walk outward from every point of the start layer at once, follow connected lines, find lines whose digitizing direction faces the wrong way, and flip vertex order.
+There is no single picked start: after the category filter, however many points remain are all starts, and a line's direction is decided by the start nearest to it.
 Endpoints count as the same point only when they are close enough. A gap stops the walk. Attributes are not changed. Only vertex order is written into the edit buffer, and you save the layer yourself.</p>
+<p>The check reports one error kind only: a line that no start can reach. A line that simply ends is normal, not an error.</p>
 <h3>How to use</h3>
 <ul>
 <li><b>Open</b> from Line direction on the attribute-table toolbar.</li>
-<li><b>Snap tolerance</b> is in meters. If A is near B and B is near C, all three endpoints are one point, even when A and C are farther apart than the tolerance. Be careful where endpoints are dense.</li>
-<li><b>Start layer</b> is a point layer. The button on the right filters by category. Categories that are unchecked in the legend are still listed. Check them to include them. All means every point on that layer.</li>
+<li><b>Snap tolerance</b> is in meters, default 0.6 (also changeable in Settings → Parameters). If A is near B and B is near C, all three endpoints are one point, even when A and C are farther apart than the tolerance. Be careful where endpoints are dense.</li>
+<li><b>Start layer</b> is a point layer. The button on the right filters by category. Categories that are unchecked in the legend are still listed. Check them to include them. However many points survive the filter all act as starts at the same time. A start that touches no line end is skipped and reported.</li>
 <li><b>Lines</b>: add at least one line layer. You can add several and filter each one. Along a line, the start side is the line start and the other side is the line end.</li>
-<li><b>Ends</b> are optional. The walk stops at an end. With no ends, a line is not treated as a false loop just because removing it leaves one side unreachable from the start.</li>
-<li><b>Pick one start</b> in the list. Search by name or feature id. Start stays disabled until one point is chosen.</li>
+<li><b>Branches</b>: every line end is a junction. When the walk reaches a point where several lines leave, each one is followed outward, away from that point. Branches are not errors.</li>
+<li><b>Ends</b> are optional and only matter where lines form a loop: the loop is cut at the end, as if the lines did not connect there, and both sides run toward it. Where there is no loop an end is not needed and changes nothing; the walk passes through it. On a loop with no end, the nearer start wins and the line where both sides meet has no direction. That is a pseudo-loop: it is written to a temporary layer and left unchecked. Exactly one end, sitting on a junction, cuts the loop; check again to settle the direction. Several ends, or an end in the middle of a line rather than on a junction (six lines around a start, each with an end in the middle), do not pick a single cut. Those lines are written to a temporary layer too and are not treated as correct.</li>
 <li><b>After Start</b>: the result window stays on top and does not block the map. Reversed lines are checked by default. False loops are not. Flip checked reverses only the checked lines. A line with an open end, a line that never connected, or a line whose parts disagree is left alone.</li>
-<li><b>Temporary layers</b> mark starts, ends, or direction problems so you can see them on the map. They remain after you close the result window. Remove them yourself if you do not need them.</li>
+<li><b>Temporary layers</b> mark reversed lines, pseudo-loops, and unsettled directions, turned on by default, so you can see them on the map. They remain after you close the result window. Remove them yourself if you do not need them.</li>
 </ul>
 """,
     ),
@@ -261,7 +277,7 @@ Endpoints count as the same point only when they are close enough. A gap stops t
 
 
 def pages_for(language):
-    from .catalog import LANG_AR, LANG_EN, LANG_ES, LANG_FR
+    from .catalog import LANG_AR, LANG_DE, LANG_EN, LANG_ES, LANG_FR, LANG_JA, LANG_KO
 
     if language == LANG_EN:
         return PAGES_EN
@@ -275,6 +291,18 @@ def pages_for(language):
         return pages
     if language == LANG_AR:
         from .help_ar import PAGES as pages
+
+        return pages
+    if language == LANG_DE:
+        from .help_de import PAGES as pages
+
+        return pages
+    if language == LANG_JA:
+        from .help_ja import PAGES as pages
+
+        return pages
+    if language == LANG_KO:
+        from .help_ko import PAGES as pages
 
         return pages
     return PAGES_ZH

@@ -8,11 +8,11 @@ PAGES = (
 <h3>Rôle</h3>
 <p>C'est une table à côté de la table attributaire de QGIS. Elle ne remplace pas F6 et n'utilise pas son raccourci.
 Elle sert à voir et modifier une couche vecteur : trier, filtrer, figer une colonne, remplir des valeurs, coller par identifiant et exporter.
-Les remarques de champs, le nommage rapide, la copie de champs et le sens des lignes ont chacun leur page.</p>
+Les remarques de champs, les réglages, la copie de champs et le sens des lignes ont chacun leur page.</p>
 <h3>Mode d'emploi</h3>
 <ul>
 <li><b>Ouvrir</b> : bouton de la barre, <b>Vecteur → Field Remarks Table</b>, ou le menu contextuel de la couche. Sélectionnez d'abord une couche vecteur dans le panneau des couches.</li>
-<li><b>Langue</b> : bouton de langue de la barre. Le premier lancement suit la langue de QGIS, puis celle du système, et le choix est mémorisé. Les choix sont le chinois, l'anglais, l'espagnol, le français et l'arabe. Les fenêtres déjà ouvertes de ce module passent tout de suite à la langue choisie. En arabe, les boutons et les titres vont de droite à gauche. Les valeurs du tableau restent de gauche à droite.</li>
+<li><b>Langue</b> : bouton de langue de la barre. Le premier lancement suit la langue de QGIS, puis celle du système, et le choix est mémorisé. Les choix sont le chinois, l'anglais, l'espagnol, le français, l'arabe, l'allemand, le japonais et le coréen ; chaque langue s'affiche avec son propre nom dans le menu. Les fenêtres déjà ouvertes de ce module passent tout de suite à la langue choisie. En arabe, les boutons et les titres vont de droite à gauche. Les valeurs du tableau restent de gauche à droite.</li>
 <li><b>Double-clic sur le numéro de ligne</b> : sélectionne l'entité et zoome dessus.</li>
 <li><b>Clic sur l'en-tête</b> : trie. Un texte qui ressemble à un nombre est trié comme un nombre.</li>
 <li><b>Après un tri</b>, la barre d'état montre le total filtré et le total complet des colonnes numériques. Les autres signalent les doublons, sans tenir compte de la casse.</li>
@@ -20,16 +20,20 @@ Les remarques de champs, le nommage rapide, la copie de champs et le sens des li
 <li><b>Clic droit sur l'en-tête</b> : copier la colonne, copier avec l'en-tête, copier pour recoller, recoller, valeurs uniques, sélectionner les doublons, sélectionner les vides, ou modifier les remarques. La copie aller-retour met l'identifiant en colonne 1 (l'en-tête commence par #fid). On ne modifie que la colonne 2. L'écriture se fait par identifiant, pas par position. Les dates sont copiées comme 2024-09-01.</li>
 <li><b>Clic droit sur le numéro de ligne</b> : sélectionne les lignes affichées, par exemple 10-50, 1-20,35 ou 80- jusqu'à la dernière.</li>
 <li><b>Glisser une colonne</b> ne change l'ordre que dans cette fenêtre. L'ordre des champs de la couche ne change pas. Il n'est pas gardé à la fermeture.</li>
-<li><b>Barre du haut, de gauche à droite</b> : épingler, emprise, figer, filtre de catégorie ou de champ, filtre de texte. Le texte bleu suit la couche actuelle de la légende. Le rouge garde cette couche. L'emprise peut être toutes les entités, la sélection, le visible sur la carte, ou le modifié dans cette session. Figer garde une colonne à gauche et aligne les lignes. Le filtre a deux listes : catégorie ou champ à gauche, valeurs à droite (une valeur cochée suffit). Le premier élément de droite, Tous, n'ajoute pas de filtre. Le texte filtre à la frappe, après une demi-seconde. Les deux filtres agissent ensemble.</li>
+<li><b>Barre du haut, de gauche à droite</b> : épingler, emprise, figer, filtre de catégorie ou de champ, filtre de texte. L'épingle bleue suit la couche actuelle de la légende. L'épingle rouge garde cette couche. L'emprise peut être toutes les entités, la sélection, le visible sur la carte, ou le modifié dans cette session. Figer garde une colonne à gauche et aligne les lignes. Le filtre a deux listes : catégorie ou champ à gauche, valeurs à droite (une valeur cochée suffit). Le premier élément de droite, Tous, n'ajoute pas de filtre. Le texte filtre à la frappe, après une demi-seconde. Les deux filtres agissent ensemble.</li>
 <li><b>Modifications non enregistrées</b> : la cellule devient jaune pâle. Fermer la fenêtre ne pose pas une autre question. Enregistrer et annuler restent dans QGIS.</li>
 <li><b>Contrôle à l'écriture</b> : saisie, remplissage, insertion rapide et collage sont vérifiés selon le type du champ. Ce qui ne tient pas est ignoré. Une décimale écrite dans un entier est arrondie. Un texte trop long est listé avant confirmation. Les champs d'expression et les jointures non modifiables sont en lecture seule.</li>
-<li><b>Remplissage</b> (édition seulement) : constante, numéro autour du texte, texte ajouté, expression et remplacement. On peut mettre à jour les lignes filtrées ou la sélection. Une constante peut être le nom d'un autre champ : cette colonne est alors copiée. Pour écrire un texte exactement égal à un nom de champ, mettez-le entre apostrophes. Le numéro autour du texte se place avant ou après et garde le texte. La largeur peut être sans zéros, automatique ou fixe. Les zéros ne restent que dans les champs texte. Une cellule vide ne reçoit que le numéro. Le texte ajouté ne change que le texte déjà présent. L'expression est une expression QGIS. Le remplacement est littéral et change toutes les occurrences de la cellule.</li>
+<li><b>Remplissage</b> (édition seulement) : constante, numéro autour du texte, texte ajouté, expression et remplacement. On peut mettre à jour les lignes filtrées ou la sélection. Une constante peut être le nom d'un autre champ : cette colonne est alors copiée. Pour écrire un texte exactement égal à un nom de champ, mettez-le entre apostrophes. Le numéro autour du texte se place avant ou après et garde le texte. La largeur peut être sans zéros, automatique ou fixe. Les zéros ne restent que dans les champs texte. Une cellule vide ne reçoit que le numéro. Le texte ajouté ne change que le texte déjà présent. L'expression est une expression QGIS. Le remplacement a trois modes ; par défaut, standard plus une constante. Standard ne change que le texte trouvé, partout dans la cellule. Autour de la recherche insère avant ou après et garde l'original. Champ entier remplace toute la cellule dès qu'elle correspond. On peut écrire une constante ou une expression par entité. Les trois modes sont dans une seule case. La casse compte et la recherche est partielle, sauf si vous allumez l'icône de correspondance entière. Les cellules vides sont ignorées. Une constante vide efface le texte trouvé.</li>
+<li><b>Expressions enregistrées</b> : avec Remplissage sur Expression, une icône de liste apparaît à droite de ε. Il permet d'ajouter, modifier, annoter, supprimer et ordonner des expressions enregistrées, et d'en ouvrir une dans le constructeur d'expression QGIS. Après une courte pause, la saisie liste les expressions enregistrées qui correspondent. La flèche à droite les liste toutes. Un double-clic sélectionne tout le texte, un glisser en sélectionne une partie. La case reste une zone de texte. Un élément choisi s'affiche comme «note» expression, par exemple «Longueur» $length ou «FYQ» round( $length / 1000, 2 ). Seule la partie après » s'exécute : changez-la en round( $length / 1000, 4 ) dans la case et c'est elle qui s'exécute, l'enregistrée ne change pas. Un texte qui ne commence pas par «…» s'exécute tel quel. La case d'écriture de Remplacer a la même liste quand elle écrit une expression.</li>
+<li><b>Méthode de remplissage par défaut</b> : dans Réglages → Paramètres, choisissez la méthode de départ de la barre de remplissage : Retenir le dernier (par défaut ; suit chaque changement), ou toujours Constante, Numéro autour du texte, Ajouter du texte, Expression ou Remplacer.</li>
 <li><b>Tout sélectionner / inverser / effacer</b> : les deux premières agissent sur les lignes de cette table. Effacer vide la sélection de la couche.</li>
 <li><b>Largeur de colonne</b> : Ajuster répartit les colonnes dans la fenêtre. Complet les ouvre selon le contenu et peut dépasser la fenêtre. On peut encore tirer une largeur.</li>
 <li><b>Copier, couper, coller</b> : Ctrl+C copie les cellules choisies. Copier de la barre copie des entités entières. Pour modifier puis recoller : Copier la colonne (aller-retour). Ne changez pas la colonne #fid. Si les identifiants ne correspondent pas, se répètent, ou si la colonne de valeurs est vide, rien n'est écrit.</li>
-<li><b>Exporter</b> : le CSV peut écrire un texte numérique comme un nombre. Le KMZ peut n'exporter que les lignes de cette table et utiliser les couleurs de symbole unique, catégorisé ou gradué. Les symboles par règles ne sont pas colorés. Un échec de transformation des coordonnées est signalé.</li>
+<li><b>Exporter</b> : le CSV peut écrire un texte numérique comme un nombre.</li>
 <li><b>Gestion des champs</b> : créer, supprimer et renommer. Si le paquet actuel a encore un nom ou des significations pour ce champ, la suppression demande s'il faut aussi supprimer la remarque.</li>
-<li><b>Ordre de la barre</b> : le bouton à droite. On peut masquer des boutons et les faire glisser. Le choix est mémorisé sur cet ordinateur. Le nommage rapide n'apparaît sur la barre que si vous le cochez ici.</li>
+<li><b>Titre de la fenêtre</b> : nom de la couche - système de coordonnées - état d'édition. Le système préfère un code EPSG. L'état est lecture seule, en édition, ou en édition avec des changements non enregistrés et leur nombre.</li>
+<li><b>Barre d'état</b> : trois parts fixes. Les 40 % de gauche : total, affichées, sélectionnées, tri. Les 20 % du milieu : longueur de ligne (couche de lignes, après activation dans Paramètres), calculée depuis la géométrie, jamais depuis un champ. Les 40 % de droite : total de la sélection ou statistiques de colonne. Les trois nombres sont en gras et en noir. Si les affichées ou les sélectionnées diffèrent du total, seul ce nombre passe au rouge. Le nombre de la longueur et les nombres du résumé des doublons sont aussi en gras. Une fenêtre étroite n'affiche que ce qui tient dans chaque part.</li>
+<li><b>Réglages</b> : l'engrenage tout à droite. Trois onglets : Barre d'outils, Raccourcis et Paramètres. Tout est mémorisé sur cet ordinateur.</li>
 <li><b>Thème</b> : défaut, rose sakura ou menthe. Toutes les fenêtres de ce module le suivent. Le choix est mémorisé sur cet ordinateur.</li>
 <li><b>Taille de la fenêtre</b> : mémorisée tant que cette session QGIS est ouverte.</li>
 </ul>
@@ -47,7 +51,8 @@ Quand le paquet est arrêté, la table s'édite comme d'habitude et n'applique p
 Sur un champ à table de valeurs, la valeur stockée reste le code. Ici on modifie le texte affiché à côté.</p>
 <h3>Mode d'emploi</h3>
 <ul>
-<li><b>La première fois</b> : ouvrez la table et cliquez sur Remarques de champs. Dans Paquets, créez-en un et sélectionnez-le. Le paquet de réserve ne se modifie pas. Choisissez la couche dans la légende, cliquez un champ à gauche, remplissez le nom et les significations, puis cliquez sur Activer.</li>
+<li><b>La première fois</b> : ouvrez la table et cliquez sur Remarques de champs. Dans Paquets, créez-en un et sélectionnez-le. La liste du paquet actuel s'ouvre à la largeur du nom. Le paquet de réserve ne se modifie pas. Choisissez la couche dans la légende, cliquez un champ à gauche, remplissez le nom et les significations, puis cliquez sur Activer.</li>
+<li><b>Aide</b> : à droite du paquet actuel, Aide ouvre cette même page, celle des remarques de champs dans l'aide de la barre.</li>
 <li><b>Couleur de l'icône</b> : le bouton ouvre seulement la fenêtre. Ce n'est pas l'interrupteur. En couleur, un vrai paquet est choisi et activé. En gris, c'est le paquet de réserve, ou l'activation est arrêtée.</li>
 <li><b>Paquet de réserve</b> : chaque ouverture de QGIS commence sur Défaut (verrouillé). Il ne se modifie pas, ne s'active pas et n'a pas de variables. Tant que QGIS reste ouvert, le paquet choisi est mémorisé. À la fermeture, on revient au paquet de réserve. Le paquet construit est toujours là : sélectionnez-le et activez-le à nouveau.</li>
 <li><b>Paquets</b> : nouveau, supprimer et renommer. Le nom doit être unique et ne peut pas être celui du paquet de réserve. Supprimer un paquet supprime cette configuration. Les entités de la couche ne changent pas.</li>
@@ -75,20 +80,21 @@ Sur un champ à table de valeurs, la valeur stockée reste le code. Ici on modif
 """,
     ),
     (
-        "Nommage rapide",
+        "Réglages",
         """
-<h3>Rôle</h3>
-<p>Écrit dans les entités sélectionnées les valeurs de champ tirées d'une symbologie catégorisée ou basée sur des règles. Cela ne dépend pas de l'activation des remarques de champs.
-Toutes les classes sont listées, cochées ou non dans la légende. Points, lignes et polygones doivent être du même type de géométrie.</p>
-<h3>Mode d'emploi</h3>
+<h3>À quoi ça sert</h3>
+<p>Réglages, l'engrenage à l'extrémité droite de la barre, rassemble trois choses : quels boutons s'affichent et dans quel ordre, un raccourci clavier par outil, et les paramètres d'exécution. Tout reste stocké sur cet ordinateur uniquement.</p>
+<h3>Comment l'utiliser</h3>
 <ul>
-<li><b>Ouvrir</b> : dans la table, ouvrez l'ordre de la barre et cochez Afficher le nommage rapide. Un bouton vert apparaît. Le choix est mémorisé sur cet ordinateur et il est arrêté par défaut.</li>
-<li><b>Liste</b> : chaque ligne est une classe. Le nombre entre parenthèses est tenu par cette fenêtre. Il est compté à l'ouverture ou au changement de couche, puis ajusté selon ce qui vient d'être écrit. Le total après le nom de la couche est la somme des classes, pour le comparer à la légende QGIS.</li>
-<li><b>Cliquer une classe</b> : une confirmation apparaît, sauf si la case d'écriture immédiate est cochée.</li>
-<li><b>Épingler la couche</b> est arrêté par défaut. Après avoir épinglé la couche catégorisée A, sélectionner des entités sur A et cliquer une classe ne change que les attributs. Sélectionner sur une autre couche et cliquer une classe copie la géométrie dans A, puis applique cette classe. La couche source ne change pas, et A ne reçoit pas les champs source.</li>
-<li><b>Enregistrement automatique</b> est arrêté par défaut, donc on peut encore annuler. Les comptes de la légende changent quand vous enregistrez dans QGIS. « Enregistrer après N secondes » écrit d'abord, puis lance une fois Enregistrer les modifications de la couche après environ N secondes. D'autres clics relancent ce délai et n'enregistrent qu'une fois. Fermer la fenêtre enregistre tout de suite. Cet enregistrement écrit toutes les modifications non enregistrées de la couche et ne peut pas être annulé.</li>
-<li><b>Actualiser les comptes de la légende</b> ne s'exécute que sur clic. Il repose le rendu actuel sur la couche pour que QGIS recalcule. Il ne change pas les entités et ne part pas seul.</li>
-<li><b>Si une classe ne peut pas être écrite</b>, par exemple un rendu gradué ou une règle sans valeur de champ, le clic explique pourquoi et n'écrit rien.</li>
+<li><b>Barre d'outils</b> : glissez pour réordonner ; les séparateurs se glissent aussi. Décocher un bouton le masque et garde sa place. Insérer un séparateur en ajoute un après la ligne courante. Restaurer le défaut remet la disposition d'origine.</li>
+<li><b>Raccourcis</b> : une ligne par outil. Cliquez dans la case et pressez une combinaison pour l'enregistrer ; Retour arrière ou Suppr l'efface. Ils ne répondent que dans la fenêtre QGIS, pas partout dans le système. Une combinaison déjà prise par une autre ligne, par une touche fixe de la table (copier des cellules, couper, coller) ou par une autre fonction QGIS est refusée, et son détenteur est nommé. Table fermée, presser le raccourci dans la fenêtre principale de QGIS ouvre d'abord la table, puis lance l'outil. Tout effacer vide tous les enregistrements d'un coup.</li>
+<li><b>Paramètres</b> :
+« Afficher la longueur de ligne des entités sélectionnées » : pour les couches de lignes, le centre du bas de la fenêtre du tableau montre la longueur totale des entités sélectionnées. Calculée depuis la géométrie, jamais depuis un champ. Désactivé par défaut.
+« Le filtre suit le champ actif » : sur les couches non catégorisées, le filtre suit la colonne cliquée (les valeurs cochées reviennent à Tout) ; les couches catégorisées restent sur le filtre par catégorie. Activé par défaut.
+« Limite de valeurs du filtre rapide » : combien de valeurs distinctes la boîte Filtrer peut lister au maximum. Au-delà, seules les premières s'affichent.
+« Tolérance d'accrochage du contrôle de direction (m) » : deux extrémités ne comptent comme reliées que sous cette distance. Défaut 0.6. La case de tolérance de la fenêtre de direction suit cette valeur.
+« En-têtes de colonne » : Nom de champ seul (le nom de la source de données), Alias d'abord (l'alias ou le nom affiché de la remarque de champ s'il existe, sinon le nom du champ) ou Alias et nom de champ (deux lignes, par défaut).
+« Méthode de remplissage par défaut (édition) » : Retenir le dernier (par défaut), ou l'une de Constante, Numéro autour du texte, Ajouter du texte, Expression, Remplacer.</li>
 </ul>
 """,
     ),
@@ -101,7 +107,7 @@ Les types de géométrie doivent correspondre. La source et la cible ne peuvent 
 <h3>Mode d'emploi</h3>
 <ul>
 <li><b>Ouvrir</b> depuis Copie de champs sur la barre de la table. La fenêtre peut rester ouverte. Changer de langue met ses libellés à jour tout de suite.</li>
-<li><b>Couches</b> : source sur la première ligne, cible sur la seconde. Filtrez les listes par point, ligne ou polygone. La source peut aussi être chargée depuis un fichier vecteur que QGIS sait ouvrir.</li>
+<li><b>Couches</b> : source sur la première ligne, cible sur la seconde. Filtrez les listes par point, ligne ou polygone. La source peut être chargée depuis un fichier vecteur que QGIS sait ouvrir, ou avec « Charger depuis le presse-papiers » : utilisez d'abord Édition → Copier des entités de QGIS dans le projet source, puis cliquez sur le bouton, choisissez le SCR source, et une couche temporaire est créée et devient la source.</li>
 <li><b>Champs</b> : chaque ligne est un champ cible. Choisissez le champ source à droite. Apparier les noms identiques remplit les paires uniques. L'appariement approximatif ignore espaces et traits de soulignement, et ne remplit une paire que si elle est unique. Masquer les champs source déjà utilisés les retire des autres listes. Décochez pour envoyer un même champ source vers plusieurs cibles. Les répétitions sont marquées en rouge.</li>
 <li><b>Options</b> : ne copier que les entités sélectionnées sur la source. Quand les systèmes de coordonnées diffèrent, la reprojection vers la cible est activée par défaut.</li>
 <li><b>Copier maintenant</b> écrit dans le tampon d'édition de la cible. Enregistrez les modifications de la cible pour les garder dans le fichier.</li>
@@ -113,18 +119,20 @@ Les types de géométrie doivent correspondre. La source et la cible ne peuvent 
         "Sens des lignes",
         """
 <h3>Rôle</h3>
-<p>Partez d'un point que vous choisissez, suivez les lignes connectées, trouvez celles dont le sens de numérisation est inversé, et inversez l'ordre des sommets.
+<p>Le parcours part en même temps de tous les points de la couche de départ, suit les lignes connectées, repère celles dont le sens de numérisation est inversé et inverse l'ordre des sommets.
+Plus besoin de choisir un seul départ : après le filtre de catégorie, les points restants sont tous des départs, et le sens d'une ligne est décidé par le départ le plus proche.
 Deux extrémités comptent comme le même point seulement si elles sont assez proches. Un vide arrête le parcours. Les attributs ne changent pas. Seul l'ordre des sommets est écrit dans le tampon d'édition, et vous enregistrez la couche vous-même.</p>
+<p>Le contrôle ne signale qu'un seul type d'erreur : une ligne qu'aucun départ n'atteint. Une ligne qui s'arrête simplement est normal, pas une erreur.</p>
 <h3>Mode d'emploi</h3>
 <ul>
 <li><b>Ouvrir</b> depuis Sens des lignes sur la barre de la table.</li>
-<li><b>Tolérance d'accrochage</b>, en mètres. Si A est près de B et B près de C, les trois extrémités sont un seul point, même si A et C sont plus éloignés que la tolérance. Faites attention là où les extrémités sont denses.</li>
-<li><b>Couche de départ</b> : une couche de points. Le bouton de droite filtre par catégorie. Les catégories décochées dans la légende sont quand même listées. Cochez-les pour les inclure. Tous signifie tous les points de cette couche.</li>
+<li><b>Tolérance d'accrochage</b>, en mètres, 0.6 par défaut (modifiable aussi dans Réglages → Paramètres). Si A est près de B et B près de C, les trois extrémités sont un seul point, même si A et C sont plus éloignés que la tolérance. Faites attention là où les extrémités sont denses.</li>
+<li><b>Couche de départ</b> : une couche de points. Le bouton de droite filtre par catégorie. Les catégories décochées dans la légende sont quand même listées. Cochez-les pour les inclure. Les points qui passent le filtre agissent tous comme départs en même temps. Un départ qui ne touche aucune extrémité de ligne est ignoré et signalé dans le résultat.</li>
 <li><b>Lignes</b> : ajoutez au moins une couche de lignes. Vous pouvez en ajouter plusieurs et filtrer chacune. Le long d'une ligne, le côté départ est le début de la ligne et l'autre côté est la fin.</li>
-<li><b>Fins</b>, facultatives. Le parcours s'arrête à une fin. Sans fin, une ligne n'est pas traitée comme une fausse boucle seulement parce que, en la retirant, un côté devient inaccessible depuis le départ.</li>
-<li><b>Choisissez un départ</b> dans la liste. Cherchez par nom ou par identifiant. Départ reste désactivé tant qu'un point n'est pas choisi.</li>
+<li><b>Branches</b> : chaque extrémité de ligne est un nœud. Quand le parcours atteint un point d'où partent plusieurs lignes, il suit chacune vers l'extérieur, en s'éloignant de ce point. Les branches ne sont pas des erreurs.</li>
+<li><b>Fins</b>, facultatives, qui ne comptent que là où les lignes forment une boucle : la boucle est coupée à la fin, comme si les lignes ne s'y rejoignaient pas, et les deux côtés vont vers elle. Sans boucle, une fin est inutile et ne change rien ; le parcours la traverse. Sur une boucle sans fin, le départ le plus proche l'emporte et la ligne où les deux côtés se rejoignent n'a pas de sens : c'est une fausse boucle, écrite dans une couche temporaire et non cochée. Exactement une fin, sur un nœud, coupe la boucle. Plusieurs fins, ou une fin au milieu d'une ligne et non sur un nœud (six lignes autour du départ, chacune avec une fin au milieu), ne donnent pas de coupure unique : ces lignes vont aussi dans une couche temporaire et ne sont pas tenues pour correctes.</li>
 <li><b>Après Départ</b> : la fenêtre de résultat reste au-dessus et ne bloque pas la carte. Les lignes inversées sont cochées par défaut. Les fausses boucles ne le sont pas. Inverser la sélection ne retourne que les lignes cochées. Une ligne à extrémité ouverte, une ligne jamais reliée, ou une ligne dont les parties ne s'accordent pas, est laissée telle quelle.</li>
-<li><b>Couches temporaires</b> : elles marquent les départs, les fins ou les problèmes de sens pour les voir sur la carte. Elles restent après la fermeture de la fenêtre de résultat. Retirez-les vous-même si vous n'en avez pas besoin.</li>
+<li><b>Couches temporaires</b> : elles marquent les lignes inversées, les fausses boucles et les sens indécis, affichés par défaut, pour les voir sur la carte. Elles restent après la fermeture de la fenêtre de résultat. Retirez-les vous-même si vous n'en avez pas besoin.</li>
 </ul>
 """,
     ),

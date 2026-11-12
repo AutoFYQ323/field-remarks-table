@@ -17,7 +17,6 @@ from qgis.PyQt.QtWidgets import (
     QVBoxLayout,
     QHBoxLayout,
     QToolBar,
-    QAction,
     QTableView,
     QLineEdit,
     QLabel,
@@ -67,11 +66,9 @@ from . import theme
 from .model import FeatureTableModel, try_parse_number
 from .column_tools import BLANK_KEY, UniqueValuesDialog, group_column, parse_row_ranges
 from .value_utils import coerce_for_field, temporal_text, value_text
-from .kmz_dialog import ExportKmzDialog
-from .kmz_export import export_layer_to_kmz
 from .fields_manager import FieldsManagerDialog
 from .settings_store import SettingsStore
-from .toolbar_order_dialog import ToolbarOrderDialog
+from .settings_dialog import SettingsDialog
 from .remarks_store import (
     RemarksSession,
     meaning_display,
@@ -84,6 +81,11 @@ from .remarks_dialog import (
 )
 from .value_map import ValueMapDelegate, qgis_description_for_value, value_key
 from .classify_assign import layer_categories, attr_values_equal, field_eq_expression
+from .fill_replace import apply_replace
+from .fill_expressions import expression_from_text
+from .expression_library_dialog import ExpressionDropdown, ExpressionLibraryDialog, manage_icon
+from .qt_compat import QAction, event_pos, run_exec
+from .wide_combo import WidePopupCombo, open_full_text_popup
 
 
 def plugin_version():
@@ -98,12 +100,10 @@ def plugin_version():
     return "—"
 
 
-
 FILTER_DELAY_MS = 500
 
 # Not a legal field name, so it cannot collide with a real column called category.
 QUICK_MODE_CATEGORY = "\x1fquick-category"
-QUICK_VALUE_LIMIT = 400
 
 
 def _blank_field_expr(field_name):
@@ -161,13 +161,13 @@ class MultiCheckCombo(QComboBox):
         edit = self.lineEdit()
         edit.setReadOnly(True)
         edit.setFrame(False)
-        self.setInsertPolicy(QComboBox.NoInsert)
+        self.setInsertPolicy(QComboBox.InsertPolicy.NoInsert)
         self.view().viewport().installEventFilter(self)
         edit.installEventFilter(self)
         self.add_check_item(tr("全部"), None, True)
 
     def mousePressEvent(self, event):
-        if event.button() == Qt.LeftButton:
+        if event.button() == Qt.MouseButton.LeftButton:
             self.showPopup()
             event.accept()
             return
@@ -182,20 +182,20 @@ class MultiCheckCombo(QComboBox):
         self._sync_text()
 
     def showPopup(self):
-        QComboBox.showPopup(self)
+        open_full_text_popup(self)
         self._sync_text()
 
     def eventFilter(self, obj, event):
         edit = self.lineEdit()
-        if obj is edit and event.type() == QEvent.MouseButtonPress and event.button() == Qt.LeftButton:
+        if obj is edit and event.type() == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.LeftButton:
             self.showPopup()
             return True
         if obj is self.view().viewport():
             etype = event.type()
-            if etype == QEvent.MouseButtonPress:
+            if etype == QEvent.Type.MouseButtonPress:
                 return True
-            if etype == QEvent.MouseButtonRelease:
-                index = self.view().indexAt(event.pos())
+            if etype == QEvent.Type.MouseButtonRelease:
+                index = self.view().indexAt(event_pos(event))
                 if index.isValid():
                     self._toggle_row(index.row())
                 return True
@@ -206,14 +206,16 @@ class MultiCheckCombo(QComboBox):
 
     def add_check_item(self, text, payload, checked=False):
         item = QStandardItem(text)
-        item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsUserCheckable)
-        item.setData(payload, Qt.UserRole)
-        item.setCheckState(Qt.Checked if checked else Qt.Unchecked)
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsUserCheckable)
+        item.setData(payload, Qt.ItemDataRole.UserRole)
+        item.setToolTip(text)
+        item.setCheckState(Qt.CheckState.Checked if checked else Qt.CheckState.Unchecked)
         self.model().appendRow(item)
 
     def add_note(self, text):
         item = QStandardItem(text)
-        item.setFlags(Qt.ItemIsEnabled)
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled)
+        item.setToolTip(text)
         self.model().appendRow(item)
 
     def checked_payloads(self):
@@ -221,10 +223,10 @@ class MultiCheckCombo(QComboBox):
         model = self.model()
         for row in range(1, model.rowCount()):
             item = model.item(row)
-            if item is None or not (item.flags() & Qt.ItemIsUserCheckable):
+            if item is None or not (item.flags() & Qt.ItemFlag.ItemIsUserCheckable):
                 continue
-            if item.checkState() == Qt.Checked:
-                payload = item.data(Qt.UserRole)
+            if item.checkState() == Qt.CheckState.Checked:
+                payload = item.data(Qt.ItemDataRole.UserRole)
                 if payload:
                     out.append(payload)
         return out
@@ -240,18 +242,18 @@ class MultiCheckCombo(QComboBox):
     def _toggle_row(self, row):
         model = self.model()
         item = model.item(row)
-        if item is None or not (item.flags() & Qt.ItemIsUserCheckable):
+        if item is None or not (item.flags() & Qt.ItemFlag.ItemIsUserCheckable):
             return
         if row == 0:
             self._check_all_only()
         else:
             item.setCheckState(
-                Qt.Unchecked if item.checkState() == Qt.Checked else Qt.Checked
+                Qt.CheckState.Unchecked if item.checkState() == Qt.CheckState.Checked else Qt.CheckState.Checked
             )
             if self.checked_payloads():
                 all_item = model.item(0)
                 if all_item is not None:
-                    all_item.setCheckState(Qt.Unchecked)
+                    all_item.setCheckState(Qt.CheckState.Unchecked)
             else:
                 self._check_all_only()
         self._sync_text()
@@ -261,9 +263,9 @@ class MultiCheckCombo(QComboBox):
         model = self.model()
         for row in range(model.rowCount()):
             item = model.item(row)
-            if item is None or not (item.flags() & Qt.ItemIsUserCheckable):
+            if item is None or not (item.flags() & Qt.ItemFlag.ItemIsUserCheckable):
                 continue
-            item.setCheckState(Qt.Checked if row == 0 else Qt.Unchecked)
+            item.setCheckState(Qt.CheckState.Checked if row == 0 else Qt.CheckState.Unchecked)
 
     def ensure_some_check(self):
         if not self.checked_payloads():
@@ -275,9 +277,9 @@ class MultiCheckCombo(QComboBox):
         model = self.model()
         for row in range(1, model.rowCount()):
             item = model.item(row)
-            if item is None or not (item.flags() & Qt.ItemIsUserCheckable):
+            if item is None or not (item.flags() & Qt.ItemFlag.ItemIsUserCheckable):
                 continue
-            if item.checkState() == Qt.Checked:
+            if item.checkState() == Qt.CheckState.Checked:
                 labels.append(item.text())
         if not labels:
             text = tr("全部")
@@ -293,6 +295,7 @@ class MultiCheckCombo(QComboBox):
         if edit is not None:
             edit.setText(text)
         self.setToolTip(tip)
+
 
 # First column of a round-trip column copy. Paste refuses text that lacks this header.
 ROUNDTRIP_FID_HEADER = "#fid"
@@ -345,8 +348,8 @@ def _split_fid_header(cell):
     if text == ROUNDTRIP_FID_HEADER:
         return "", True
     prefix = ROUNDTRIP_FID_HEADER + "@"
-    if text.startswith(prefix) and text[len(prefix) :].strip():
-        return text[len(prefix) :].strip(), True
+    if text.startswith(prefix) and text[len(prefix):].strip():
+        return text[len(prefix):].strip(), True
     return "", False
 
 
@@ -462,6 +465,7 @@ def clipboard_is_roundtrip(text):
     _layer_id, ok = _split_fid_header(cell)
     return ok
 
+
 # Default toolbar order (ids). Separators: sep1 / sep2 / …; customize always last.
 # Language sits immediately left of the toolbar-order button.
 DEFAULT_TOOLBAR_ORDER = [
@@ -482,9 +486,7 @@ DEFAULT_TOOLBAR_ORDER = [
     "display_mode",
     "col_width",
     "sep2",
-    "quick_name",
     "export_csv",
-    "export_kmz",
     "field_map",
     "line_dir",
     "sep5",
@@ -537,11 +539,11 @@ class _HeaderRightClickFilter(QObject):
         if obj is not self._header:
             return super().eventFilter(obj, event)
         et = event.type()
-        if et == QEvent.ContextMenu:
-            self._handler(self._header, event.pos())
+        if et == QEvent.Type.ContextMenu:
+            self._handler(self._header, event_pos(event))
             return True
-        if et == QEvent.MouseButtonPress and event.button() == Qt.RightButton:
-            self._handler(self._header, event.pos())
+        if et == QEvent.Type.MouseButtonPress and event.button() == Qt.MouseButton.RightButton:
+            self._handler(self._header, event_pos(event))
             return True
         return super().eventFilter(obj, event)
 
@@ -557,7 +559,7 @@ class _CopyShortcutFilter(QObject):
     def eventFilter(self, obj, event):
         if obj is not self._view:
             return super().eventFilter(obj, event)
-        if event.type() == QEvent.KeyPress and event.matches(QKeySequence.Copy):
+        if event.type() == QEvent.Type.KeyPress and event.matches(QKeySequence.StandardKey.Copy):
             self._dialog._copy_by_shortcut()
             return True
         return super().eventFilter(obj, event)
@@ -586,7 +588,7 @@ class ExportCsvDialog(QDialog):
         self.chk_qgis_format.setChecked(True)
         self.chk_qgis_format.setToolTip(
             tr("勾选：与自带属性表复制粘贴一致（wkt_geom + 图层字段顺序）；\n"
-            "不勾选：按本插件当前表格的列顺序导出（不含几何列）。")
+               "不勾选：按本插件当前表格的列顺序导出（不含几何列）。")
         )
         layout.addWidget(self.chk_qgis_format)
 
@@ -596,11 +598,11 @@ class ExportCsvDialog(QDialog):
         self.chk_numeric_text.setChecked(True)
         self.chk_numeric_text.setToolTip(
             tr("勾选：字段虽为文本，但内容是纯数字时按数值写入 CSV，便于 Excel 计算；\n"
-            "不勾选：一律按文本写出。")
+               "不勾选：一律按文本写出。")
         )
         layout.addWidget(self.chk_numeric_text)
 
-        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         localize_button_box(btns)
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
@@ -616,6 +618,126 @@ class ExportCsvDialog(QDialog):
         return self.chk_numeric_text.isChecked()
 
 
+def _html_escape(text):
+    return (
+        str(text)
+        .replace("&", "&amp;")
+        .replace("<", "&lt;")
+        .replace(">", "&gt;")
+    )
+
+
+def _html_slots(template, slots):
+    """Drop raw HTML into each %s of an already translated sentence."""
+    parts = str(template).split("%s")
+    if len(parts) != len(slots) + 1:
+        return ""
+    out = []
+    for index, part in enumerate(parts):
+        out.append(_html_escape(part))
+        if index < len(slots):
+            out.append(slots[index])
+    return "".join(out)
+
+
+def _bold_digits(text):
+    """Escape text and bold each number, including a decimal part."""
+    source = str(text)
+    out = []
+    start = 0
+    index = 0
+    length = len(source)
+    while index < length:
+        if source[index].isdigit():
+            end = index + 1
+            while end < length and source[end].isdigit():
+                end += 1
+            if end < length and source[end] == "." and end + 1 < length and source[end + 1].isdigit():
+                end += 1
+                while end < length and source[end].isdigit():
+                    end += 1
+            out.append(_html_escape(source[start:index]))
+            out.append("<b>%s</b>" % _html_escape(source[index:end]))
+            start = end
+            index = end
+            continue
+        index += 1
+    out.append(_html_escape(source[start:]))
+    return "".join(out)
+
+
+def _count_html(value, alert):
+    color = "#c62828" if alert else "#000000"
+    return '<b style="color:%s">%s</b>' % (color, value)
+
+
+class _FitLabel(QLabel):
+    """One status-bar cell. Shows as much of the text as the cell width allows.
+
+    Markup is used while the plain sentence fits. A narrow cell falls back to
+    elided plain text so a clipped tag cannot swallow the rest of the line.
+    """
+
+    def __init__(self, align, parent=None):
+        super().__init__(parent)
+        self._full = ""
+        self._html = ""
+        self._tip = ""
+        self.setAlignment(align)
+        self.setMinimumWidth(0)
+        self.setSizePolicy(QSizePolicy.Policy.Ignored, QSizePolicy.Policy.Preferred)
+        self.setTextInteractionFlags(Qt.TextInteractionFlag.TextSelectableByMouse)
+        self.setTextFormat(Qt.TextFormat.PlainText)
+
+    def setText(self, text):
+        self._full = "" if text is None else str(text)
+        self._html = ""
+        self._refit()
+
+    def set_markup(self, plain, html):
+        self._full = "" if plain is None else str(plain)
+        self._html = "" if html is None else str(html)
+        self._refit()
+
+    def setToolTip(self, tip):
+        self._tip = "" if tip is None else str(tip)
+        self._refit()
+
+    def resizeEvent(self, event):
+        super().resizeEvent(event)
+        self._refit()
+
+    def _refit(self):
+        width = self.contentsRect().width()
+        plain = self._full
+        html = self._html
+        use_html = False
+        if html:
+            if width <= 8 or not plain:
+                use_html = True
+            else:
+                use_html = self.fontMetrics().horizontalAdvance(plain) + 6 <= width
+        if use_html:
+            fmt = Qt.TextFormat.RichText
+            shown = html
+            clipped = False
+        else:
+            fmt = Qt.TextFormat.PlainText
+            shown = plain
+            if width > 8 and plain:
+                shown = self.fontMetrics().elidedText(plain, Qt.TextElideMode.ElideRight, width)
+            clipped = shown != plain
+        if self.textFormat() != fmt:
+            self.setTextFormat(fmt)
+        if QLabel.text(self) != shown:
+            QLabel.setText(self, shown)
+        tip = self._tip
+        if clipped and plain and not tip:
+            tip = plain
+        if QLabel.toolTip(self) != tip:
+            QLabel.setToolTip(self, tip)
+
+
 class AttributeTableDialog(QDialog):
     """Enhanced attribute table window."""
 
@@ -624,7 +746,7 @@ class AttributeTableDialog(QDialog):
         # (above QGIS when switching layers; no independent taskbar minimize).
         super().__init__(parent)
         # A closed window must not stay alive listening to layer switches.
-        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.iface = iface_ref
         self._settings = SettingsStore()
         self._remarks = RemarksSession()
@@ -647,6 +769,7 @@ class AttributeTableDialog(QDialog):
         self._sel_sum = None
         self._sel_dup = None
         self._tool_actions = {}
+        self._shortcut_carriers = []
         self._col_width_mode = _SESSION_COL_WIDTH_MODE if _SESSION_COL_WIDTH_MODE in ("fit", "full") else "fit"
         self.btn_col_width = None
         self._applying_col_widths = False
@@ -689,10 +812,10 @@ class AttributeTableDialog(QDialog):
 
         self.setWindowTitle(tr("无图层"))
         self.setWindowFlags(
-            Qt.Window
-            | Qt.WindowMinimizeButtonHint
-            | Qt.WindowMaximizeButtonHint
-            | Qt.WindowCloseButtonHint
+            Qt.WindowType.Window
+            | Qt.WindowType.WindowMinimizeButtonHint
+            | Qt.WindowType.WindowMaximizeButtonHint
+            | Qt.WindowType.WindowCloseButtonHint
         )
         self.resize(1100, 620)
         self.setMinimumSize(420, 300)
@@ -700,7 +823,8 @@ class AttributeTableDialog(QDialog):
         self._restore_session_geometry()
 
         self.model = FeatureTableModel(self)
-        self.model.editRejected.connect(lambda msg: self.status.showMessage(msg, 6000))
+        self.model.set_header_mode(self._settings.load_header_mode())
+        self.model.editRejected.connect(lambda msg: self._show_status(msg, 6000))
         self._build_ui()
         theme.register(self)
         try:
@@ -740,14 +864,13 @@ class AttributeTableDialog(QDialog):
         if tool_act is not None:
             anchor = self.toolbar.widgetForAction(tool_act)
         if anchor is not None and anchor.isVisible():
-            menu.exec_(anchor.mapToGlobal(anchor.rect().bottomLeft()))
+            run_exec(menu, anchor.mapToGlobal(anchor.rect().bottomLeft()))
         else:
             from qgis.PyQt.QtGui import QCursor
 
-            menu.exec_(QCursor.pos())
+            run_exec(menu, QCursor.pos())
 
     def _restore_session_geometry(self):
-        global _SESSION_GEOMETRY
         if _SESSION_GEOMETRY is not None:
             try:
                 self.restoreGeometry(_SESSION_GEOMETRY)
@@ -782,13 +905,19 @@ class AttributeTableDialog(QDialog):
         if icon_ref.startswith("plugin:"):
             from qgis.PyQt.QtCore import QSize
 
-            name = icon_ref[len("plugin:") :]
+            name = icon_ref[len("plugin:"):]
             icons_dir = os.path.join(os.path.dirname(__file__), "icons")
             from .i18n import current_language
             from .i18n.catalog import LANG_ZH
 
             lang = current_language()
-            if lang != LANG_ZH:
+            # Column-width icons are pictures, shared by every language.
+            if lang != LANG_ZH and not (
+                name.startswith("colwidth_")
+                or name.startswith("pin_")
+                or name.startswith("case_")
+                or name.startswith("exact_")
+            ):
                 lang_dir = os.path.join(icons_dir, lang)
                 lang_path = os.path.join(lang_dir, name)
                 if os.path.exists(lang_path):
@@ -831,12 +960,6 @@ class AttributeTableDialog(QDialog):
                 "plugin:display_note_24.png",
                 False,
             ),
-            "quick_name": (
-                "快速命名",
-                self._open_quick_name,
-                "plugin:quick_name_24.png",
-                False,
-            ),
             "zoom": ("缩放到选中", self._zoom_selected, "mActionZoomToSelected.svg", False),
             "select_all": (
                 "全选（当前筛选）",
@@ -863,12 +986,6 @@ class AttributeTableDialog(QDialog):
                 False,
             ),
             "export_csv": ("导出 CSV", self._export_csv, "plugin:csv_24.png", False),
-            "export_kmz": (
-                "导出 KMZ",
-                self._export_kmz,
-                "plugin:kmz_24.png",
-                False,
-            ),
             "theme": (
                 "界面风格",
                 self._show_theme_menu,
@@ -877,8 +994,8 @@ class AttributeTableDialog(QDialog):
             ),
             "help": ("帮助", self._show_help, "mActionHelpContents.svg", False),
             "customize": (
-                "工具栏顺序",
-                self._customize_toolbar,
+                "设置",
+                self._open_settings,
                 "mActionOptions.svg",
                 False,
             ),
@@ -913,17 +1030,13 @@ class AttributeTableDialog(QDialog):
 
     def _show_language_menu(self):
         from .i18n import current_language, set_language
+        from .i18n.catalog import available_languages
 
         menu = QMenu(self)
         current = current_language()
-        labels = (
-            ("zh", tr("中文")),
-            ("en", tr("英文")),
-            ("es", tr("西班牙文")),
-            ("fr", tr("法文")),
-            ("ar", tr("阿拉伯文")),
-        )
-        for key, label in labels:
+        # Labels are endonyms: each language always shows in its own spelling,
+        # never translated into the current interface language.
+        for key, label in available_languages():
             act = menu.addAction(label)
             act.setCheckable(True)
             act.setChecked(key == current)
@@ -933,11 +1046,11 @@ class AttributeTableDialog(QDialog):
         if tool_act is not None:
             anchor = self.toolbar.widgetForAction(tool_act)
         if anchor is not None and anchor.isVisible():
-            menu.exec_(anchor.mapToGlobal(anchor.rect().bottomLeft()))
+            run_exec(menu, anchor.mapToGlobal(anchor.rect().bottomLeft()))
         else:
             from qgis.PyQt.QtGui import QCursor
 
-            menu.exec_(QCursor.pos())
+            run_exec(menu, QCursor.pos())
 
     def _open_field_map(self, *_args):
         from .tools.field_map_dialog import FieldMapDialog
@@ -971,15 +1084,23 @@ class AttributeTableDialog(QDialog):
                 key = combo.itemData(i)
                 if key in scope_labels:
                     combo.setItemText(i, scope_labels[key])
-        if hasattr(self, "cmb_quick_filter"):
-            self._fill_quick_values(set(self.cmb_quick_filter.checked_payloads()))
         if hasattr(self, "cmb_scope"):
             self.cmb_scope.setToolTip(
                 tr("范围：全部要素 / 仅选中 / 地图可见要素（画布范围内，平移缩放后约 500 毫秒刷新）"
-                " / 仅已修改（本次编辑里改过、新增、还没保存的要素）")
+                   " / 仅已修改（本次编辑里改过、新增、还没保存的要素）")
             )
         if hasattr(self, "cmb_quick_mode"):
             self.cmb_quick_mode.setToolTip(tr("分类筛选，或选择一个字段按其取值筛选"))
+            self._rebuild_quick_filter()
+        elif hasattr(self, "cmb_quick_filter"):
+            self._fill_quick_values(set(self.cmb_quick_filter.checked_payloads()))
+        if hasattr(self, "cmb_filter_field"):
+            self._rebuild_filter_field_combo()
+        if hasattr(self, "cmb_freeze"):
+            self.cmb_freeze.setToolTip(tr("将指定字段固定到首列并冻结显示"))
+            self._rebuild_freeze_combo()
+        if hasattr(self, "cmb_fill_field"):
+            self.cmb_fill_field.setToolTip(tr("要写入的目标字段"))
         self._sync_pin_button()
         self._retranslate_fill_bar()
         self._update_status()
@@ -990,7 +1111,7 @@ class AttributeTableDialog(QDialog):
             "前后序号：在已有文字前面或后面加上序号（只选一边），原文字保留，序号用位数补零\n"
             "前后加字：在已有文字前或后追加，空白不动\n"
             "表达式：QGIS 表达式\n"
-            "替换：对目标字段做部分文字替换（一格多处全部替换）"
+            "替换：标准只改命中片段；基于查找值在前或后插入；所在字段整格替换。写入是常量或表达式，默认标准加常量。一个格子里选：停在标准、基于查找值或所在字段上再选具体写法"
         )
 
     def _retranslate_fill_bar(self):
@@ -999,7 +1120,7 @@ class AttributeTableDialog(QDialog):
         if hasattr(self, "lbl_fill"):
             self.lbl_fill.setText(tr("赋值："))
         if hasattr(self, "btn_pin"):
-            self.btn_pin.setText(tr("钉"))
+            self._sync_pin_button()
         modes = (
             ("常量", "const"),
             ("前后序号", "around_seq"),
@@ -1024,7 +1145,7 @@ class AttributeTableDialog(QDialog):
         if hasattr(self, "cmb_fill_width"):
             width = self.cmb_fill_width
             width.blockSignals(True)
-            labels = { "none": tr("不补零"), "auto": tr("自动") }
+            labels = {"none": tr("不补零"), "auto": tr("自动")}
             for i in range(width.count()):
                 data = width.itemData(i)
                 if data in labels:
@@ -1034,9 +1155,9 @@ class AttributeTableDialog(QDialog):
             width.blockSignals(False)
             width.setToolTip(
                 tr("不补零：1、2、3\n"
-                "自动：按本次最大序号的位数补零。从 1 写到 100 为 001，写到 1000 为 0001\n"
-                "指定位数：4 位为 0001。超出位数不截断（10000 仍是 10000）\n"
-                "前导零只留在文本字段")
+                   "自动：按本次最大序号的位数补零。从 1 写到 100 为 001，写到 1000 为 0001\n"
+                   "指定位数：4 位为 0001。超出位数不截断（10000 仍是 10000）\n"
+                   "前导零只留在文本字段")
             )
         if hasattr(self, "lbl_fill_seq_side"):
             self.lbl_fill_seq_side.setText(tr("加在"))
@@ -1061,18 +1182,24 @@ class AttributeTableDialog(QDialog):
         if hasattr(self, "ed_fill_suffix"):
             self.ed_fill_suffix.setPlaceholderText(tr("加在现有文字后，可空"))
             self.ed_fill_suffix.setToolTip(tr("加在已有文字后面。空白单元格不动。"))
+        if hasattr(self, "btn_replace_choice"):
+            self._rebuild_replace_menu()
+        if hasattr(self, "chk_replace_case"):
+            self._sync_replace_match_buttons()
         if hasattr(self, "lbl_fill_find"):
-            self.lbl_fill_find.setText(tr("替换前"))
+            self.lbl_fill_find.setText(tr("查找"))
         if hasattr(self, "ed_fill_find"):
-            self.ed_fill_find.setPlaceholderText(tr("要替换的文字（部分匹配）"))
+            self.ed_fill_find.setPlaceholderText(tr("要查找的文字"))
+            self.ed_fill_find.setToolTip(tr("默认部分匹配，并且区分大小写。空白格子不参与。"))
         if hasattr(self, "lbl_fill_replace"):
-            self.lbl_fill_replace.setText(tr("替换后"))
-        if hasattr(self, "ed_fill_replace"):
-            self.ed_fill_replace.setPlaceholderText(tr("替换成…（可空=删除该段）"))
+            self.lbl_fill_replace.setText(tr("写入"))
+        self._sync_replace_write_placeholder()
         if hasattr(self, "cmb_fill_preset"):
             self.cmb_fill_preset.setToolTip(tr("常用值：点选填入常量"))
         if hasattr(self, "btn_fill_expr"):
             self.btn_fill_expr.setToolTip(tr("打开表达式构建器"))
+        if hasattr(self, "btn_fill_expr_lib"):
+            self.btn_fill_expr_lib.setToolTip(tr("管理常用表达式：添加、修改、备注、删除"))
         if hasattr(self, "btn_fill_filtered"):
             self.btn_fill_filtered.setText(tr("更新筛选行"))
             self.btn_fill_filtered.setToolTip(tr("更新当前表格筛选后的全部行（含未滚到的）"))
@@ -1109,11 +1236,6 @@ class AttributeTableDialog(QDialog):
         if "remarks" in order and "display_mode" not in seen and "display_mode" in known:
             order.insert(order.index("remarks") + 1, "display_mode")
             seen.add("display_mode")
-        if self._settings.load_quick_name_toolbar() and "quick_name" not in seen:
-            anchor = "display_mode" if "display_mode" in order else "remarks"
-            if anchor in order:
-                order.insert(order.index(anchor) + 1, "quick_name")
-                seen.add("quick_name")
         if "invert" in order:
             insert_at = order.index("invert") + 1
             for extra in ("deselect", "col_width"):
@@ -1127,13 +1249,11 @@ class AttributeTableDialog(QDialog):
             else:
                 order.append("language")
             seen.add("language")
-        if "export_kmz" in order:
-            insert_at = order.index("export_kmz") + 1
-            for extra in ("field_map", "line_dir"):
-                if extra in known and extra not in seen:
-                    order.insert(insert_at, extra)
-                    seen.add(extra)
-                    insert_at += 1
+        if "field_map" in order:
+            insert_at = order.index("field_map") + 1
+            if "line_dir" in known and "line_dir" not in seen:
+                order.insert(insert_at, "line_dir")
+                seen.add("line_dir")
         for tid in DEFAULT_TOOLBAR_ORDER:
             if tid.startswith("sep"):
                 continue
@@ -1163,20 +1283,18 @@ class AttributeTableDialog(QDialog):
         else:
             act.triggered.connect(lambda _checked=False, s=slot: s())
         shortcuts = {
-            "cut": QKeySequence.Cut,
-            "paste": QKeySequence.Paste,
+            "cut": QKeySequence.StandardKey.Cut,
+            "paste": QKeySequence.StandardKey.Paste,
         }
         if tool_id in shortcuts:
             act.setShortcut(shortcuts[tool_id])
-            act.setShortcutContext(Qt.WidgetWithChildrenShortcut)
+            act.setShortcutContext(Qt.ShortcutContext.WidgetWithChildrenShortcut)
         return act
 
     def _rebuild_toolbar(self):
         self.toolbar.clear()
         self._tool_actions = {}
         order = self._resolved_toolbar_order()
-        if self._settings.load_toolbar_order() and not self._settings.load_quick_name_toolbar():
-            order = [tid for tid in order if tid != "quick_name"]
         hidden = set(self._settings.load_toolbar_hidden())
         if hidden:
             order = [
@@ -1213,7 +1331,6 @@ class AttributeTableDialog(QDialog):
         self.act_invert = self._tool_actions.get("invert")
         self.act_deselect = self._tool_actions.get("deselect")
         self.act_export = self._tool_actions.get("export_csv")
-        self.act_kmz = self._tool_actions.get("export_kmz")
         self.act_help = self._tool_actions.get("help")
         self.act_copy = self._tool_actions.get("copy")
         self.act_cut = self._tool_actions.get("cut")
@@ -1228,7 +1345,7 @@ class AttributeTableDialog(QDialog):
         # toolbar.clear() 会销毁旧 widget，每次重建
         btn = QToolButton(self)
         btn.setAutoRaise(True)
-        btn.setToolButtonStyle(Qt.ToolButtonIconOnly)
+        btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
         btn.setIconSize(QSize(24, 24))
         btn.clicked.connect(self._toggle_col_width_mode)
         self.btn_col_width = btn
@@ -1402,7 +1519,23 @@ class AttributeTableDialog(QDialog):
         self.frozen.setFixedWidth(total)
         self.splitter.setSizes([total, max(200, self.width() - total)])
 
-    def _customize_toolbar(self):
+    def _shortcut_rows(self):
+        """(tool_id, label) rows for the shortcuts tab. The plugin's own
+        main window comes first; the rest follow toolbar order."""
+        specs = self._tool_specs()
+        excluded = {"cut", "paste", "col_width"}
+        rows = [("open_table", tr("打开属性表"))]
+        for tid in DEFAULT_TOOLBAR_ORDER:
+            if tid.startswith("sep") or tid in excluded:
+                continue
+            if tid in specs:
+                rows.append((tid, specs[tid][0]))
+        for tid, spec in specs.items():
+            if tid not in excluded and tid not in {r[0] for r in rows}:
+                rows.append((tid, spec[0]))
+        return rows
+
+    def _open_settings(self):
         specs = self._tool_specs()
         items = [
             (tid, specs[tid][0])
@@ -1414,30 +1547,128 @@ class AttributeTableDialog(QDialog):
             if tid != "customize" and tid not in {i[0] for i in items}:
                 items.append((tid, lab))
         current = self._resolved_toolbar_order()
-        dlg = ToolbarOrderDialog(items, current, self)
-        dlg.set_default_order(DEFAULT_TOOLBAR_ORDER)
-        dlg.set_show_quick_name(self._settings.load_quick_name_toolbar())
-        dlg.set_hidden(self._settings.load_toolbar_hidden())
-        if dlg.exec_() != QDialog.Accepted:
+        dlg = SettingsDialog(
+            items,
+            current,
+            DEFAULT_TOOLBAR_ORDER,
+            self._settings.load_toolbar_hidden(),
+            self._shortcut_rows(),
+            self._settings,
+            self,
+        )
+        if run_exec(dlg) != QDialog.DialogCode.Accepted:
             return
-        order = dlg.result_order()
-        self._settings.save_toolbar_order(order)
-        self._settings.save_quick_name_toolbar(dlg.show_quick_name())
-        self._settings.save_toolbar_hidden(dlg.result_hidden())
+        self._settings.save_toolbar_order(dlg.result_toolbar_order())
+        self._settings.save_toolbar_hidden(dlg.result_toolbar_hidden())
+        shortcuts = dlg.result_shortcuts()
+        self._settings.save_shortcuts(shortcuts)
+        old_fill_default = self._settings.load_fill_mode_default()
+        dlg.apply_params()
+        self._apply_header_mode()
+        new_fill_default = self._settings.load_fill_mode_default()
+        if new_fill_default != old_fill_default and new_fill_default != "remember":
+            self._set_fill_mode(new_fill_default)
         self._rebuild_toolbar()
+        # New shortcuts take effect in both windows right away.
+        self._apply_dialog_shortcuts(shortcuts, warn=True)
+        try:
+            from qgis.utils import plugins
+
+            plug = (plugins or {}).get("attribute_table")
+            if plug is not None and getattr(plug, "apply_shortcuts", None):
+                plug.apply_shortcuts()
+        except Exception:
+            pass  # nosec B110
+        self._refresh_quick_values_keep()
+        self._update_status()
+
+    def _apply_header_mode(self):
+        mode = self._settings.load_header_mode()
+        if mode == self.model.header_mode():
+            return
+        self.model.set_header_mode(mode)
+        for view in (getattr(self, "table", None), getattr(self, "frozen", None)):
+            if view is not None:
+                try:
+                    view.horizontalHeader().updateGeometry()
+                    view.horizontalHeader().viewport().update()
+                except Exception:
+                    pass  # nosec B110
+        self._schedule_column_widths(0)
+
+    def _apply_dialog_shortcuts(self, shortcuts=None, warn=False):
+        """Hang the saved shortcuts on this dialog so they fire while the
+        table window has focus. QGIS-main-window carriers live in plugin.py."""
+        from qgis.PyQt.QtGui import QKeySequence
+
+        from .settings_dialog import shortcut_holder
+
+        if shortcuts is None:
+            shortcuts = self._settings.load_shortcuts()
+        for act in getattr(self, "_shortcut_carriers", []):
+            try:
+                self.removeAction(act)
+                act.deleteLater()
+            except Exception:
+                pass  # nosec B110
+        self._shortcut_carriers = []
+        specs = self._tool_specs()
+        blocked = []
+        for raw_id, raw_text in (shortcuts or {}).items():
+            tool_id = str(raw_id or "").strip()
+            text = str(raw_text or "").strip()
+            if not tool_id or not text:
+                continue
+            # "open_table" is not a toolbar tool; its carrier just opens the window.
+            if tool_id != "open_table" and tool_id not in specs:
+                continue
+            seq = QKeySequence.fromString(text)
+            if seq.isEmpty():
+                continue
+            holder = shortcut_holder(text, tool_id)
+            if holder:
+                blocked.append("%s（%s）" % (text, holder))
+                continue
+            carrier = QAction(self)
+            carrier.setProperty("atp_shortcut_id", tool_id)
+            carrier.setShortcutContext(Qt.ShortcutContext.WindowShortcut)
+            carrier.setShortcut(seq)
+            carrier.triggered.connect(lambda _c=False, t=tool_id: self.fire_tool(t))
+            self.addAction(carrier)
+            self._shortcut_carriers.append(carrier)
+        if blocked and warn:
+            QMessageBox.warning(
+                self,
+                tr("快捷键"),
+                tr("这些快捷键已被 QGIS 的其它功能占用：%s") % "、".join(blocked),
+            )
+
+    def fire_tool(self, tool_id):
+        """Run one toolbar tool by id (used by the shortcut carriers).
+
+        Unknown ids such as "open_table" just show and raise the window."""
+        self.show()
+        self.raise_()
+        self.activateWindow()
+        specs = self._tool_specs()
+        spec = specs.get(str(tool_id))
+        if spec is None:
+            return
+        slot = spec[1]
+        slot()
 
     def _make_combo_shrinkable(self, combo, min_chars=6, min_px=72):
         """Don't let longest item lock the whole dialog width."""
-        combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         combo.setMinimumContentsLength(min_chars)
         combo.setMinimumWidth(min_px)
-        combo.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        combo.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
 
     def _theme_host(self, object_name):
         """Group widgets without a filled background. Sizes stay as they are."""
         host = QWidget()
         host.setObjectName(object_name)
-        host.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        host.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         lay = QHBoxLayout(host)
         lay.setContentsMargins(0, 0, 0, 0)
         lay.setSpacing(4)
@@ -1465,13 +1696,13 @@ class AttributeTableDialog(QDialog):
     def _build_ui(self):
         root = QVBoxLayout(self)
         root.setContentsMargins(6, 6, 6, 6)
-        root.setSizeConstraint(QLayout.SetNoConstraint)
+        root.setSizeConstraint(QLayout.SizeConstraint.SetNoConstraint)
 
         self.toolbar = OverflowToolBar()
         self.toolbar.setMovable(False)
         self.toolbar.setFloatable(False)
-        self.toolbar.setToolButtonStyle(Qt.ToolButtonIconOnly)
-        self.toolbar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.toolbar.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.toolbar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         try:
             from qgis.PyQt.QtCore import QSize
 
@@ -1479,22 +1710,26 @@ class AttributeTableDialog(QDialog):
         except Exception:
             pass  # nosec B110
         self._rebuild_toolbar()
+        # Saved shortcuts must work as soon as the window opens.
+        self._apply_dialog_shortcuts()
 
         root.addWidget(self.toolbar)
 
         filt_host = QWidget()
         filt_host.setMinimumWidth(0)
-        filt_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        filt_host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         filt = QHBoxLayout(filt_host)
         filt.setContentsMargins(0, 0, 0, 0)
         filt.setSpacing(4)
 
         pin_group = self._theme_host("pinGroup")
-        pin_group.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        pin_group.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         pin_lay = pin_group.layout()
         self.btn_pin = QToolButton()
         self.btn_pin.setObjectName("pinBtn")
-        self.btn_pin.setText(tr("钉"))
+        self.btn_pin.setText("")
+        self.btn_pin.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        self.btn_pin.setIconSize(QSize(24, 24))
         self.btn_pin.setCheckable(True)
         self.btn_pin.setFixedSize(24, 24)
         self.btn_pin.toggled.connect(self._on_pin_toggled)
@@ -1502,30 +1737,30 @@ class AttributeTableDialog(QDialog):
         pin_lay.addWidget(self.btn_pin)
         self._sync_pin_button(False)
 
-        self.cmb_scope = QComboBox()
+        self.cmb_scope = WidePopupCombo()
         self.cmb_scope.addItem(tr("全部要素"), "all")
         self.cmb_scope.addItem(tr("仅选中"), "selected")
         self.cmb_scope.addItem(tr("地图可见要素"), "canvas")
         self.cmb_scope.addItem(tr("仅已修改"), "modified")
         self.cmb_scope.setToolTip(
             tr("范围：全部要素 / 仅选中 / 地图可见要素（画布范围内，平移缩放后约 500 毫秒刷新）"
-            " / 仅已修改（本次编辑里改过、新增、还没保存的要素）")
+               " / 仅已修改（本次编辑里改过、新增、还没保存的要素）")
         )
         self._make_combo_shrinkable(self.cmb_scope, min_chars=6, min_px=108)
-        self.cmb_scope.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.cmb_scope.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self._theme_combo(self.cmb_scope, "#3d7ec4")
         self.cmb_scope.currentIndexChanged.connect(self._on_scope_changed)
         pin_lay.addWidget(self.cmb_scope)
         filt.addWidget(pin_group)
 
         filter_group = self._theme_host("filterGroup")
-        filter_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        filter_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         filter_lay = filter_group.layout()
         self.lbl_search = self._theme_label(tr("过滤"), "#2a5a32")
         filter_lay.addWidget(self.lbl_search)
-        self.cmb_filter_field = QComboBox()
+        self.cmb_filter_field = WidePopupCombo()
         self._make_combo_shrinkable(self.cmb_filter_field, min_chars=5, min_px=72)
-        self.cmb_filter_field.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.cmb_filter_field.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self._theme_combo(self.cmb_filter_field, "#3e8f4e")
         self.cmb_filter_field.currentIndexChanged.connect(self._on_filter_field_changed)
         filter_lay.addWidget(self.cmb_filter_field, 1)
@@ -1534,38 +1769,38 @@ class AttributeTableDialog(QDialog):
         self.ed_text.setPlaceholderText(tr("输入即过滤…"))
         self.ed_text.setClearButtonEnabled(True)
         self.ed_text.setMinimumWidth(140)
-        self.ed_text.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.ed_text.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._theme_line(self.ed_text, "#3e8f4e")
         self.ed_text.textChanged.connect(self._on_filter_text_changed)
         filter_lay.addWidget(self.ed_text, 3)
 
         screen_group = self._theme_host("screenGroup")
-        screen_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        screen_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         screen_lay = screen_group.layout()
         self.lbl_quick_filter = self._theme_label(tr("筛选"), "#8a3a3a")
         screen_lay.addWidget(self.lbl_quick_filter)
-        self.cmb_quick_mode = QComboBox()
+        self.cmb_quick_mode = WidePopupCombo()
         self._make_combo_shrinkable(self.cmb_quick_mode, min_chars=4, min_px=72)
-        self.cmb_quick_mode.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.cmb_quick_mode.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._theme_combo(self.cmb_quick_mode, "#a34b5a")
         self.cmb_quick_mode.setToolTip(tr("分类筛选，或选择一个字段按其取值筛选"))
         self.cmb_quick_mode.currentIndexChanged.connect(self._on_quick_mode_changed)
         screen_lay.addWidget(self.cmb_quick_mode, 1)
         self.cmb_quick_filter = MultiCheckCombo()
         self._make_combo_shrinkable(self.cmb_quick_filter, min_chars=4, min_px=84)
-        self.cmb_quick_filter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.cmb_quick_filter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._theme_combo(self.cmb_quick_filter, "#a34b5a")
         self.cmb_quick_filter.selectionChanged.connect(self._on_quick_filter_changed)
         screen_lay.addWidget(self.cmb_quick_filter, 2)
 
         freeze_group = self._theme_host("freezeGroup")
-        freeze_group.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        freeze_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         freeze_lay = freeze_group.layout()
         self.lbl_freeze = self._theme_label(tr("冻结"), "#6a5420")
         freeze_lay.addWidget(self.lbl_freeze)
-        self.cmb_freeze = QComboBox()
+        self.cmb_freeze = WidePopupCombo()
         self._make_combo_shrinkable(self.cmb_freeze, min_chars=8, min_px=96)
-        self.cmb_freeze.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.cmb_freeze.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._theme_combo(self.cmb_freeze, "#c4962a")
         self.cmb_freeze.setToolTip(tr("将指定字段固定到首列并冻结显示"))
         self.cmb_freeze.currentIndexChanged.connect(self._on_freeze_field_changed)
@@ -1579,21 +1814,21 @@ class AttributeTableDialog(QDialog):
         self.fill_bar = QWidget()
         self.fill_bar.setObjectName("fillBar")
         self.fill_bar.setMinimumWidth(0)
-        self.fill_bar.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.fill_bar.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         fill = QHBoxLayout(self.fill_bar)
         fill.setContentsMargins(0, 2, 0, 0)
         fill.setSpacing(4)
         self.lbl_fill = self._theme_label(tr("赋值："), "#4a3d66")
         fill.addWidget(self.lbl_fill)
-        self.cmb_fill_field = QComboBox()
+        self.cmb_fill_field = WidePopupCombo()
         self._make_combo_shrinkable(self.cmb_fill_field, min_chars=8, min_px=100)
-        self.cmb_fill_field.setSizePolicy(QSizePolicy.Preferred, QSizePolicy.Fixed)
+        self.cmb_fill_field.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         self._theme_combo(self.cmb_fill_field, "#7b5ea8")
         self.cmb_fill_field.setToolTip(tr("要写入的目标字段"))
         self.cmb_fill_field.currentIndexChanged.connect(self._on_fill_field_changed)
         fill.addWidget(self.cmb_fill_field)
         fill.addWidget(self._theme_label("=", "#4a3d66"))
-        self.cmb_fill_mode = QComboBox()
+        self.cmb_fill_mode = WidePopupCombo()
         self.cmb_fill_mode.addItem(tr("常量"), "const")
         self.cmb_fill_mode.addItem(tr("前后序号"), "around_seq")
         self.cmb_fill_mode.addItem(tr("前后加字"), "affix")
@@ -1603,21 +1838,25 @@ class AttributeTableDialog(QDialog):
         self._make_combo_shrinkable(self.cmb_fill_mode, min_chars=5, min_px=96)
         self._theme_combo(self.cmb_fill_mode, "#7b5ea8")
         self.cmb_fill_mode.currentIndexChanged.connect(self._on_fill_mode_changed)
+        try:
+            self.cmb_fill_mode.activated[int].connect(self._remember_fill_mode)
+        except Exception:
+            self.cmb_fill_mode.activated.connect(self._remember_fill_mode)
         fill.addWidget(self.cmb_fill_mode)
         self._fill_width_group = self._theme_host("fillWidthGroup")
-        self._fill_width_group.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        self._fill_width_group.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         width_lay = self._fill_width_group.layout()
         self.lbl_fill_width = self._theme_label(tr("位数"), "#2a4568")
-        self.cmb_fill_width = QComboBox()
+        self.cmb_fill_width = WidePopupCombo()
         self.cmb_fill_width.addItem(tr("不补零"), "none")
         self.cmb_fill_width.addItem(tr("自动"), "auto")
         for _width in (2, 3, 4, 5, 6, 8, 10):
             self.cmb_fill_width.addItem(tr("%d位") % _width, _width)
         self.cmb_fill_width.setToolTip(
             tr("不补零：1、2、3\n"
-            "自动：按本次最大序号的位数补零。从 1 写到 100 为 001，写到 1000 为 0001\n"
-            "指定位数：4 位为 0001。超出位数不截断（10000 仍是 10000）\n"
-            "前导零只留在文本字段")
+               "自动：按本次最大序号的位数补零。从 1 写到 100 为 001，写到 1000 为 0001\n"
+               "指定位数：4 位为 0001。超出位数不截断（10000 仍是 10000）\n"
+               "前导零只留在文本字段")
         )
         self._make_combo_shrinkable(self.cmb_fill_width, min_chars=4, min_px=72)
         self._theme_combo(self.cmb_fill_width, "#3d7ab5")
@@ -1625,10 +1864,10 @@ class AttributeTableDialog(QDialog):
         width_lay.addWidget(self.cmb_fill_width)
         fill.addWidget(self._fill_width_group)
         self._fill_side_group = self._theme_host("fillSideGroup")
-        self._fill_side_group.setSizePolicy(QSizePolicy.Maximum, QSizePolicy.Fixed)
+        self._fill_side_group.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
         side_lay = self._fill_side_group.layout()
         self.lbl_fill_seq_side = self._theme_label(tr("加在"), "#6a4530")
-        self.cmb_fill_seq_side = QComboBox()
+        self.cmb_fill_seq_side = WidePopupCombo()
         self.cmb_fill_seq_side.addItem(tr("后面"), "after")
         self.cmb_fill_seq_side.addItem(tr("前面"), "before")
         self.cmb_fill_seq_side.setToolTip(tr("序号加在已有文字的前面或后面，只选一边。原文字保留。"))
@@ -1655,7 +1894,7 @@ class AttributeTableDialog(QDialog):
         self.ed_fill_suffix.setToolTip(tr("加在已有文字后面。空白单元格不动。"))
         fill.addWidget(self.lbl_fill_suffix)
         fill.addWidget(self.ed_fill_suffix, 1)
-        self.cmb_fill_preset = QComboBox()
+        self.cmb_fill_preset = WidePopupCombo()
         self._make_combo_shrinkable(self.cmb_fill_preset, min_chars=4, min_px=72)
         self._theme_combo(self.cmb_fill_preset, "#7b5ea8")
         self.cmb_fill_preset.setToolTip(tr("常用值：点选填入常量"))
@@ -1669,38 +1908,82 @@ class AttributeTableDialog(QDialog):
         self.btn_fill_expr.setToolTip(tr("打开表达式构建器"))
         self.btn_fill_expr.clicked.connect(self._open_fill_expression_builder)
         fill.addWidget(self.btn_fill_expr)
+        self.btn_fill_expr_lib = QPushButton()
+        lib_icon = manage_icon()
+        if lib_icon is not None:
+            self.btn_fill_expr_lib.setIcon(lib_icon)
+            self.btn_fill_expr_lib.setIconSize(QSize(16, 16))
+        else:
+            self.btn_fill_expr_lib.setText("\u2630")
+        self.btn_fill_expr_lib.setFixedWidth(28)
+        self.btn_fill_expr_lib.setToolTip(tr("管理常用表达式：添加、修改、备注、删除"))
+        self.btn_fill_expr_lib.clicked.connect(self._open_expression_library)
+        fill.addWidget(self.btn_fill_expr_lib)
         self.ed_fill = QLineEdit()
         self.ed_fill.setClearButtonEnabled(True)
         self.ed_fill.setMinimumWidth(60)
-        self.ed_fill.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.ed_fill.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._theme_line(self.ed_fill, "#7b5ea8")
         self._fill_field_model = QStringListModel(self)
         self._fill_field_completer = QCompleter(self._fill_field_model, self)
-        self._fill_field_completer.setCaseSensitivity(Qt.CaseInsensitive)
-        self._fill_field_completer.setCompletionMode(QCompleter.PopupCompletion)
+        self._fill_field_completer.setCaseSensitivity(Qt.CaseSensitivity.CaseInsensitive)
+        self._fill_field_completer.setCompletionMode(QCompleter.CompletionMode.PopupCompletion)
         try:
-            self._fill_field_completer.setFilterMode(Qt.MatchContains)
+            self._fill_field_completer.setFilterMode(Qt.MatchFlag.MatchContains)
         except Exception:
             pass  # nosec B110
         self._fill_field_completer.setMaxVisibleItems(12)
         self.ed_fill.setCompleter(self._fill_field_completer)
+        self._fill_expr_drop = ExpressionDropdown(
+            self.ed_fill, lambda: self.cmb_fill_mode.currentData() == "expr"
+        )
         fill.addWidget(self.ed_fill, 1)
-        self.lbl_fill_find = self._theme_label(tr("替换前"), "#4a3d66")
-        fill.addWidget(self.lbl_fill_find)
+        self._replace_group = QWidget()
+        self._replace_group.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        replace_lay = QHBoxLayout(self._replace_group)
+        replace_lay.setContentsMargins(0, 0, 0, 0)
+        replace_lay.setSpacing(2)
+        self._replace_choice = ("standard", "const", "after")
+        self.btn_replace_choice = QToolButton()
+        self.btn_replace_choice.setPopupMode(QToolButton.ToolButtonPopupMode.InstantPopup)
+        self.btn_replace_choice.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonTextOnly)
+        self.btn_replace_choice.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Fixed)
+        self.btn_replace_choice.setStyleSheet(
+            "QToolButton { background-color: palette(base); color: #1a1a1a;"
+            " border: 1px solid #7b5ea8; padding: 2px 16px 2px 8px; }"
+        )
+        self._rebuild_replace_menu()
+        replace_lay.addWidget(self.btn_replace_choice)
+        self.lbl_fill_find = self._theme_label(tr("查找"), "#4a3d66")
+        replace_lay.addWidget(self.lbl_fill_find)
         self.ed_fill_find = QLineEdit()
         self.ed_fill_find.setClearButtonEnabled(True)
-        self.ed_fill_find.setPlaceholderText(tr("要替换的文字（部分匹配）"))
-        self.ed_fill_find.setMinimumWidth(48)
+        self.ed_fill_find.setPlaceholderText(tr("要查找的文字"))
+        self.ed_fill_find.setMinimumWidth(72)
+        self.ed_fill_find.setToolTip(tr("默认部分匹配，并且区分大小写。空白格子不参与。"))
         self._theme_line(self.ed_fill_find, "#7b5ea8")
-        fill.addWidget(self.ed_fill_find, 1)
-        self.lbl_fill_replace = self._theme_label(tr("替换后"), "#4a3d66")
-        fill.addWidget(self.lbl_fill_replace)
+        replace_lay.addWidget(self.ed_fill_find, 1)
+        self.lbl_fill_replace = self._theme_label(tr("写入"), "#4a3d66")
+        replace_lay.addWidget(self.lbl_fill_replace)
         self.ed_fill_replace = QLineEdit()
         self.ed_fill_replace.setClearButtonEnabled(True)
-        self.ed_fill_replace.setPlaceholderText(tr("替换成…（可空=删除该段）"))
-        self.ed_fill_replace.setMinimumWidth(48)
+        self.ed_fill_replace.setPlaceholderText(tr("常量，留空表示删掉命中的那段"))
+        self.ed_fill_replace.setMinimumWidth(72)
         self._theme_line(self.ed_fill_replace, "#7b5ea8")
-        fill.addWidget(self.ed_fill_replace, 1)
+        self._replace_expr_drop = ExpressionDropdown(
+            self.ed_fill_replace,
+            lambda: (
+                self.cmb_fill_mode.currentData() == "replace"
+                and self._replace_write_source() == "expr"
+            ),
+        )
+        replace_lay.addWidget(self.ed_fill_replace, 1)
+        self.chk_replace_case = self._replace_match_button("replaceCaseBtn", True)
+        replace_lay.addWidget(self.chk_replace_case)
+        self.chk_replace_exact = self._replace_match_button("replaceExactBtn", False)
+        replace_lay.addWidget(self.chk_replace_exact)
+        self._sync_replace_match_buttons()
+        fill.addWidget(self._replace_group, 1)
         self._fill_stretch_index = fill.count()
         fill.addStretch(1)
         self.btn_fill_filtered = QPushButton(tr("更新筛选行"))
@@ -1714,30 +1997,31 @@ class AttributeTableDialog(QDialog):
         self.fill_bar.setVisible(False)
         root.addWidget(filt_host)
         root.addWidget(self.fill_bar)
+        self._apply_startup_fill_mode()
         self._on_fill_mode_changed()
 
         self.quick_fill = QuickFillBar(self)
         self.quick_fill.setVisible(False)
         root.addWidget(self.quick_fill)
 
-        self.splitter = QSplitter(Qt.Horizontal)
+        self.splitter = QSplitter(Qt.Orientation.Horizontal)
         self.frozen = QTableView()
         self.table = QTableView()
         for view in (self.frozen, self.table):
             view.setModel(self.model)
-            view.setSelectionBehavior(QAbstractItemView.SelectItems)
-            view.setSelectionMode(QAbstractItemView.ExtendedSelection)
+            view.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectItems)
+            view.setSelectionMode(QAbstractItemView.SelectionMode.ExtendedSelection)
             view.setAlternatingRowColors(True)
             view.setSortingEnabled(False)
             view.verticalHeader().setDefaultSectionSize(22)
             view.setWordWrap(False)
             view.setMinimumWidth(0)
-            view.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            view.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
             try:
-                view.setSizeAdjustPolicy(QAbstractScrollArea.AdjustIgnored)
+                view.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustIgnored)
             except Exception:
                 pass  # nosec B110
-            view.horizontalHeader().setDefaultAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+            view.horizontalHeader().setDefaultAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
             view.horizontalHeader().setMinimumHeight(40)
             try:
                 view.horizontalHeader().setMaximumSectionSize(QWIDGETSIZE_MAX)
@@ -1748,12 +2032,12 @@ class AttributeTableDialog(QDialog):
         self._vm_delegate = ValueMapDelegate(self.model)
         self.table.setItemDelegate(self._vm_delegate)
         self.frozen.setItemDelegate(self._vm_delegate)
-        self.frozen.setFocusPolicy(Qt.NoFocus)
+        self.frozen.setFocusPolicy(Qt.FocusPolicy.NoFocus)
         self.frozen.horizontalHeader().setStretchLastSection(False)
-        self.frozen.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.frozen.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
-        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarAsNeeded)
-        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarAsNeeded)
+        self.frozen.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.frozen.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+        self.table.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
+        self.table.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAsNeeded)
         self.table.horizontalHeader().setSectionsMovable(True)
         self.table.horizontalHeader().sectionClicked.connect(self._on_header_clicked)
         self.table.horizontalHeader().sectionMoved.connect(self._on_section_moved)
@@ -1762,12 +2046,12 @@ class AttributeTableDialog(QDialog):
         for header in (self.table.horizontalHeader(), self.frozen.horizontalHeader()):
             header.setSectionsClickable(True)
             # Prevent Qt default context handling; we use event filter
-            header.setContextMenuPolicy(Qt.NoContextMenu)
+            header.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
             filt = _HeaderRightClickFilter(self, header)
             header.installEventFilter(filt)
             self._header_filters.append(filt)
         for header in (self.table.verticalHeader(), self.frozen.verticalHeader()):
-            header.setContextMenuPolicy(Qt.NoContextMenu)
+            header.setContextMenuPolicy(Qt.ContextMenuPolicy.NoContextMenu)
             filt = _HeaderRightClickFilter(self, header, self._show_row_header_menu)
             header.installEventFilter(filt)
             self._header_filters.append(filt)
@@ -1821,15 +2105,35 @@ class AttributeTableDialog(QDialog):
         self.splitter.setStretchFactor(0, 0)
         self.splitter.setStretchFactor(1, 1)
         self.splitter.setMinimumWidth(0)
-        self.splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.splitter.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.splitter.splitterMoved.connect(lambda *_a: self.quick_fill.schedule_sync(0))
         root.addWidget(self.splitter, 1)
 
         self.status = QStatusBar()
         self.status.setSizeGripEnabled(False)
-        self.lbl_stats = QLabel()
-        self.lbl_stats.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.status.addPermanentWidget(self.lbl_stats)
+        # One permanent row. QStatusBar.showMessage hides every normal widget,
+        # which is why the center length stayed blank while the left summary
+        # and the right stats were both visible.
+        self._status_text = ""
+        self._status_html = ""
+        self._status_toast = False
+        self._toast_timer = QTimer(self)
+        self._toast_timer.setSingleShot(True)
+        self._toast_timer.timeout.connect(self._restore_status_text)
+        # Fixed shares: title 40%, length 20%, stats 40%. A short window
+        # clips each cell instead of letting the left title push the others out.
+        self.lbl_status = _FitLabel(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        self.lbl_line_length = _FitLabel(Qt.AlignmentFlag.AlignCenter)
+        self._length_host = self.lbl_line_length
+        self.lbl_stats = _FitLabel(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        bar_host = QWidget()
+        bar_lay = QHBoxLayout(bar_host)
+        bar_lay.setContentsMargins(4, 0, 4, 0)
+        bar_lay.setSpacing(8)
+        bar_lay.addWidget(self.lbl_status, 4)
+        bar_lay.addWidget(self.lbl_line_length, 2)
+        bar_lay.addWidget(self.lbl_stats, 4)
+        self.status.addPermanentWidget(bar_host, 1)
         root.addWidget(self.status)
 
         self._update_frozen_visibility()
@@ -1865,12 +2169,60 @@ class AttributeTableDialog(QDialog):
         self._apply_remarks_to_ui()
         self._update_edit_actions()
 
+    def _crs_label(self, layer):
+        try:
+            crs = layer.crs()
+        except Exception:
+            return ""
+        if crs is None:
+            return ""
+        try:
+            if not crs.isValid():
+                return ""
+        except Exception:
+            return ""
+        auth = ""
+        try:
+            auth = (crs.authid() or "").strip()
+        except Exception:
+            auth = ""
+        if auth:
+            return auth
+        try:
+            return (crs.description() or "").strip()
+        except Exception:
+            return ""
+
+    def _edit_state_text(self):
+        layer = self._layer
+        if layer is None or not layer.isEditable():
+            return tr("只读")
+        dirty = False
+        try:
+            dirty = bool(layer.isModified())
+        except Exception:
+            dirty = False
+        if not dirty:
+            return tr("编辑中")
+        changed = 0
+        try:
+            changed = len(self.model.modified_fids())
+        except Exception:
+            changed = 0
+        if changed:
+            return tr("编辑·未保存（已改 %s 条）") % changed
+        return tr("编辑·未保存")
+
     def _update_window_title(self):
         if self._layer is None:
             self.setWindowTitle(tr("无图层"))
             return
-        mode = "编辑中" if self._layer.isEditable() else "只读"
-        self.setWindowTitle(f"{self._layer.name()} — {mode}")
+        parts = [self._layer.name()]
+        crs = self._crs_label(self._layer)
+        if crs:
+            parts.append(crs)
+        parts.append(self._edit_state_text())
+        self.setWindowTitle(" - ".join(parts))
 
     def _on_pin_toggled(self, checked):
         self._pin_layer = checked
@@ -1882,20 +2234,52 @@ class AttributeTableDialog(QDialog):
             return
         if checked is None:
             checked = bool(btn.isChecked())
+        btn.setIconSize(QSize(24, 24))
+        btn.setStyleSheet(
+            "QToolButton#pinBtn { border: none; padding: 0; margin: 0; background: transparent; }"
+            "QToolButton#pinBtn:hover { background: rgba(0,0,0,18); border-radius: 4px; }"
+        )
         if checked:
-            btn.setStyleSheet(
-                "QToolButton#pinBtn { color: #c62828; font-weight: 700; font-size: 13px; "
-                "border: 1px solid #c62828; border-radius: 3px; background: palette(button); "
-                "padding: 0; min-width: 22px; }"
-            )
+            btn.setIcon(self._tool_icon("plugin:pin_on_24.png"))
             btn.setToolTip(tr("已钉住当前图层（再点取消）"))
         else:
-            btn.setStyleSheet(
-                "QToolButton#pinBtn { color: #3d7ec4; font-weight: 400; font-size: 13px; "
-                "border: 1px solid #3d7ec4; border-radius: 3px; background: palette(button); "
-                "padding: 0; min-width: 22px; }"
-            )
+            btn.setIcon(self._tool_icon("plugin:pin_off_24.png"))
             btn.setToolTip(tr("钉住图层：不随图例切换当前表"))
+
+    def _replace_match_button(self, object_name, checked):
+        btn = QToolButton()
+        btn.setObjectName(object_name)
+        btn.setText("")
+        btn.setToolButtonStyle(Qt.ToolButtonStyle.ToolButtonIconOnly)
+        btn.setIconSize(QSize(24, 24))
+        btn.setFixedSize(24, 24)
+        btn.setCheckable(True)
+        btn.setChecked(checked)
+        btn.toggled.connect(lambda _on: self._sync_replace_match_buttons())
+        return btn
+
+    def _sync_replace_match_buttons(self, *_args):
+        plain = (
+            "QToolButton#%s { border: none; padding: 0; margin: 0; background: transparent; }"
+            "QToolButton#%s:hover { background: rgba(0,0,0,18); border-radius: 4px; }"
+            "QToolButton#%s:checked { background: transparent; }"
+        )
+        case = getattr(self, "chk_replace_case", None)
+        if case is not None:
+            case.setIcon(self._tool_icon(
+                "plugin:case_on_24.png" if case.isChecked() else "plugin:case_off_24.png"
+            ))
+            case.setIconSize(QSize(24, 24))
+            case.setStyleSheet(plain % ("replaceCaseBtn", "replaceCaseBtn", "replaceCaseBtn"))
+            case.setToolTip(tr("区分大小写。点亮后 Ab 和 ab 不算同一个，默认点亮。"))
+        exact = getattr(self, "chk_replace_exact", None)
+        if exact is not None:
+            exact.setIcon(self._tool_icon(
+                "plugin:exact_on_24.png" if exact.isChecked() else "plugin:exact_off_24.png"
+            ))
+            exact.setIconSize(QSize(24, 24))
+            exact.setStyleSheet(plain % ("replaceExactBtn", "replaceExactBtn", "replaceExactBtn"))
+            exact.setToolTip(tr("完整匹配。点亮后必须整格相等才算命中，默认只要包含查找文字。"))
 
     def _on_current_layer_changed(self, layer):
         if self._pin_layer:
@@ -1916,7 +2300,7 @@ class AttributeTableDialog(QDialog):
         self._invalidate_layer_value_cache()
 
         if layer is not None and (
-            not hasattr(layer, "type") or layer.type() != QgsMapLayer.VectorLayer
+            not hasattr(layer, "type") or layer.type() != QgsMapLayer.LayerType.VectorLayer
         ):
             layer = None
 
@@ -1974,6 +2358,10 @@ class AttributeTableDialog(QDialog):
         self.cmb_filter_field.setCurrentIndex(idx if idx >= 0 else 0)
         self.cmb_filter_field.blockSignals(False)
 
+    def _quick_value_limit(self):
+        """How many distinct values the quick-filter box may list (settings)."""
+        return self._settings.load_quick_value_limit()
+
     def _usable_categories(self):
         if self._layer is None:
             return []
@@ -2028,11 +2416,11 @@ class AttributeTableDialog(QDialog):
                 matched = True
             combo.add_check_item(label, expr, checked)
         if truncated:
-            combo.add_note(tr("仅列出前 %d 个值") % QUICK_VALUE_LIMIT)
+            combo.add_note(tr("仅列出前 %d 个值") % self._quick_value_limit())
         if matched:
             all_item = combo.model().item(0)
             if all_item is not None:
-                all_item.setCheckState(Qt.Unchecked)
+                all_item.setCheckState(Qt.CheckState.Unchecked)
         else:
             combo.ensure_some_check()
         combo._sync_text()
@@ -2050,7 +2438,7 @@ class AttributeTableDialog(QDialog):
         truncated = False
         req = (
             QgsFeatureRequest()
-            .setFlags(QgsFeatureRequest.NoGeometry)
+            .setFlags(QgsFeatureRequest.Flag.NoGeometry)
             .setSubsetOfAttributes([field_idx])
         )
         try:
@@ -2074,7 +2462,7 @@ class AttributeTableDialog(QDialog):
                 continue  # nosec B112
             key = value_key(raw)
             if key not in seen:
-                if len(seen) >= QUICK_VALUE_LIMIT:
+                if len(seen) >= self._quick_value_limit():
                     truncated = True
                     continue  # nosec B112
                 seen[key] = [raw, 0]
@@ -2110,7 +2498,7 @@ class AttributeTableDialog(QDialog):
         expr = (expression or "").strip()
         if layer is None or not expr:
             return 0
-        request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
+        request = QgsFeatureRequest().setFlags(QgsFeatureRequest.Flag.NoGeometry)
         try:
             request.setFilterExpression(expr)
             return sum(1 for _feat in layer.getFeatures(request))
@@ -2333,7 +2721,7 @@ class AttributeTableDialog(QDialog):
         mode = self._current_scope_mode()
         rect = self._map_extent_in_layer_crs() if mode == "canvas" else None
         if mode == "canvas" and rect is None and self._layer is not None:
-            self.status.showMessage(tr("地图范围无法换算到图层坐标系，「地图可见」没有结果"), 5000)
+            self._show_status(tr("地图范围无法换算到图层坐标系，「地图可见」没有结果"), 5000)
         return self.model.set_scope_mode(mode, rect, reload_now=reload_now)
 
     def _update_canvas_extent_watch(self):
@@ -2437,7 +2825,7 @@ class AttributeTableDialog(QDialog):
             col = names.index(state["field"]) if state["field"] in names else -1
             if row >= 0 and col >= 0:
                 self.table.selectionModel().setCurrentIndex(
-                    self.model.index(row, col), QItemSelectionModel.NoUpdate
+                    self.model.index(row, col), QItemSelectionModel.SelectionFlag.NoUpdate
                 )
             vsb = self.table.verticalScrollBar()
             vsb.setValue(min(state["v"], vsb.maximum()))
@@ -2562,7 +2950,7 @@ class AttributeTableDialog(QDialog):
             return
         hbar = table.horizontalScrollBar()
         need_bar = hbar.maximum() > hbar.minimum()
-        policy = Qt.ScrollBarAlwaysOn if need_bar else Qt.ScrollBarAlwaysOff
+        policy = Qt.ScrollBarPolicy.ScrollBarAlwaysOn if need_bar else Qt.ScrollBarPolicy.ScrollBarAlwaysOff
         if frozen.horizontalScrollBarPolicy() != policy:
             frozen.setHorizontalScrollBarPolicy(policy)
         heads = (table.horizontalHeader(), frozen.horizontalHeader())
@@ -2584,9 +2972,6 @@ class AttributeTableDialog(QDialog):
         self.model.sort_by_field(name, ascending)
         self._update_row_header_width()
         self._refresh_column_stats(name)
-        arrow = tr("升序") if ascending else tr("降序")
-        label = self._field_labels.get(name, name)
-        self.status.showMessage(tr("按 %s %s（智能数字）排序") % (label, arrow), 2000)
         self._update_status()
 
     def _set_fill_field(self, field_name):
@@ -2603,7 +2988,32 @@ class AttributeTableDialog(QDialog):
         names = self.model.field_names()
         col = model_index.column()
         if 0 <= col < len(names):
-            self._set_fill_field(names[col])
+            name = names[col]
+            self._set_fill_field(name)
+            self._sync_quick_filter_field(name)
+
+    def _sync_quick_filter_field(self, field_name):
+        """Non-categorized layers: the quick filter follows the current column.
+
+        Categorized layers keep「分类筛选」and never follow. Switching fields
+        resets the checked values to「全部」(handled by _on_quick_mode_changed).
+        """
+        if not field_name:
+            return
+        if not self._settings.load_filter_follow_field():
+            return
+        combo = getattr(self, "cmb_quick_mode", None)
+        if combo is None:
+            return
+        try:
+            if self._usable_categories():
+                return
+        except Exception:
+            return
+        idx = combo.findData(field_name)
+        if idx < 0 or idx == combo.currentIndex():
+            return
+        combo.setCurrentIndex(idx)
 
     def _sync_fill_field_from_views(self):
         """Use current cell, else first selected cell."""
@@ -2686,7 +3096,7 @@ class AttributeTableDialog(QDialog):
         values = []
         req = (
             QgsFeatureRequest()
-            .setFlags(QgsFeatureRequest.NoGeometry)
+            .setFlags(QgsFeatureRequest.Flag.NoGeometry)
             .setSubsetOfAttributes([field_idx])
         )
         for feat in layer.getFeatures(req):
@@ -2747,7 +3157,7 @@ class AttributeTableDialog(QDialog):
         values = []
         for idx in self._selected_cell_indexes():
             # Prefer EditRole; NULL comes back as None
-            val = self.model.data(idx, Qt.EditRole)
+            val = self.model.data(idx, Qt.ItemDataRole.EditRole)
             if val is None:
                 # Distinguish empty display vs missing index: treat as NULL
                 values.append(NULL)
@@ -2796,15 +3206,14 @@ class AttributeTableDialog(QDialog):
         logical = self._header_logical_at(header, pos)
         names = self.model.field_names()
         if logical < 0 or logical >= len(names):
-            self.status.showMessage(tr("未点中字段列，请对准列标题右键"), 2500)
+            self._show_status(tr("未点中字段列，请对准列标题右键"), 2500)
             return
         # Skip hidden columns (e.g. frozen col 0 hidden on main table)
         if header.isSectionHidden(logical):
-            self.status.showMessage(tr("该列已隐藏，请在可见列标题上右键"), 2500)
+            self._show_status(tr("该列已隐藏，请在可见列标题上右键"), 2500)
             return
 
         field_name = names[logical]
-        label = self._field_labels.get(field_name, field_name)
         menu = QMenu(self)
         act_copy = menu.addAction(tr("复制本列"))
         act_copy_header = menu.addAction(tr("复制本列（含表头）"))
@@ -2845,7 +3254,7 @@ class AttributeTableDialog(QDialog):
         act_remark.triggered.connect(
             lambda _=False, n=field_name: self._edit_remarks(n)
         )
-        menu.exec_(header.mapToGlobal(pos))
+        run_exec(menu, header.mapToGlobal(pos))
 
     def _column_groups(self, field_name):
         fids = self.model.fids()
@@ -2857,11 +3266,11 @@ class AttributeTableDialog(QDialog):
         if layer is None:
             return
         layer.selectByIds(list(fids))
-        self.status.showMessage(message, 6000)
+        self._show_status(message, 6000)
 
     def _select_column_duplicates(self, field_name):
         if self._layer is None or self.model.rowCount() == 0:
-            self.status.showMessage(tr("表格里没有行"), 3000)
+            self._show_status(tr("表格里没有行"), 3000)
             return
         groups = self._column_groups(field_name)
         fids = []
@@ -2872,7 +3281,7 @@ class AttributeTableDialog(QDialog):
                 fids.extend(group_fids)
         label = self._field_labels.get(field_name, field_name)
         if not fids:
-            self.status.showMessage(tr("「%s」在当前表格行里没有重复值") % label, 5000)
+            self._show_status(tr("「%s」在当前表格行里没有重复值") % label, 5000)
             return
         self._select_fids_on_layer(
             fids,
@@ -2882,12 +3291,12 @@ class AttributeTableDialog(QDialog):
 
     def _select_column_blanks(self, field_name):
         if self._layer is None or self.model.rowCount() == 0:
-            self.status.showMessage(tr("表格里没有行"), 3000)
+            self._show_status(tr("表格里没有行"), 3000)
             return
         slot = self._column_groups(field_name).get(BLANK_KEY)
         label = self._field_labels.get(field_name, field_name)
         if not slot:
-            self.status.showMessage(tr("「%s」在当前表格行里没有空值") % label, 5000)
+            self._show_status(tr("「%s」在当前表格行里没有空值") % label, 5000)
             return
         self._select_fids_on_layer(
             slot[1],
@@ -2897,12 +3306,12 @@ class AttributeTableDialog(QDialog):
     def _show_unique_values(self, field_name):
         layer = self._layer
         if layer is None or self.model.rowCount() == 0:
-            self.status.showMessage(tr("表格里没有行"), 3000)
+            self._show_status(tr("表格里没有行"), 3000)
             return
         field_idx = layer.fields().indexFromName(field_name)
         if field_idx < 0:
             return
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             groups = self._column_groups(field_name)
         finally:
@@ -2924,7 +3333,7 @@ class AttributeTableDialog(QDialog):
             self._quick_filter_by_values(field_name, checked)
 
         dlg = UniqueValuesDialog(self, label, groups, label_for, on_filter, on_select)
-        dlg.setAttribute(Qt.WA_DeleteOnClose, True)
+        dlg.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         dlg.show()
 
     def _quick_filter_by_values(self, field_name, checked):
@@ -2935,7 +3344,7 @@ class AttributeTableDialog(QDialog):
             return
         idx = mode_combo.findData(field_name)
         if idx < 0:
-            self.status.showMessage(tr("该字段不在「筛选」的字段列表里"), 4000)
+            self._show_status(tr("该字段不在「筛选」的字段列表里"), 4000)
             return
         wanted = set()
         for key, (raw, _fids) in checked:
@@ -2950,13 +3359,13 @@ class AttributeTableDialog(QDialog):
         applied = set(value_combo.checked_payloads()) & wanted
         self._on_quick_filter_changed()
         if len(applied) < len(wanted):
-            self.status.showMessage(
+            self._show_status(
                 tr("「筛选」下拉只列出前 %d 个值，有 %d 个勾选值没能加入")
-                % (QUICK_VALUE_LIMIT, len(wanted) - len(applied)),
+                % (self._quick_value_limit(), len(wanted) - len(applied)),
                 8000,
             )
         else:
-            self.status.showMessage(tr("已按 %d 个值筛选") % len(applied), 4000)
+            self._show_status(tr("已按 %d 个值筛选") % len(applied), 4000)
 
     def _show_row_header_menu(self, header, pos):
         rows = self.model.rowCount()
@@ -2975,7 +3384,7 @@ class AttributeTableDialog(QDialog):
             act_to_end.triggered.connect(
                 lambda _=False, r=row: self._select_rows(list(range(r, rows)))
             )
-        menu.exec_(header.mapToGlobal(pos))
+        run_exec(menu, header.mapToGlobal(pos))
 
     def _select_row_range_prompt(self, row):
         rows = self.model.rowCount()
@@ -2984,8 +3393,8 @@ class AttributeTableDialog(QDialog):
             self,
             tr("按行号选择"),
             tr("行号范围（当前共 %d 行，按表格显示顺序）：\n"
-            "例如 10-50、1-20,35,80-  （80- 表示到末行）") % rows,
-            QLineEdit.Normal,
+               "例如 10-50、1-20,35,80-  （80- 表示到末行）") % rows,
+            QLineEdit.EchoMode.Normal,
             "%d-%d" % (start, rows),
         )
         if not ok:
@@ -3045,7 +3454,7 @@ class AttributeTableDialog(QDialog):
             return
         clipboard.setText("\n".join(lines))
         label = self._field_labels.get(field_name, field_name)
-        self.status.showMessage(tr("已复制列「%s」共 %s 行到剪贴板") % (label, len(values)), 4000)
+        self._show_status(tr("已复制列「%s」共 %s 行到剪贴板") % (label, len(values)), 4000)
 
     def _app_clipboard(self):
         clipboard = QApplication.clipboard()
@@ -3097,7 +3506,7 @@ class AttributeTableDialog(QDialog):
             return
         clipboard.setText(buf.getvalue())
         label = self._field_labels.get(field_name, field_name)
-        self.status.showMessage(
+        self._show_status(
             tr("已复制列「%s」共 %s 行（两列：编号和值，可改值后粘贴回本列）") % (label, len(fids)),
             5000,
         )
@@ -3114,7 +3523,7 @@ class AttributeTableDialog(QDialog):
         request = (
             QgsFeatureRequest()
             .setFilterFids(want)
-            .setFlags(QgsFeatureRequest.NoGeometry)
+            .setFlags(QgsFeatureRequest.Flag.NoGeometry)
             .setSubsetOfAttributes([])
         )
         for feat in layer.getFeatures(request):
@@ -3135,7 +3544,7 @@ class AttributeTableDialog(QDialog):
                 self,
                 tr("粘贴回列"),
                 tr("剪贴板不是可回贴格式。请用列标题「复制本列（可回贴）」复制，"
-                "只改值、不要改编号列，再粘贴。普通复制没有编号，不能按位置贴回。"),
+                   "只改值、不要改编号列，再粘贴。普通复制没有编号，不能按位置贴回。"),
             )
             return
         parsed, err = parse_roundtrip_text(text)
@@ -3174,16 +3583,16 @@ class AttributeTableDialog(QDialog):
         if target_field and target_field != src_field:
             question = (
                 tr("剪贴板来自字段「%s」，将按编号写入当前列「%s」，共 %s 行。\n"
-                "对的是编号，不是表格第几行。下面顺序可以不连着，不会错位。\n%s\n继续？")
+                   "对的是编号，不是表格第几行。下面顺序可以不连着，不会错位。\n%s\n继续？")
                 % (src_field, target_field, len(rows), sample)
             )
         else:
             question = (
                 tr("将按编号写回字段「%s」，共 %s 行。\n"
-                "对的是编号，不是表格第几行。下面顺序可以不连着，不会错位。\n%s\n继续？")
+                   "对的是编号，不是表格第几行。下面顺序可以不连着，不会错位。\n%s\n继续？")
                 % (field_name, len(rows), sample)
             )
-        if QMessageBox.question(self, tr("粘贴回列"), question) != QMessageBox.Yes:
+        if QMessageBox.question(self, tr("粘贴回列"), question) != QMessageBox.StandardButton.Yes:
             return
         field = layer.fields().at(field_idx)
         values = {}
@@ -3193,9 +3602,9 @@ class AttributeTableDialog(QDialog):
             layer, field_idx, field_name, values, "粘贴回列"
         )
         if updated:
-            self.status.showMessage(tr("已按编号写回 %s 行 → %s") % (updated, field_name), 4000)
+            self._show_status(tr("已按编号写回 %s 行 → %s") % (updated, field_name), 4000)
         else:
-            self.status.showMessage(tr("编号已对齐，字段「%s」的值没有变化") % field_name, 4000)
+            self._show_status(tr("编号已对齐，字段「%s」的值没有变化") % field_name, 4000)
 
     def _on_table_selection(self, *_args):
         if self._syncing_selection:
@@ -3275,7 +3684,7 @@ class AttributeTableDialog(QDialog):
                 left = self.model.index(row, 0)
                 right = self.model.index(row, cols)
                 selection.select(left, right)
-            self.table.selectionModel().select(selection, QItemSelectionModel.Select)
+            self.table.selectionModel().select(selection, QItemSelectionModel.SelectionFlag.Select)
             if self.frozen.isVisible():
                 sel0 = QItemSelection()
                 for fid in selected:
@@ -3284,7 +3693,7 @@ class AttributeTableDialog(QDialog):
                         continue
                     idx = self.model.index(row, 0)
                     sel0.select(idx, idx)
-                self.frozen.selectionModel().select(sel0, QItemSelectionModel.Select)
+                self.frozen.selectionModel().select(sel0, QItemSelectionModel.SelectionFlag.Select)
         finally:
             self._syncing_selection = False
 
@@ -3328,12 +3737,14 @@ class AttributeTableDialog(QDialog):
                     self,
                     tr("结束编辑"),
                     tr("有未保存修改，是否保存？"),
-                    QMessageBox.Save | QMessageBox.Discard | QMessageBox.Cancel,
+                    QMessageBox.StandardButton.Save
+                    | QMessageBox.StandardButton.Discard
+                    | QMessageBox.StandardButton.Cancel,
                 )
-                if reply == QMessageBox.Cancel:
+                if reply == QMessageBox.StandardButton.Cancel:
                     self.act_toggle_edit.setChecked(True)
                     return
-                if reply == QMessageBox.Save:
+                if reply == QMessageBox.StandardButton.Save:
                     if not layer.commitChanges():
                         errs = layer.commitErrors()
                         msg = "\n".join(errs) if isinstance(errs, (list, tuple)) else (errs or tr("未知错误"))
@@ -3367,7 +3778,7 @@ class AttributeTableDialog(QDialog):
             layer.startEditing()
         else:
             layer.startEditing()
-            self.status.showMessage(tr("已保存"), 3000)
+            self._show_status(tr("已保存"), 3000)
         self._update_edit_actions()
         self._update_window_title()
 
@@ -3375,7 +3786,7 @@ class AttributeTableDialog(QDialog):
         layer = self._layer
         if layer is None or not layer.isEditable():
             return
-        if QMessageBox.question(self, tr("回滚"), tr("放弃未保存修改？")) != QMessageBox.Yes:
+        if QMessageBox.question(self, tr("回滚"), tr("放弃未保存修改？")) != QMessageBox.StandardButton.Yes:
             return
         self._disconnect_layer_signals()
         try:
@@ -3396,7 +3807,7 @@ class AttributeTableDialog(QDialog):
         if not fids:
             QMessageBox.information(self, tr("删除"), tr("没有选中的要素。"))
             return
-        if QMessageBox.question(self, tr("删除"), tr("删除选中的 %s 个要素？") % len(fids)) != QMessageBox.Yes:
+        if QMessageBox.question(self, tr("删除"), tr("删除选中的 %s 个要素？") % len(fids)) != QMessageBox.StandardButton.Yes:
             return
         layer.beginEditCommand(tr("删除要素"))
         try:
@@ -3425,8 +3836,8 @@ class AttributeTableDialog(QDialog):
         return bool(
             caps
             & (
-                QgsVectorDataProvider.ChangeAttributeValues
-                | QgsVectorDataProvider.DeleteFeatures
+                QgsVectorDataProvider.Capability.ChangeAttributeValues
+                | QgsVectorDataProvider.Capability.DeleteFeatures
             )
         )
 
@@ -3455,9 +3866,9 @@ class AttributeTableDialog(QDialog):
         self._update_quick_fill_visibility()
         if hasattr(self, "table"):
             self.table.setEditTriggers(
-                QAbstractItemView.DoubleClicked | QAbstractItemView.EditKeyPressed
+                QAbstractItemView.EditTrigger.DoubleClicked | QAbstractItemView.EditTrigger.EditKeyPressed
                 if editing
-                else QAbstractItemView.NoEditTriggers
+                else QAbstractItemView.EditTrigger.NoEditTriggers
             )
             if hasattr(self, "frozen"):
                 self.frozen.setEditTriggers(self.table.editTriggers())
@@ -3491,19 +3902,19 @@ class AttributeTableDialog(QDialog):
             browser.setHtml(html)
             tabs.addTab(browser, title)
         lay.addWidget(tabs, 1)
-        btns = QDialogButtonBox(QDialogButtonBox.Close)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         localize_button_box(btns)
         btns.rejected.connect(dlg.reject)
         btns.clicked.connect(dlg.accept)
         lay.addWidget(btns)
-        dlg.exec_()
+        run_exec(dlg)
 
     def _manage_fields(self):
         layer = self._layer
         if layer is None:
             return
         dlg = FieldsManagerDialog(layer, self, self._remarks)
-        dlg.exec_()
+        run_exec(dlg)
         remarks_changed = False
         try:
             remarks_changed = bool(dlg.remarks_changed())
@@ -3513,63 +3924,6 @@ class AttributeTableDialog(QDialog):
             self._refresh_field_structure()
         elif remarks_changed:
             self._apply_remarks_to_ui()
-
-    def _export_kmz(self):
-        layer = self._layer
-        if layer is None:
-            QMessageBox.information(self, tr("导出 KMZ"), tr("无图层。"))
-            return
-        if not layer.isSpatial():
-            QMessageBox.information(self, tr("导出 KMZ"), tr("该图层没有几何，无法导出 KMZ。"))
-            return
-        try:
-            total_rows = int(layer.featureCount())
-        except Exception:
-            total_rows = -1
-        dlg = ExportKmzDialog(
-            self._all_field_names,
-            self._field_labels,
-            self,
-            table_rows=self.model.rowCount(),
-            total_rows=total_rows,
-        )
-        if dlg.exec_() != QDialog.Accepted:
-            return
-        fids = self.model.fids() if dlg.table_only() else None
-        if fids is not None and not fids:
-            QMessageBox.information(self, tr("导出 KMZ"), tr("当前表格没有行。"))
-            return
-        path, _ = QFileDialog.getSaveFileName(
-            self, "导出 KMZ", os.path.expanduser("~"), "KMZ (*.kmz)"
-        )
-        if not path:
-            return
-        if not path.lower().endswith(".kmz"):
-            path += ".kmz"
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        try:
-            written, skipped = export_layer_to_kmz(
-                layer,
-                path,
-                dlg.title_field(),
-                dlg.description_fields(),
-                dlg.crs_authid(),
-                fids=fids,
-                use_layer_style=dlg.use_layer_style(),
-            )
-        except Exception as e:
-            QMessageBox.warning(self, tr("导出 KMZ 失败"), str(e))
-            return
-        finally:
-            QApplication.restoreOverrideCursor()
-        self.status.showMessage(
-            tr("KMZ 已导出：写入 %s，跳过无几何 %s → %s") % (written, skipped, path), 6000
-        )
-        QMessageBox.information(
-            self,
-            tr("导出 KMZ"),
-            tr("完成。\n写入要素：%s\n跳过（无几何）：%s\n\n%s") % (written, skipped, path),
-        )
 
     def _relayout_fill_bar(self, is_affix, is_replace, fill_on):
         """Pack fill controls left. Hidden editors must not keep a stretch gap.
@@ -3592,8 +3946,8 @@ class AttributeTableDialog(QDialog):
         _stretch(self.ed_fill_prefix, 1 if is_affix else 0)
         _stretch(self.ed_fill_suffix, 1 if is_affix else 0)
         _stretch(self.ed_fill, 1 if fill_on else 0)
-        _stretch(self.ed_fill_find, 1 if is_replace else 0)
-        _stretch(self.ed_fill_replace, 1 if is_replace else 0)
+        if hasattr(self, "_replace_group"):
+            _stretch(self._replace_group, 1 if is_replace else 0)
         expanding = is_affix or is_replace or fill_on
         if hasattr(self, "_fill_stretch_index"):
             lay.setStretch(self._fill_stretch_index, 0 if expanding else 1)
@@ -3604,15 +3958,18 @@ class AttributeTableDialog(QDialog):
         is_replace = mode == "replace"
         is_affix = mode == "affix"
         is_around = mode == "around_seq"
+        self.btn_fill_expr.setVisible(not is_replace)
         self.btn_fill_expr.setEnabled(mode == "expr")
+        if hasattr(self, "btn_fill_expr_lib"):
+            self.btn_fill_expr_lib.setVisible(mode == "expr")
         show_width = mode == "around_seq"
         fill_on = not is_replace and not is_affix and not is_around
+        if hasattr(self, "_replace_group"):
+            self._replace_group.setVisible(is_replace)
         if hasattr(self, "ed_fill_find"):
             self.ed_fill.setVisible(fill_on)
-            self.lbl_fill_find.setVisible(is_replace)
-            self.ed_fill_find.setVisible(is_replace)
-            self.lbl_fill_replace.setVisible(is_replace)
-            self.ed_fill_replace.setVisible(is_replace)
+        if is_replace:
+            self._on_replace_options_changed()
         if hasattr(self, "cmb_fill_width"):
             self.lbl_fill_width.setVisible(show_width)
             self.cmb_fill_width.setVisible(show_width)
@@ -3634,15 +3991,18 @@ class AttributeTableDialog(QDialog):
             "around_seq": "在已有文字前或后加上序号，原文字保留。空白只写序号",
             "affix": "前面、后面至少填一边。只改已有文字",
             "expr": "QGIS 表达式，如 \"POP\" + 1 或 $id",
-            "replace": "对当前目标字段做部分替换，一格内全部替换；区分大小写",
+            "replace": "标准只改命中片段；基于查找值在前或后插入；所在字段整格替换。写入默认常量",
         }
         self.ed_fill.setPlaceholderText(tr(tips.get(mode, "")))
-        self.ed_fill.setToolTip(
-            tr(tips.get(mode, ""))
-            if mode != "const"
-            else tr("输入常量，或输入其它字段名（打字弹出下拉，中间字母也能搜，列出全部命中项）把该字段内容写入目标字段。\n"
-            "要写入恰好等于字段名的文字，用单引号包起来，如 'TYPE'。")
-        )
+        if mode == "const":
+            fill_tip = tr("输入常量，或输入其它字段名（打字弹出下拉，中间字母也能搜，列出全部命中项）把该字段内容写入目标字段。\n"
+                          "要写入恰好等于字段名的文字，用单引号包起来，如 'TYPE'。")
+        elif mode == "expr":
+            fill_tip = tr("QGIS 表达式。打字停一下会匹配已保存的表达式，右边箭头列出全部。双击全选，按住拖动可选中文字。\n"
+                          "选中后显示为「«备注» 表达式」，运行的是 » 后面的部分；在框里改了按改后的执行，保存的不变。")
+        else:
+            fill_tip = tr(tips.get(mode, ""))
+        self.ed_fill.setToolTip(fill_tip)
         self._update_fill_preset_visible()
         self._sync_fill_field_completer()
 
@@ -3663,7 +4023,42 @@ class AttributeTableDialog(QDialog):
                 target = self.cmb_fill_field.currentData()
             names = [n for n in (self._all_field_names or []) if n and n != target]
         self._fill_field_model.setStringList(names)
-        self.ed_fill.setCompleter(self._fill_field_completer if names else None)
+        other = self._fill_field_completer if names else None
+        if hasattr(self, "_fill_expr_drop"):
+            self._fill_expr_drop.sync(other)
+        else:
+            self.ed_fill.setCompleter(other)
+        if hasattr(self, "_replace_expr_drop"):
+            self._replace_expr_drop.sync(None)
+
+    def _remember_fill_mode(self, _index=None):
+        mode = self.cmb_fill_mode.currentData()
+        if mode:
+            self._settings.save_fill_mode_last(mode)
+
+    def _apply_startup_fill_mode(self):
+        self._set_fill_mode(self._settings.startup_fill_mode())
+
+    def _set_fill_mode(self, mode):
+        if not hasattr(self, "cmb_fill_mode"):
+            return
+        idx = self.cmb_fill_mode.findData(mode)
+        if idx < 0 or idx == self.cmb_fill_mode.currentIndex():
+            return
+        self.cmb_fill_mode.blockSignals(True)
+        self.cmb_fill_mode.setCurrentIndex(idx)
+        self.cmb_fill_mode.blockSignals(False)
+        self._on_fill_mode_changed()
+
+    def _open_expression_library(self):
+        current = self.ed_fill.text() if hasattr(self, "ed_fill") else ""
+        dlg = ExpressionLibraryDialog(self._layer, current, self)
+        if not run_exec(dlg):
+            return
+        for drop in (getattr(self, "_fill_expr_drop", None), getattr(self, "_replace_expr_drop", None)):
+            if drop is not None:
+                drop.reload()
+        self._sync_fill_field_completer()
 
     def _match_source_field(self, text):
         """Return a layer field name if text is a field reference, else None."""
@@ -3858,7 +4253,7 @@ class AttributeTableDialog(QDialog):
         super().changeEvent(event)
         if not getattr(self, "_shared_reload_ready", False):
             return
-        if event.type() != QEvent.ActivationChange or not self.isActiveWindow():
+        if event.type() != QEvent.Type.ActivationChange or not self.isActiveWindow():
             return
         session = getattr(self, "_remarks", None)
         if session is None or not session.reload_from_disk():
@@ -3923,16 +4318,6 @@ class AttributeTableDialog(QDialog):
         self._attach_remarks_hub(hub)
         self._apply_remarks_to_ui()
 
-    def _open_quick_name(self, *_args):
-        from .remarks_dialog import QuickNameDialog
-
-        parent = None
-        try:
-            parent = self.iface.mainWindow()
-        except Exception:
-            parent = None
-        QuickNameDialog.open_for(self.iface, parent=parent)
-
     def _open_layer_remarks(self, focus_field=None, layer=None):
         if isinstance(focus_field, bool):
             focus_field = None
@@ -3962,7 +4347,7 @@ class AttributeTableDialog(QDialog):
             self._on_fill_mode_changed()
         if hasattr(self, "ed_fill") and text is not None:
             self.ed_fill.setText(str(text))
-        self.status.showMessage(
+        self._show_status(
             tr("已选插入值：选弹出项立即写入，或点取消后用赋值条按钮写入"), 4000
         )
 
@@ -3984,8 +4369,8 @@ class AttributeTableDialog(QDialog):
                     self,
                     title,
                     tr("选中的 %s 个要素都不在当前表格里（被范围、过滤或筛选挡住了）。\n"
-                    "为避免改到看不见的要素，这次没有写入。\n"
-                    "可以先清除过滤/筛选，或把范围切到「仅选中」。") % len(selected),
+                       "为避免改到看不见的要素，这次没有写入。\n"
+                       "可以先清除过滤/筛选，或把范围切到「仅选中」。") % len(selected),
                 )
                 return None
             return fids
@@ -4006,7 +4391,7 @@ class AttributeTableDialog(QDialog):
             return list(layer.allFeatureIds())
         except Exception:
             pass  # nosec B110
-        req = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
+        req = QgsFeatureRequest().setFlags(QgsFeatureRequest.Flag.NoGeometry)
         try:
             req.setNoAttributes()
         except Exception:
@@ -4103,7 +4488,7 @@ class AttributeTableDialog(QDialog):
                     tr("快速插入"),
                     tr("将按快速插入行写入 %s 条（%s）：\n%s\n继续？") % (len(fids), scope_tip, lines),
                 )
-                != QMessageBox.Yes
+                != QMessageBox.StandardButton.Yes
             ):
                 return
         total = 0
@@ -4142,9 +4527,9 @@ class AttributeTableDialog(QDialog):
         self.quick_fill.clear_pending(list(pending.keys()))
         if total:
             extra = tr("，%s 列因表达式失败已跳过") % skipped if skipped else ""
-            self.status.showMessage(tr("快速插入完成：更新 %s 处%s") % (total, extra), 4000)
+            self._show_status(tr("快速插入完成：更新 %s 处%s") % (total, extra), 4000)
         elif skipped:
-            self.status.showMessage(tr("快速插入：表达式未能写入任何行"), 4000)
+            self._show_status(tr("快速插入：表达式未能写入任何行"), 4000)
 
     @staticmethod
     def _pending_shown(val):
@@ -4157,12 +4542,12 @@ class AttributeTableDialog(QDialog):
         box.setWindowTitle(tr("快速插入"))
         shown = combo.currentText() if combo is not None else str(value)
         box.setText(tr("将「%s」写入字段「%s」") % (shown, field_name))
-        btn_all = box.addButton(tr("更新全部"), QMessageBox.ActionRole)
-        btn_filt = box.addButton(tr("更新筛选项"), QMessageBox.ActionRole)
-        btn_sel = box.addButton(tr("更新选中"), QMessageBox.ActionRole)
-        btn_cancel = box.addButton(tr("取消"), QMessageBox.RejectRole)
+        btn_all = box.addButton(tr("更新全部"), QMessageBox.ButtonRole.ActionRole)
+        btn_filt = box.addButton(tr("更新筛选项"), QMessageBox.ButtonRole.ActionRole)
+        btn_sel = box.addButton(tr("更新选中"), QMessageBox.ButtonRole.ActionRole)
+        btn_cancel = box.addButton(tr("取消"), QMessageBox.ButtonRole.RejectRole)
         box.setDefaultButton(btn_sel)
-        box.exec_()
+        run_exec(box)
         clicked = box.clickedButton()
         if clicked is None or clicked == btn_cancel:
             return
@@ -4204,23 +4589,34 @@ class AttributeTableDialog(QDialog):
             layer, field_idx, field_name, values, "快速插入"
         )
         if updated:
-            self.status.showMessage(
+            self._show_status(
                 tr("快速插入：%s 行 → %s = %s") % (updated, field_name, value), 4000
             )
 
     def _open_fill_expression_builder(self):
         if self._layer is None:
             return
-        dlg = QgsExpressionBuilderDialog(self._layer, self.ed_fill.text(), self)
+        replace_expr = (
+            hasattr(self, "cmb_fill_mode")
+            and self.cmb_fill_mode.currentData() == "replace"
+            and self._replace_write_source() == "expr"
+        )
+        current = self.ed_fill_replace.text() if replace_expr else self.ed_fill.text()
+        dlg = QgsExpressionBuilderDialog(self._layer, expression_from_text(current), self)
         dlg.setWindowTitle(tr("赋值表达式"))
-        if dlg.exec_():
-            self.ed_fill.setText(dlg.expressionText())
-            self.cmb_fill_mode.blockSignals(True)
-            idx = self.cmb_fill_mode.findData("expr")
-            if idx >= 0:
-                self.cmb_fill_mode.setCurrentIndex(idx)
-            self.cmb_fill_mode.blockSignals(False)
-            self._on_fill_mode_changed()
+        if not run_exec(dlg):
+            return
+        if replace_expr:
+            self.ed_fill_replace.setText(dlg.expressionText())
+            return
+        self.ed_fill.setText(dlg.expressionText())
+        self.cmb_fill_mode.blockSignals(True)
+        idx = self.cmb_fill_mode.findData("expr")
+        if idx >= 0:
+            self.cmb_fill_mode.setCurrentIndex(idx)
+        self.cmb_fill_mode.blockSignals(False)
+        self._on_fill_mode_changed()
+        self._remember_fill_mode()
 
     def _field_stores_text(self, field):
         type_name = (field.typeName() or "").lower()
@@ -4271,7 +4667,7 @@ class AttributeTableDialog(QDialog):
             QMessageBox.warning(self, command_name, "\n".join(lines) + tr("\n\n没有可写入的值。"))
             return False
         lines.append(tr("\n继续写入其余 %s 条？") % total)
-        return QMessageBox.question(self, command_name, "\n".join(lines)) == QMessageBox.Yes
+        return QMessageBox.question(self, command_name, "\n".join(lines)) == QMessageBox.StandardButton.Yes
 
     def _run_fill(self, selected_only=False):
         layer = self._layer
@@ -4334,7 +4730,7 @@ class AttributeTableDialog(QDialog):
                     tr("赋值确认"),
                     confirm_msg,
                 )
-                != QMessageBox.Yes
+                != QMessageBox.StandardButton.Yes
             ):
                 return
 
@@ -4377,12 +4773,12 @@ class AttributeTableDialog(QDialog):
         updated = self._commit_attribute_values(layer, field_idx, field_name, values, "赋值")
         if updated:
             if src_field:
-                self.status.showMessage(
+                self._show_status(
                     tr("赋值完成：已更新 %s 行 → %s ← %s") % (updated, field_name, src_field),
                     4000,
                 )
             else:
-                self.status.showMessage(
+                self._show_status(
                     tr("赋值完成：已更新 %s 行 → %s") % (updated, field_name),
                     4000,
                 )
@@ -4438,12 +4834,12 @@ class AttributeTableDialog(QDialog):
                 tr("保留「%s」里的原文字，在%s加上序号，共 %s 条（%s）。如 %s。空白只写序号。继续？")
                 % (field_name, side, len(order), scope_tip, sample or ""),
             )
-            != QMessageBox.Yes
+            != QMessageBox.StandardButton.Yes
         ):
             return
         updated = self._commit_attribute_values(layer, field_idx, field_name, values, "赋值")
         if updated:
-            self.status.showMessage(
+            self._show_status(
                 tr("前后序号完成：已在原文字%s加上序号，更新 %s 行 → %s") % (side, updated, field_name),
                 4000,
             )
@@ -4480,20 +4876,20 @@ class AttributeTableDialog(QDialog):
                 tr("给「%s」已有文字前面加「%s」、后面加「%s」，共 %s 条（%s）。空白 %s 条不动。继续？")
                 % (field_name, prefix, suffix, len(values), scope_tip, skipped),
             )
-            != QMessageBox.Yes
+            != QMessageBox.StandardButton.Yes
         ):
             return
         updated = self._commit_attribute_values(layer, field_idx, field_name, values, "赋值")
         if updated:
-            self.status.showMessage(
+            self._show_status(
                 tr("前后加字完成：已更新 %s 行，空白未改 %s 行 → %s") % (updated, skipped, field_name),
                 4000,
             )
         else:
-            self.status.showMessage(tr("已有文字没有变化 → %s") % field_name, 4000)
+            self._show_status(tr("已有文字没有变化 → %s") % field_name, 4000)
 
     def _eval_fill_expression(self, layer, field, fids, expr_text, skip_errors=False):
-        expr_text = (expr_text or "").strip()
+        expr_text = expression_from_text(expr_text)
         if not expr_text:
             if skip_errors:
                 return {}
@@ -4532,15 +4928,15 @@ class AttributeTableDialog(QDialog):
         values = {}
         eval_error = None
         chunk = 2500
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             for i in range(0, len(fids), chunk):
                 if eval_error:
                     break
-                batch = fids[i : i + chunk]
+                batch = fids[i:i + chunk]
                 req = QgsFeatureRequest().setFilterFids(batch)
                 if not need_geom:
-                    req.setFlags(QgsFeatureRequest.NoGeometry)
+                    req.setFlags(QgsFeatureRequest.Flag.NoGeometry)
                 if subset is not None:
                     req.setSubsetOfAttributes(subset)
                 for feat in layer.getFeatures(req):
@@ -4563,33 +4959,163 @@ class AttributeTableDialog(QDialog):
             return None
         return values
 
+    def _replace_choice_parts(self):
+        choice = getattr(self, "_replace_choice", None) or ("standard", "const", "after")
+        mode, source, side = choice
+        if mode not in ("standard", "around", "field"):
+            mode = "standard"
+        if source not in ("const", "expr"):
+            source = "const"
+        if side not in ("before", "after"):
+            side = "after"
+        return mode, source, side
+
+    def _replace_mode(self):
+        return self._replace_choice_parts()[0]
+
+    def _replace_write_source(self):
+        return self._replace_choice_parts()[1]
+
+    def _replace_side(self):
+        return self._replace_choice_parts()[2]
+
+    def _replace_choice_label(self):
+        mode, source, side = self._replace_choice_parts()
+        mode_name = {
+            "standard": tr("标准"),
+            "around": tr("基于查找值"),
+            "field": tr("所在字段"),
+        }.get(mode, mode)
+        write_name = tr("表达式") if source == "expr" else tr("常量")
+        if mode == "around":
+            place = tr("前面") if side == "before" else tr("后面")
+            return "%s · %s · %s" % (mode_name, place, write_name)
+        return "%s · %s" % (mode_name, write_name)
+
+    def _set_replace_choice(self, mode, source, side):
+        self._replace_choice = (mode, source, side)
+        if hasattr(self, "btn_replace_choice"):
+            self.btn_replace_choice.setText(self._replace_choice_label())
+        self._on_replace_options_changed()
+
+    def _rebuild_replace_menu(self):
+        button = getattr(self, "btn_replace_choice", None)
+        if button is None:
+            return
+        const_tip = tr("写入固定文字。留空表示删掉命中的那段")
+        expr_tip = tr("按每个要素计算 QGIS 表达式。算失败的行跳过")
+        groups = (
+            (
+                tr("标准"),
+                tr("只改命中的那段，一格里多处都改"),
+                (
+                    ("standard", "const", "after", tr("常量"), const_tip),
+                    ("standard", "expr", "after", tr("表达式"), expr_tip),
+                ),
+            ),
+            (
+                tr("基于查找值"),
+                tr("在命中前面或后面插入，原文留下"),
+                (
+                    ("around", "const", "after", "%s · %s" % (tr("后面"), tr("常量")), const_tip),
+                    ("around", "expr", "after", "%s · %s" % (tr("后面"), tr("表达式")), expr_tip),
+                    ("around", "const", "before", "%s · %s" % (tr("前面"), tr("常量")), const_tip),
+                    ("around", "expr", "before", "%s · %s" % (tr("前面"), tr("表达式")), expr_tip),
+                ),
+            ),
+            (
+                tr("所在字段"),
+                tr("只要命中，整格换成新内容"),
+                (
+                    ("field", "const", "after", tr("常量"), const_tip),
+                    ("field", "expr", "after", tr("表达式"), expr_tip),
+                ),
+            ),
+        )
+        menu = QMenu(button)
+        for title, tip, rows in groups:
+            sub = menu.addMenu(title)
+            sub.setToolTip(tip)
+            for mode, source, side, label, row_tip in rows:
+                act = sub.addAction(label)
+                act.setToolTip(row_tip)
+                act.triggered.connect(
+                    lambda _checked=False, m=mode, s=source, p=side: self._set_replace_choice(m, s, p)
+                )
+        old = button.menu()
+        button.setMenu(menu)
+        if old is not None:
+            old.deleteLater()
+        button.setText(self._replace_choice_label())
+        mode, _source, _side = self._replace_choice_parts()
+        tips = {
+            "standard": tr("只改命中的那段，一格里多处都改"),
+            "around": tr("在命中前面或后面插入，原文留下"),
+            "field": tr("只要命中，整格换成新内容"),
+        }
+        button.setToolTip(tips.get(mode, ""))
+
+    def _sync_replace_write_placeholder(self):
+        edit = getattr(self, "ed_fill_replace", None)
+        if edit is None:
+            return
+        source = self._replace_write_source()
+        if source == "expr":
+            edit.setPlaceholderText(tr("QGIS 表达式，如 concat(\"A\", $id)"))
+            edit.setToolTip(tr("按每个要素计算。算失败的行跳过，其它行照常写。"))
+        else:
+            edit.setPlaceholderText(tr("常量，留空表示删掉命中的那段"))
+            edit.setToolTip(tr("固定文字。留空表示删掉命中的那段；基于查找值时留空等于不插入。"))
+        drop = getattr(self, "_replace_expr_drop", None)
+        if drop is not None:
+            drop.sync(None)
+
+    def _on_replace_options_changed(self, _index=None):
+        if hasattr(self, "lbl_fill_replace"):
+            self.lbl_fill_replace.setVisible(True)
+        if hasattr(self, "ed_fill_replace"):
+            self.ed_fill_replace.setVisible(True)
+        if hasattr(self, "btn_replace_choice"):
+            mode, _source, _side = self._replace_choice_parts()
+            tips = {
+                "standard": tr("只改命中的那段，一格里多处都改"),
+                "around": tr("在命中前面或后面插入，原文留下"),
+                "field": tr("只要命中，整格换成新内容"),
+            }
+            self.btn_replace_choice.setToolTip(tips.get(mode, ""))
+        self._sync_replace_write_placeholder()
+        if hasattr(self, "btn_fill_expr") and hasattr(self, "cmb_fill_mode"):
+            fill_mode = self.cmb_fill_mode.currentData()
+            self.btn_fill_expr.setVisible(fill_mode != "replace")
+            self.btn_fill_expr.setEnabled(fill_mode == "expr")
+
     def _run_replace(self, layer, field, field_idx, field_name, fids, selected_only):
         find_text = self.ed_fill_find.text()
-        replace_text = self.ed_fill_replace.text()
         if find_text == "":
-            QMessageBox.warning(self, tr("替换"), tr("请输入替换前的文字。"))
+            QMessageBox.warning(self, tr("替换"), tr("请输入要查找的文字。"))
+            return
+        mode, source, side = self._replace_choice_parts()
+        exact = bool(self.chk_replace_exact.isChecked()) if hasattr(self, "chk_replace_exact") else False
+        case_sensitive = bool(self.chk_replace_case.isChecked()) if hasattr(self, "chk_replace_case") else True
+        const_text = self.ed_fill_replace.text() if hasattr(self, "ed_fill_replace") else ""
+        expr_text = expression_from_text(const_text)
+        if source == "expr" and not str(expr_text).strip():
+            QMessageBox.warning(self, tr("替换"), tr("请填写 QGIS 表达式，或改用常量。"))
             return
 
-        fetched = self.model._fetch_attributes(fids, [field_idx])
-        values = {}
-        rows = 0
-        occ = 0
-        for fid in fids:
+        order = self._fill_row_order(fids, selected_only)
+        fetched = self.model._fetch_attributes(order, [field_idx])
+        matched = []
+        for fid in order:
             raw = fetched.get(fid, {}).get(field_idx, NULL)
             if raw is None or raw == NULL:
                 continue
-            text = str(raw)
-            n = text.count(find_text)
-            if n <= 0:
-                continue
-            new_text = text.replace(find_text, replace_text)
-            if new_text == text:
-                continue
-            values[fid] = self._coerce_value_for_field(field, new_text)
-            rows += 1
-            occ += n
-
-        if not values:
+            _text, hits = apply_replace(
+                str(raw), find_text, "", mode, side, exact, case_sensitive
+            )
+            if hits:
+                matched.append(fid)
+        if not matched:
             QMessageBox.information(
                 self,
                 tr("替换"),
@@ -4597,24 +5123,131 @@ class AttributeTableDialog(QDialog):
             )
             return
 
-        scope_tip = tr("选中") if selected_only else tr("筛选")
-        if (
-            QMessageBox.question(
-                self,
-                tr("替换确认"),
-                tr("字段「%s」（%s）\n将「%s」替换为「%s」\n命中 %s 行 / %s 处，继续？")
-                % (field_name, scope_tip, find_text, replace_text, rows, occ),
+        expr_values = {}
+        expr_failed = []
+        if source == "expr":
+            expr_values, expr_failed = self._replace_expression_values(layer, matched, expr_text)
+            if expr_values is None:
+                return
+
+        values = {}
+        rows = 0
+        occ = 0
+        samples = []
+        for fid in matched:
+            raw = fetched.get(fid, {}).get(field_idx, NULL)
+            old = str(raw)
+            if source == "expr":
+                if fid not in expr_values:
+                    continue
+                new_content = expr_values[fid]
+            else:
+                new_content = const_text
+            new_text, hits = apply_replace(
+                old, find_text, new_content, mode, side, exact, case_sensitive
             )
-            != QMessageBox.Yes
-        ):
+            if hits <= 0 or new_text == old:
+                continue
+            values[fid] = self._coerce_value_for_field(field, new_text)
+            rows += 1
+            occ += hits
+            if len(samples) < 3:
+                samples.append("%s → %s" % (old, new_text))
+
+        if not values:
+            if expr_failed:
+                QMessageBox.warning(
+                    self,
+                    tr("替换"),
+                    tr("表达式没有算出可写入的值。例如：%s") % expr_failed[0][1],
+                )
+            else:
+                QMessageBox.information(self, tr("替换"), tr("命中的格子换成新内容后没有变化。"))
             return
 
-        updated = self._commit_attribute_values(layer, field_idx, field_name, values, "替换", skip_unchanged=False)
+        scope_tip = tr("选中") if selected_only else tr("筛选")
+        mode_labels = {
+            "standard": tr("标准（只改命中片段）"),
+            "around": tr("基于查找值（%s插入，原文留下）") % (tr("前面") if side == "before" else tr("后面")),
+            "field": tr("所在字段（整格替换）"),
+        }
+        if source == "expr":
+            write_desc = tr("表达式：%s") % expr_text
+        else:
+            write_desc = tr("常量：%s") % (const_text if const_text != "" else tr("（空，删掉命中的那段）"))
+        lines = [
+            tr("字段「%s」（%s）") % (field_name, scope_tip),
+            tr("查找：%s") % find_text,
+            tr("模式：%s") % mode_labels.get(mode, mode),
+            tr("写入：%s") % write_desc,
+            tr("命中 %s 行 / %s 处。") % (rows, occ),
+        ]
+        if exact:
+            lines.append(tr("完整匹配。"))
+        if not case_sensitive:
+            lines.append(tr("不区分大小写。"))
+        if samples:
+            lines.append(tr("例如：%s") % "；".join(samples))
+        if expr_failed:
+            lines.append(tr("另有 %s 行表达式失败，将跳过。") % len(expr_failed))
+        lines.append(tr("继续？"))
+        if QMessageBox.question(self, tr("替换确认"), "\n".join(lines)) != QMessageBox.StandardButton.Yes:
+            return
+
+        updated = self._commit_attribute_values(
+            layer, field_idx, field_name, values, "替换", skip_unchanged=False
+        )
         if updated:
-            self.status.showMessage(
+            self._show_status(
                 tr("替换完成：%s 行 / %s 处 → %s") % (updated, occ, field_name),
                 4000,
             )
+
+    def _replace_expression_values(self, layer, fids, expr_text):
+        """Return ({fid: text}, [(fid, error), ...]). None values means the expression cannot be parsed."""
+        expr_text = expression_from_text(expr_text)
+        exp = QgsExpression(expr_text)
+        if exp.hasParserError():
+            QMessageBox.warning(self, tr("替换"), exp.parserErrorString())
+            return None, []
+        ctx = QgsExpressionContext()
+        ctx.appendScopes(QgsExpressionContextUtils.globalProjectLayerScopes(layer))
+        try:
+            exp.prepare(ctx)
+        except Exception:
+            pass  # nosec B110
+        need_geom = True
+        try:
+            need_geom = bool(exp.needsGeometry())
+        except Exception:
+            need_geom = True
+        values = {}
+        failed = []
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
+        try:
+            req = QgsFeatureRequest().setFilterFids(list(fids))
+            if not need_geom:
+                req.setFlags(QgsFeatureRequest.Flag.NoGeometry)
+            by_id = {}
+            for feat in layer.getFeatures(req):
+                by_id[feat.id()] = feat
+            for fid in fids:
+                feat = by_id.get(fid)
+                if feat is None:
+                    failed.append((fid, tr("要素不在图层里")))
+                    continue
+                ctx.setFeature(feat)
+                raw = exp.evaluate(ctx)
+                if exp.hasEvalError():
+                    failed.append((fid, exp.evalErrorString() or tr("表达式求值失败")))
+                    continue
+                if raw is None or raw == NULL:
+                    values[fid] = ""
+                else:
+                    values[fid] = str(raw)
+        finally:
+            QApplication.restoreOverrideCursor()
+        return values, failed
 
     def _commit_attribute_values(
         self, layer, field_idx, field_name, values, command_name, skip_unchanged=True, in_command=False
@@ -4651,7 +5284,7 @@ class AttributeTableDialog(QDialog):
         except Exception:
             disconnected = False
 
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         canvas = None
         frozen = False
         updated = 0
@@ -4713,31 +5346,6 @@ class AttributeTableDialog(QDialog):
         self._refresh_after_fill(field_name)
         return updated
 
-    def refresh_after_external_edit(self, field_names=None):
-        """Called from 快速命名 after it writes the same layer."""
-        names = [n for n in (field_names or []) if n]
-        if not names:
-            self.model.refresh_cached_attributes()
-            self._update_status()
-            return
-        if len(names) == 1:
-            self._refresh_after_fill(names[0])
-            return
-        need_reload = self.model.sort_field() in names
-        text = self.model.text_filter()
-        if text:
-            ff = self.model.filter_field()
-            if ff is None or ff in names:
-                need_reload = True
-        if need_reload:
-            self.reload_table()
-            return
-        self.model.refresh_cached_attributes()
-        if self.model.sort_field():
-            self._refresh_column_stats(self.model.sort_field())
-        self._update_status()
-        self._schedule_column_widths(0)
-
     def _refresh_after_fill(self, field_name):
         need_reload = self.model.sort_field() == field_name
         text = self.model.text_filter()
@@ -4789,7 +5397,7 @@ class AttributeTableDialog(QDialog):
             QMessageBox.information(self, tr("导出"), tr("无图层。"))
             return
         dlg = ExportCsvDialog(self)
-        if dlg.exec_() != QDialog.Accepted:
+        if run_exec(dlg) != QDialog.DialogCode.Accepted:
             return
         scope = dlg.scope()
         qgis_fmt = dlg.use_qgis_format()
@@ -4800,7 +5408,7 @@ class AttributeTableDialog(QDialog):
         if not path:
             return
 
-        QApplication.setOverrideCursor(Qt.WaitCursor)
+        QApplication.setOverrideCursor(Qt.CursorShape.WaitCursor)
         try:
             if qgis_fmt:
                 self._write_csv_qgis_format(path, scope, coerce_num)
@@ -4815,7 +5423,7 @@ class AttributeTableDialog(QDialog):
         tip_scope = tr("全部要素") if scope == ExportCsvDialog.SCOPE_ALL else tr("当前表格")
         tip_fmt = tr("QGIS格式") if qgis_fmt else tr("自定义列序")
         tip_num = tr("数字文本") if coerce_num else tr("原文")
-        self.status.showMessage(
+        self._show_status(
             tr("已导出（%s / %s / %s）：%s") % (tip_scope, tip_fmt, tip_num, path), 5000
         )
 
@@ -4855,11 +5463,11 @@ class AttributeTableDialog(QDialog):
                 values_by_fid = {}
                 chunk = 2500
                 for i in range(0, len(fids), chunk):
-                    batch = fids[i : i + chunk]
+                    batch = fids[i:i + chunk]
                     req = (
                         QgsFeatureRequest()
                         .setFilterFids(batch)
-                        .setFlags(QgsFeatureRequest.NoGeometry)
+                        .setFlags(QgsFeatureRequest.Flag.NoGeometry)
                         .setSubsetOfAttributes(field_indices)
                     )
                     for feat in self._layer.getFeatures(req):
@@ -4870,7 +5478,7 @@ class AttributeTableDialog(QDialog):
                 for fid in fids:
                     writer.writerow(values_by_fid.get(fid, [""] * len(field_indices)))
             else:
-                req = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
+                req = QgsFeatureRequest().setFlags(QgsFeatureRequest.Flag.NoGeometry)
                 for feat in self._layer.getFeatures(req):
                     writer.writerow(
                         [
@@ -4925,57 +5533,78 @@ class AttributeTableDialog(QDialog):
                 for _, row in collected:
                     writer.writerow(row)
 
+    def _show_status(self, text, timeout=0, html=None):
+        """Left side of the bottom bar.
+
+        timeout 0 is the running summary. A positive timeout is a toast:
+        it replaces the summary, then the summary comes back. The center
+        length and the right-hand stats are separate labels, so a toast
+        does not blank them.
+        """
+        label = getattr(self, "lbl_status", None)
+        if label is None:
+            return
+        if timeout:
+            self._status_toast = True
+            label.setText(text)
+            timer = getattr(self, "_toast_timer", None)
+            if timer is not None:
+                timer.start(int(timeout))
+            return
+        self._status_text = text
+        self._status_html = html or ""
+        if not getattr(self, "_status_toast", False):
+            if self._status_html:
+                label.set_markup(text, self._status_html)
+            else:
+                label.setText(text)
+
+    def _restore_status_text(self):
+        self._status_toast = False
+        label = getattr(self, "lbl_status", None)
+        if label is None:
+            return
+        text = getattr(self, "_status_text", "") or ""
+        html = getattr(self, "_status_html", "") or ""
+        if html:
+            label.set_markup(text, html)
+        else:
+            label.setText(text)
+
     def _update_status(self):
+        self._update_window_title()
         layer = self._layer
         if layer is None:
-            self.status.showMessage(tr("无图层"))
+            self._show_status(tr("无图层"))
             self.lbl_stats.clear()
             self.lbl_stats.setStyleSheet("")
+            self._update_length_label()
             return
         total = layer.featureCount()
         shown = self.model.rowCount()
         selected = len(layer.selectedFeatureIds())
-        if layer.isEditable() and layer.isModified():
-            changed = len(self.model.modified_fids())
-            edit = (
-                tr("编辑·未保存（已改 %s 条）") % changed
-                if changed
-                else tr("编辑·未保存")
-            )
-        elif layer.isEditable():
-            edit = tr("编辑中")
-        else:
-            edit = tr("只读")
-        geom = ""
-        try:
-            geom = {0: tr("点"), 1: tr("线"), 2: tr("面")}.get(int(layer.geometryType()), "")
-        except Exception:
-            geom = ""
-        if geom:
-            geom = "  |  " + geom
         sort = ""
         if self.model.sort_field():
             arrow = "↑" if self.model.sort_ascending() else "↓"
             sort = "  |  " + tr("排序") + " " + self.model.sort_field() + arrow
-        crs = ""
-        try:
-            c = layer.crs()
-            if c is not None and c.isValid():
-                auth = (c.authid() or "").strip()
-                crs = f"  |  {auth}" if auth else f"  |  {c.description()}"
-        except Exception:
-            crs = ""
         empty = ""
         if shown == 0 and total:
             empty = "  |  " + self._empty_result_hint()
-        self.status.showMessage(
-            tr("%s  |  共 %s  |  显示 %s  |  选中 %s  |  %s")
-            % (layer.name() + geom, total, shown, selected, edit)
-            + sort
-            + crs
-            + empty
+        template = tr("共 %s  |  显示 %s  |  选择 %s")
+        plain = template % (total, shown, selected) + sort + empty
+        html = _html_slots(
+            template,
+            [
+                _count_html(total, False),
+                _count_html(shown, shown != total),
+                _count_html(selected, selected != total),
+            ],
         )
+        if html and (sort or empty):
+            html += _html_escape(sort + empty)
+        self._show_status(plain, html=html or None)
         self._update_stats_label()
+        self._update_length_label()
 
     def _empty_result_hint(self):
         """Why the table is empty although the layer has features."""
@@ -5007,14 +5636,19 @@ class AttributeTableDialog(QDialog):
                 return
             if self._sel_dup is not None:
                 kind, detail = self._sel_dup
-                text = tr("选中重名 %s") % detail
+                template = tr("选中重名 %s")
+                text = template % detail
+                html = _html_slots(template, [_bold_digits(detail)])
                 if kind == "dup":
-                    self.lbl_stats.setStyleSheet("color: #c62828; font-weight: bold;")
+                    self.lbl_stats.setStyleSheet("color: #c62828;")
                 elif kind == "none":
-                    self.lbl_stats.setStyleSheet("color: #2e7d32; font-weight: bold;")
+                    self.lbl_stats.setStyleSheet("color: #2e7d32;")
                 else:
                     self.lbl_stats.setStyleSheet("")
-                self.lbl_stats.setText(text)
+                if html:
+                    self.lbl_stats.set_markup(text, html)
+                else:
+                    self.lbl_stats.setText(text)
                 return
 
         if self._stats_mode == "column" and self._stats_field_name:
@@ -5035,20 +5669,134 @@ class AttributeTableDialog(QDialog):
             if self._dup_filtered is not None and self._dup_all is not None:
                 kind_f, text_f = self._dup_filtered
                 kind_a, text_a = self._dup_all
-                text = tr("%s重名 筛选 %s / 全部 %s") % (label, text_f, text_a)
+                template = tr("%s重名 筛选 %s / 全部 %s")
+                text = template % (label, text_f, text_a)
+                html = _html_slots(
+                    template,
+                    [_html_escape(label), _bold_digits(text_f), _bold_digits(text_a)],
+                )
                 if kind_f == "dup" or kind_a == "dup":
-                    self.lbl_stats.setStyleSheet("color: #c62828; font-weight: bold;")
+                    self.lbl_stats.setStyleSheet("color: #c62828;")
                 elif kind_f == "none" and kind_a == "none":
-                    self.lbl_stats.setStyleSheet(
-                        "color: #2e7d32; font-weight: bold;"
-                    )
+                    self.lbl_stats.setStyleSheet("color: #2e7d32;")
                 else:
                     self.lbl_stats.setStyleSheet("")
-                self.lbl_stats.setText(text)
+                if html:
+                    self.lbl_stats.set_markup(text, html)
+                else:
+                    self.lbl_stats.setText(text)
                 return
 
         self.lbl_stats.clear()
         self.lbl_stats.setStyleSheet("")
+
+    def _update_length_label(self):
+        """Bottom center: total real length of the selected features (line layers only).
+
+        The empty state explains itself: the center area carries a tooltip
+        naming the exact reason (param off / not a line layer / no geometry),
+        so a blank middle is never a guess.
+        """
+        label = getattr(self, "lbl_line_length", None)
+        if label is None:
+            return
+        host = getattr(self, "_length_host", None)
+
+        def _tip(text):
+            label.setToolTip(text)
+            if host is not None:
+                host.setToolTip(text)
+
+        if not self._settings.load_show_line_length():
+            label.clear()
+            _tip(tr("参数「显示所选要素的线长度」未开启。"))
+            return
+        layer = self._layer
+        if layer is None or not layer.isSpatial():
+            label.clear()
+            _tip(tr("无图层。") if layer is None else tr("当前图层没有几何。"))
+            return
+        try:
+            gtype = int(layer.geometryType())
+        except Exception:
+            gtype = -1
+        if gtype != 1:  # 1 = LineGeometry; not read from any attribute field
+            label.clear()
+            _tip(tr("当前图层不是线图层。只有线图层显示所选线长。"))
+            return
+        fids = layer.selectedFeatureIds()
+        if not fids:
+            label.setText("—")
+            _tip(tr("线图层，未选中要素时显示「—」。"))
+            return
+        total = self._measure_selected_length(layer, fids)
+        formatted = self._format_length(total)
+        template = tr("所选线长 %s")
+        text = template % formatted
+        html = _html_slots(template, [_bold_digits(formatted)])
+        if html:
+            label.set_markup(text, html)
+        else:
+            label.setText(text)
+        _tip(tr("线图层：已选 %d 条，线长合计 %s。") % (len(fids), formatted))
+
+    def _measure_selected_length(self, layer, fids):
+        """Sum geometry length of the selected features.
+
+        Geographic CRS: ellipsoidal length (QgsDistanceArea + project ellipsoid).
+        Projected CRS: planar length in CRS units (usually meters).
+        Never reads a length attribute; geometry only, no attributes fetched.
+        """
+        from qgis.core import QgsDistanceArea, QgsFeatureRequest, QgsProject
+
+        total = 0.0
+        crs = layer.crs()
+        da = None
+        try:
+            if crs is not None and crs.isValid() and crs.isGeographic():
+                da = QgsDistanceArea()
+                da.setSourceCrs(crs, QgsProject.instance().transformContext())
+                da.setEllipsoid(QgsProject.instance().ellipsoid())
+        except Exception:
+            da = None
+        try:
+            req = QgsFeatureRequest().setFilterFids(list(fids))
+            # QGIS 3.40 renamed the flag to setNoAttributes(); older builds
+            # only know setFlags(NoAttributes). Probe instead of relying on
+            # the AttributeError fallback path.
+            setter = getattr(req, "setNoAttributes", None)
+            if callable(setter):
+                setter()
+            else:
+                req.setFlags(QgsFeatureRequest.NoAttributes)
+        except Exception:
+            req = QgsFeatureRequest().setFilterFids(list(fids))
+        for feat in layer.getFeatures(req):
+            geom = feat.geometry()
+            if geom is None or geom.isEmpty():
+                continue
+            try:
+                if da is not None:
+                    total += da.measureLength(geom)
+                else:
+                    total += geom.length()
+            except Exception:
+                continue  # nosec B112
+        return total
+
+    @staticmethod
+    def _format_length(meters):
+        try:
+            meters = float(meters)
+        except (TypeError, ValueError):
+            return "—"
+        if meters < 0:
+            return "—"
+        if meters >= 1000:
+            text = ("%.2f" % (meters / 1000.0)).rstrip("0").rstrip(".")
+            return "%s km" % text
+        text = ("%.2f" % meters).rstrip("0").rstrip(".")
+        return "%s m" % text
 
     def _selected_cell_indexes(self):
         seen = set()
@@ -5092,7 +5840,7 @@ class AttributeTableDialog(QDialog):
                     pass  # nosec B110
 
     def keyPressEvent(self, event):
-        if event.matches(QKeySequence.Copy):
+        if event.matches(QKeySequence.StandardKey.Copy):
             self._copy_by_shortcut()
             return
         super().keyPressEvent(event)
@@ -5114,7 +5862,7 @@ class AttributeTableDialog(QDialog):
     def _copy_selected_cells(self):
         indexes = self._selected_cell_indexes()
         if not indexes:
-            self.status.showMessage(tr("请先选择单元格"), 3000)
+            self._show_status(tr("请先选择单元格"), 3000)
             return
         cells = {}
         rows = set()
@@ -5124,7 +5872,7 @@ class AttributeTableDialog(QDialog):
             col = idx.column()
             rows.add(row)
             cols.add(col)
-            val = self.model.data(idx, Qt.EditRole)
+            val = self.model.data(idx, Qt.ItemDataRole.EditRole)
             cells[(row, col)] = self._cell_clipboard_text(val)
         row_list = sorted(rows)
         col_list = sorted(cols)
@@ -5137,7 +5885,7 @@ class AttributeTableDialog(QDialog):
             QMessageBox.warning(self, tr("复制"), tr("无法访问剪贴板。"))
             return
         clip.setText(text)
-        self.status.showMessage(tr("已复制 %s 个单元格到剪贴板") % len(indexes), 3000)
+        self._show_status(tr("已复制 %s 个单元格到剪贴板") % len(indexes), 3000)
 
     def _copy_features(self):
         layer = self._layer
@@ -5145,14 +5893,14 @@ class AttributeTableDialog(QDialog):
             return
         n = len(layer.selectedFeatureIds())
         if n == 0:
-            self.status.showMessage(tr("请先选中要素（选择单元格会同步选中对应行）"), 3000)
+            self._show_status(tr("请先选中要素（选择单元格会同步选中对应行）"), 3000)
             return
         act = self.iface.actionCopyFeatures()
         if act is None:
             QMessageBox.warning(self, tr("复制"), tr("当前 QGIS 无复制要素动作。"))
             return
         if self._with_layer_as_active(lambda: act.trigger()):
-            self.status.showMessage(tr("已复制 %s 个要素到剪贴板") % n, 3000)
+            self._show_status(tr("已复制 %s 个要素到剪贴板") % n, 3000)
 
     def _cut_features(self):
         layer = self._layer
@@ -5163,7 +5911,7 @@ class AttributeTableDialog(QDialog):
             return
         n = len(layer.selectedFeatureIds())
         if n == 0:
-            self.status.showMessage(tr("请先选中要剪切的要素"), 3000)
+            self._show_status(tr("请先选中要剪切的要素"), 3000)
             return
         act = self.iface.actionCutFeatures()
         if act is None:
@@ -5171,7 +5919,7 @@ class AttributeTableDialog(QDialog):
             return
         if self._with_layer_as_active(lambda: act.trigger()):
             self.reload_table()
-            self.status.showMessage(tr("已剪切 %s 个要素") % n, 3000)
+            self._show_status(tr("已剪切 %s 个要素") % n, 3000)
 
     def _paste_features(self):
         layer = self._layer
@@ -5181,7 +5929,7 @@ class AttributeTableDialog(QDialog):
             QMessageBox.information(self, tr("粘贴"), tr("请先切换到编辑模式。"))
             return
         if clipboard_is_roundtrip(self._clipboard_text()):
-            self.status.showMessage(tr("剪贴板是「编号 + 值」两列 → 按编号粘贴回列"), 4000)
+            self._show_status(tr("剪贴板是「编号 + 值」两列 → 按编号粘贴回列"), 4000)
             self._paste_roundtrip_column(None)
             return
         act = self.iface.actionPasteFeatures()
@@ -5190,7 +5938,7 @@ class AttributeTableDialog(QDialog):
             return
         if self._with_layer_as_active(lambda: act.trigger()):
             self._schedule_reload()
-            self.status.showMessage(tr("剪贴板不是可回贴格式 → 已按 QGIS 要素粘贴（新增要素）"), 4000)
+            self._show_status(tr("剪贴板不是可回贴格式 → 已按 QGIS 要素粘贴（新增要素）"), 4000)
 
     def showEvent(self, event):
         super().showEvent(event)
@@ -5239,6 +5987,15 @@ class AttributeTableDialog(QDialog):
         self._disconnect_layer_signals()
         self._detach_remarks_hub()
         self._remarks_hub = None
+        # Shortcut carriers live on this widget; remove them explicitly so a
+        # closed table never leaves stale QActions behind.
+        for act in getattr(self, "_shortcut_carriers", []):
+            try:
+                self.removeAction(act)
+                act.deleteLater()
+            except Exception:
+                pass  # nosec B110
+        self._shortcut_carriers = []
         try:
             QgsProject.instance().readProject.disconnect(self._on_project_read)
         except Exception:

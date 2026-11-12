@@ -1,0 +1,20 @@
+[flake8]
+max-line-length = 120
+per-file-ignores =
+    messages_en.py: E501
+    messages_en_extra.py: E501
+    catalog.py: E501
+    help_pages.py: E501
+    help_en.py: E501
+    help_es.py: E501
+    help_fr.py: E501
+    help_de.py: E501
+    help_ar.py: E501
+    help_ja.py: E501
+    help_ko.py: E501
+    es.py: E501
+    fr.py: E501
+    ar.py: E501
+    de.py: E501
+    ja.py: E501
+    ko.py: E501

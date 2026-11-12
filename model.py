@@ -95,7 +95,7 @@ class FeatureCache:
         if not missing:
             return
         req = QgsFeatureRequest().setFilterFids(missing)
-        req.setFlags(QgsFeatureRequest.NoGeometry)
+        req.setFlags(QgsFeatureRequest.Flag.NoGeometry)
         if field_indices:
             req.setSubsetOfAttributes(list(field_indices))
         for feat in layer.getFeatures(req):
@@ -109,7 +109,7 @@ class FeatureTableModel(QAbstractTableModel):
     Sorting treats numeric text as numbers.
     """
 
-    FID_ROLE = Qt.UserRole + 1
+    FID_ROLE = Qt.ItemDataRole.UserRole + 1
 
     # message shown when a cell edit cannot be stored in the field
     editRejected = pyqtSignal(str)
@@ -142,6 +142,7 @@ class FeatureTableModel(QAbstractTableModel):
         self._vm_by_idx = None
         self._vm_label_by_idx = None
         self._show_note = True
+        self._header_mode = "both"
         self._modified_brush = QBrush(QColor(255, 240, 190))
         # per display column: editable by config/origin, right aligned
         self._col_editable = None
@@ -167,7 +168,7 @@ class FeatureTableModel(QAbstractTableModel):
         self.invalidate_value_maps()
         self.invalidate_column_cache()
         self.invalidate_modified()
-        if layer is not None and layer.isValid() and layer.type() == QgsMapLayer.VectorLayer:
+        if layer is not None and layer.isValid() and layer.type() == QgsMapLayer.LayerType.VectorLayer:
             fields = layer.fields()
             for i in range(fields.count()):
                 f = fields.at(i)
@@ -335,12 +336,12 @@ class FeatureTableModel(QAbstractTableModel):
         cols = self.columnCount()
         rows = self.rowCount()
         if cols > 0:
-            self.headerDataChanged.emit(Qt.Horizontal, 0, cols - 1)
+            self.headerDataChanged.emit(Qt.Orientation.Horizontal, 0, cols - 1)
         if rows > 0 and cols > 0:
             self.dataChanged.emit(
                 self.index(0, 0),
                 self.index(rows - 1, cols - 1),
-                [Qt.DisplayRole, Qt.ToolTipRole],
+                [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole],
             )
 
     def _refresh_field_aliases(self):
@@ -394,9 +395,28 @@ class FeatureTableModel(QAbstractTableModel):
         entry = self._field_remarks.get(field_name) or {}
         return entry.get("notes") or ""
 
-    @staticmethod
-    def _format_header(name, alias, remark_label=""):
+    HEADER_MODES = ("both", "alias", "name")
+
+    def header_mode(self):
+        return getattr(self, "_header_mode", "both")
+
+    def set_header_mode(self, mode):
+        mode = mode if mode in self.HEADER_MODES else "both"
+        if mode == self.header_mode():
+            return
+        self._header_mode = mode
+        cols = self.columnCount()
+        if cols > 0:
+            self.headerDataChanged.emit(Qt.Orientation.Horizontal, 0, cols - 1)
+
+    def _format_header(self, name, alias, remark_label=""):
+        """both: alias over the field name; alias: alias, else the name; name: field name only."""
+        mode = self.header_mode()
+        if mode == "name":
+            return name
         display = (remark_label or "").strip() or (alias or "").strip()
+        if mode == "alias":
+            return display or name
         if display and display != name:
             return f"{display}\n{name}"
         return name
@@ -491,7 +511,7 @@ class FeatureTableModel(QAbstractTableModel):
         cat_expr = (self._category_filter_expr or "").strip()
         need_attrs = bool(self._text_filter) or bool(self._sort_field) or bool(cat_expr)
         # The extent filter is a bounding-box test done by the provider; rows never need geometry.
-        req.setFlags(QgsFeatureRequest.NoGeometry)
+        req.setFlags(QgsFeatureRequest.Flag.NoGeometry)
         if not need_attrs:
             req.setNoAttributes()
 
@@ -642,11 +662,11 @@ class FeatureTableModel(QAbstractTableModel):
             return 0
         return len(self._fields)
 
-    def headerData(self, section, orientation, role=Qt.DisplayRole):
-        if orientation == Qt.Horizontal and 0 <= section < len(self._fields):
+    def headerData(self, section, orientation, role=Qt.ItemDataRole.DisplayRole):
+        if orientation == Qt.Orientation.Horizontal and 0 <= section < len(self._fields):
             idx, name, typename, alias = self._fields[section]
             remark_label = self._remark_label(name)
-            if role == Qt.DisplayRole:
+            if role == Qt.ItemDataRole.DisplayRole:
                 label = self._format_header(name, alias, remark_label)
                 if self._sort_field == name:
                     arrow = " ▲" if self._sort_asc else " ▼"
@@ -655,7 +675,7 @@ class FeatureTableModel(QAbstractTableModel):
                     parts[0] = parts[0] + arrow
                     return "\n".join(parts)
                 return label
-            if role == Qt.ToolTipRole:
+            if role == Qt.ItemDataRole.ToolTipRole:
                 from .remarks_store import format_hover_text
 
                 display = remark_label or ((alias or "").strip())
@@ -666,11 +686,11 @@ class FeatureTableModel(QAbstractTableModel):
                     self._remark_notes(name),
                     variables=getattr(self, "_pack_variables", None) or [],
                 )
-        if orientation == Qt.Vertical:
+        if orientation == Qt.Orientation.Vertical:
             if 0 <= section < len(self._fids):
-                if role == Qt.DisplayRole:
+                if role == Qt.ItemDataRole.DisplayRole:
                     return str(section + 1)  # 1-based row number
-                if role == Qt.ToolTipRole:
+                if role == Qt.ItemDataRole.ToolTipRole:
                     return tr("序号 %d\nFID %s\n双击缩放到该要素") % (
                         section + 1,
                         self._fids[section],
@@ -679,15 +699,15 @@ class FeatureTableModel(QAbstractTableModel):
 
     def flags(self, index):
         if not index.isValid():
-            return Qt.NoItemFlags
-        flags = Qt.ItemIsEnabled | Qt.ItemIsSelectable
+            return Qt.ItemFlag.NoItemFlags
+        flags = Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable
         layer = self._layer
         if layer is not None and layer.isEditable():
             if self._col_editable is None:
                 self._build_column_cache()
             col = index.column()
             if 0 <= col < len(self._col_editable) and self._col_editable[col]:
-                flags |= Qt.ItemIsEditable
+                flags |= Qt.ItemFlag.ItemIsEditable
         return flags
 
     def column_editable(self, col):
@@ -695,7 +715,7 @@ class FeatureTableModel(QAbstractTableModel):
             self._build_column_cache()
         return 0 <= col < len(self._col_editable) and self._col_editable[col]
 
-    def data(self, index, role=Qt.DisplayRole):
+    def data(self, index, role=Qt.ItemDataRole.DisplayRole):
         if not index.isValid() or self._layer is None:
             return None
         row, col = index.row(), index.column()
@@ -715,17 +735,17 @@ class FeatureTableModel(QAbstractTableModel):
         value = self._attr(feat, field_idx)
 
         is_null = value is None or value == NULL
-        if role == Qt.DisplayRole:
+        if role == Qt.ItemDataRole.DisplayRole:
             if self._show_note and not is_null:
                 mapped = self.value_map_label(field_idx, value)
                 if mapped:
                     return mapped
             return self._display_value(value)
-        if role == Qt.EditRole:
+        if role == Qt.ItemDataRole.EditRole:
             if is_null:
                 return None
             return value
-        if role == Qt.ToolTipRole:
+        if role == Qt.ItemDataRole.ToolTipRole:
             modified = self._cell_modified(fid, field_idx)
             tip = None
             if is_null:
@@ -741,26 +761,26 @@ class FeatureTableModel(QAbstractTableModel):
             if modified:
                 return (tip + "\n" if tip else "") + tr("（已修改，未保存）")
             return tip
-        if role == Qt.BackgroundRole:
+        if role == Qt.ItemDataRole.BackgroundRole:
             if self._cell_modified(fid, field_idx):
                 return self._modified_brush
             if is_null:
                 return self._null_brush
-        if role == Qt.ForegroundRole:
+        if role == Qt.ItemDataRole.ForegroundRole:
             if is_null:
                 return self._null_fg
-        if role == Qt.FontRole:
+        if role == Qt.ItemDataRole.FontRole:
             if is_null:
                 return self._null_font
-        if role == Qt.TextAlignmentRole:
+        if role == Qt.ItemDataRole.TextAlignmentRole:
             if self._col_align is None:
                 self._build_column_cache()
             if 0 <= col < len(self._col_align) and self._col_align[col]:
-                return int(Qt.AlignRight | Qt.AlignVCenter)
+                return int(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         return None
 
-    def setData(self, index, value, role=Qt.EditRole):
-        if role != Qt.EditRole or not index.isValid() or self._layer is None:
+    def setData(self, index, value, role=Qt.ItemDataRole.EditRole):
+        if role != Qt.ItemDataRole.EditRole or not index.isValid() or self._layer is None:
             return False
         if not self._layer.isEditable():
             return False
@@ -802,11 +822,11 @@ class FeatureTableModel(QAbstractTableModel):
                 index,
                 index,
                 [
-                    Qt.DisplayRole,
-                    Qt.EditRole,
-                    Qt.BackgroundRole,
-                    Qt.ForegroundRole,
-                    Qt.FontRole,
+                    Qt.ItemDataRole.DisplayRole,
+                    Qt.ItemDataRole.EditRole,
+                    Qt.ItemDataRole.BackgroundRole,
+                    Qt.ItemDataRole.ForegroundRole,
+                    Qt.ItemDataRole.FontRole,
                 ],
             )
         return ok
@@ -911,11 +931,11 @@ class FeatureTableModel(QAbstractTableModel):
         if layer is None or not fids or not field_indices:
             return out
         for i in range(0, len(fids), chunk):
-            batch = fids[i : i + chunk]
+            batch = fids[i:i + chunk]
             req = (
                 QgsFeatureRequest()
                 .setFilterFids(batch)
-                .setFlags(QgsFeatureRequest.NoGeometry)
+                .setFlags(QgsFeatureRequest.Flag.NoGeometry)
                 .setSubsetOfAttributes(list(field_indices))
             )
             for feat in layer.getFeatures(req):
@@ -967,12 +987,12 @@ class FeatureTableModel(QAbstractTableModel):
             self.index(0, 0),
             self.index(rows - 1, cols - 1),
             [
-                Qt.DisplayRole,
-                Qt.EditRole,
-                Qt.BackgroundRole,
-                Qt.ForegroundRole,
-                Qt.FontRole,
-                Qt.ToolTipRole,
+                Qt.ItemDataRole.DisplayRole,
+                Qt.ItemDataRole.EditRole,
+                Qt.ItemDataRole.BackgroundRole,
+                Qt.ItemDataRole.ForegroundRole,
+                Qt.ItemDataRole.FontRole,
+                Qt.ItemDataRole.ToolTipRole,
             ],
         )
 
@@ -994,7 +1014,7 @@ class FeatureTableModel(QAbstractTableModel):
             self.dataChanged.emit(
                 self.index(0, 0),
                 self.index(rows - 1, cols - 1),
-                [Qt.DisplayRole, Qt.ToolTipRole],
+                [Qt.ItemDataRole.DisplayRole, Qt.ItemDataRole.ToolTipRole],
             )
 
     def _build_value_maps(self):

@@ -107,7 +107,7 @@ class UniqueValuesDialog(QDialog):
         lay = QVBoxLayout(self)
         info = QLabel(
             tr("范围：当前表格里的 %d 行（受范围/过滤/筛选影响），共 %d 个不同值。"
-            "勾选后可筛选或选中。") % (total, len(groups))
+               "勾选后可筛选或选中。") % (total, len(groups))
         )
         info.setWordWrap(True)
         lay.addWidget(info)
@@ -120,14 +120,14 @@ class UniqueValuesDialog(QDialog):
 
         self.table = QTableWidget(0, 4)
         self.table.setHorizontalHeaderLabels([tr("值"), tr("含义"), tr("条数"), tr("占比")])
-        self.table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.table.setSelectionBehavior(QAbstractItemView.SelectRows)
+        self.table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
         self.table.verticalHeader().setVisible(False)
         hh = self.table.horizontalHeader()
-        hh.setSectionResizeMode(self.COL_VALUE, QHeaderView.Stretch)
-        hh.setSectionResizeMode(self.COL_LABEL, QHeaderView.Stretch)
-        hh.setSectionResizeMode(self.COL_COUNT, QHeaderView.ResizeToContents)
-        hh.setSectionResizeMode(self.COL_SHARE, QHeaderView.ResizeToContents)
+        hh.setSectionResizeMode(self.COL_VALUE, QHeaderView.ResizeMode.Stretch)
+        hh.setSectionResizeMode(self.COL_LABEL, QHeaderView.ResizeMode.Stretch)
+        hh.setSectionResizeMode(self.COL_COUNT, QHeaderView.ResizeMode.ResizeToContents)
+        hh.setSectionResizeMode(self.COL_SHARE, QHeaderView.ResizeMode.ResizeToContents)
         lay.addWidget(self.table, 1)
 
         self.table.setRowCount(len(groups))
@@ -144,20 +144,20 @@ class UniqueValuesDialog(QDialog):
                 num = try_parse_number(raw)
                 sort_val = (1, float(num), "") if num is not None else (2, 0.0, text.casefold())
             it_value = _SortItem(text, sort_val)
-            it_value.setFlags(it_value.flags() | Qt.ItemIsUserCheckable)
-            it_value.setCheckState(Qt.Unchecked)
-            it_value.setData(Qt.UserRole, row)
+            it_value.setFlags(it_value.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            it_value.setCheckState(Qt.CheckState.Unchecked)
+            it_value.setData(Qt.ItemDataRole.UserRole, row)
             self.table.setItem(row, self.COL_VALUE, it_value)
             self.table.setItem(row, self.COL_LABEL, _SortItem(label, label.casefold()))
             it_count = _SortItem(str(count), count)
-            it_count.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            it_count.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.table.setItem(row, self.COL_COUNT, it_count)
             share = (100.0 * count / total) if total else 0.0
             it_share = _SortItem("%.1f%%" % share, share)
-            it_share.setTextAlignment(Qt.AlignRight | Qt.AlignVCenter)
+            it_share.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.table.setItem(row, self.COL_SHARE, it_share)
         self.table.setSortingEnabled(True)
-        self.table.sortItems(self.COL_COUNT, Qt.DescendingOrder)
+        self.table.sortItems(self.COL_COUNT, Qt.SortOrder.DescendingOrder)
 
         pick = QHBoxLayout()
         btn_all = QPushButton(tr("全勾"))
@@ -195,7 +195,7 @@ class UniqueValuesDialog(QDialog):
         item = self.table.item(table_row, self.COL_VALUE)
         if item is None:
             return None, None
-        key = self._keys[item.data(Qt.UserRole)]
+        key = self._keys[item.data(Qt.ItemDataRole.UserRole)]
         return key, self._groups[key]
 
     def _check_where(self, pred):
@@ -205,7 +205,7 @@ class UniqueValuesDialog(QDialog):
             key, slot = self._group_at(r)
             if key is None:
                 continue
-            state = Qt.Checked if pred(key, len(slot[1])) else Qt.Unchecked
+            state = Qt.CheckState.Checked if pred(key, len(slot[1])) else Qt.CheckState.Unchecked
             self.table.item(r, self.COL_VALUE).setCheckState(state)
 
     def _apply_find(self, text):
@@ -224,7 +224,7 @@ class UniqueValuesDialog(QDialog):
         out = []
         for r in range(self.table.rowCount()):
             item = self.table.item(r, self.COL_VALUE)
-            if item is not None and item.checkState() == Qt.Checked:
+            if item is not None and item.checkState() == Qt.CheckState.Checked:
                 key, slot = self._group_at(r)
                 if key is not None:
                     out.append((key, slot))

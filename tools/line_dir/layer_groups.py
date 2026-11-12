@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from ...i18n import tr
+from ...qt_compat import run_exec
 from qgis.core import (
     QgsProject,
     QgsVectorLayer,
@@ -28,7 +29,6 @@ from qgis.PyQt.QtWidgets import (
     QListWidgetItem,
     QAbstractItemView,
     QPushButton,
-    QCheckBox,
     QRadioButton,
     QSizePolicy,
     QTableWidget,
@@ -374,16 +374,20 @@ class LayerGroupTable(QFrame):
         if group_tip:
             icon_lab.setToolTip(group_tip)
             title_lab.setToolTip(group_tip)
+        self.icon_lab = icon_lab
+        self.title_lab = title_lab
         head.addWidget(icon_lab)
         head.addWidget(title_lab)
         head.addStretch()
         add_btn = QPushButton(tr("增加"))
         add_btn.setObjectName("miniBtn")
         add_btn.clicked.connect(lambda: self.add_row(""))
+        self.add_btn = add_btn
         head.addWidget(add_btn)
         del_btn = QPushButton(tr("删除"))
         del_btn.setObjectName("miniBtn")
         del_btn.clicked.connect(self.remove_selected)
+        self.del_btn = del_btn
         head.addWidget(del_btn)
         root.addLayout(head)
         self.table = QTableWidget()
@@ -409,6 +413,26 @@ class LayerGroupTable(QFrame):
             self._init_field_combo(self.extra_field_combo, self.extra_field_hint, extra_field_tip)
             field_row.addWidget(self.extra_field_combo, stretch=1)
         root.addLayout(field_row)
+
+    def retranslate(self, title=None, group_tip=None):
+        """Refresh chrome that was built in the language of the moment the table opened."""
+        if title is not None and getattr(self, "title_lab", None) is not None:
+            self.title_lab.setText(title)
+        if group_tip is not None:
+            if getattr(self, "title_lab", None) is not None:
+                self.title_lab.setToolTip(group_tip)
+            if getattr(self, "icon_lab", None) is not None:
+                self.icon_lab.setToolTip(group_tip)
+        if getattr(self, "add_btn", None) is not None:
+            self.add_btn.setText(tr("增加"))
+        if getattr(self, "del_btn", None) is not None:
+            self.del_btn.setText(tr("删除"))
+        self.table.setHorizontalHeaderLabels([tr("图层"), tr("分类")])
+        for row in range(self.table.rowCount()):
+            widget = self.table.cellWidget(row, 0)
+            if isinstance(widget, QLineEdit) and widget.isReadOnly():
+                widget.setToolTip(tr("图层不存在: %s") % widget.text())
+            self._set_filter_button(row)
 
     def _init_field_combo(self, combo, hint, tooltip=""):
         combo.setEditable(True)
@@ -499,11 +523,11 @@ class LayerGroupTable(QFrame):
             layer_combo = QgsMapLayerComboBox()
             layer_combo.setAllowEmptyLayer(True)
             if self.geometry_type == "point":
-                layer_combo.setFilters(QgsMapLayerProxyModel.PointLayer)
+                layer_combo.setFilters(QgsMapLayerProxyModel.Filter.PointLayer)
             elif self.geometry_type == "line":
-                layer_combo.setFilters(QgsMapLayerProxyModel.LineLayer)
+                layer_combo.setFilters(QgsMapLayerProxyModel.Filter.LineLayer)
             else:
-                layer_combo.setFilters(QgsMapLayerProxyModel.VectorLayer)
+                layer_combo.setFilters(QgsMapLayerProxyModel.Filter.VectorLayer)
             wf = WheelBlockerFilter(self)
             layer_combo.installEventFilter(wf)
             self._wheel_filters.append(wf)
@@ -588,7 +612,7 @@ class LayerGroupTable(QFrame):
             parent=self.window(),
             include_unchecked=self._include_unchecked,
         )
-        accepted = dlg.exec() if hasattr(dlg, "exec") else dlg.exec_()
+        accepted = run_exec(dlg)
         if not accepted:
             return
         self._row_filters[row] = dlg.result_filter()
@@ -930,9 +954,13 @@ class ParamDialog(QDialog):
         self.spin_angle.setSuffix(" °")
         form.addRow(tr("起始角度"), self.spin_angle)
         snap_root.addLayout(form)
-        angle_hint = QLabel(
-            tr('0°正北，90°正东，180°正南，270°正西。按出线第一段，不是线末端。方向和起始角只给光交 ODF：第一段主干一样长时才用来打破平局。接头分叉比该方向全部户数和到下一接头的主干长度，不用角度。分纤盒链路比户数和到首盒的线长，也不用角度。赋值和命名方案在「方案」页，六个功能各自一份。')
-        )
+        angle_hint = QLabel(tr(
+            "0°正北，90°正东，180°正南，270°正西。按出线第一段，不是线末端。"
+            "方向和起始角只给光交 ODF：第一段主干一样长时才用来打破平局。"
+            "接头分叉比该方向全部户数和到下一接头的主干长度，不用角度。"
+            "分纤盒链路比户数和到首盒的线长，也不用角度。"
+            "赋值和命名方案在「方案」页，六个功能各自一份。"
+        ))
         angle_hint.setWordWrap(True)
         snap_root.addWidget(angle_hint)
         snap_root.addStretch(1)
@@ -1042,9 +1070,11 @@ class ParamDialog(QDialog):
     def _build_scheme_page(self, action_schemes, scheme_id, accumulate):
         page = QWidget()
         root = QVBoxLayout(page)
-        intro = QLabel(
-            tr('组网骨架不变：光交 → 主干 → 接头 → 配线 → 分纤盒 → 入户。这里只改每个功能怎么写编号。六个功能各自独立，互不影响。以后加方案：在 ntal_scheme.py 的 ACTION_SCHEMES 对应功能下追加一行即可。')
-        )
+        intro = QLabel(tr(
+            "组网骨架不变：光交 → 主干 → 接头 → 配线 → 分纤盒 → 入户。"
+            "这里只改每个功能怎么写编号。六个功能各自独立，互不影响。"
+            "以后加方案：在 ntal_scheme.py 的 ACTION_SCHEMES 对应功能下追加一行即可。"
+        ))
         intro.setWordWrap(True)
         intro.setStyleSheet("color: #555;")
         root.addWidget(intro)
@@ -1054,7 +1084,7 @@ class ParamDialog(QDialog):
         try:
             tip_role = Qt.ItemDataRole.ToolTipRole
         except AttributeError:
-            tip_role = Qt.ToolTipRole
+            tip_role = Qt.ItemDataRole.ToolTipRole
         for action, sid, title, tooltip in iter_action_scheme_rows():
             if action not in self.combo_action_scheme:
                 combo = QComboBox()
@@ -1112,7 +1142,8 @@ class ParamDialog(QDialog):
         else:
             self.dir_ccw.setChecked(True)
         try:
-            self.spin_angle.setValue(float(params.get("start_angle") if params.get("start_angle") is not None else 100.0))
+            raw_angle = params.get("start_angle")
+            self.spin_angle.setValue(float(100.0 if raw_angle is None else raw_angle))
         except (TypeError, ValueError):
             pass  # nosec B110
         self._apply_action_schemes(params)

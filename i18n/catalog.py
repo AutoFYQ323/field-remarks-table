@@ -6,6 +6,9 @@ LANG_EN = "en"
 LANG_ES = "es"
 LANG_FR = "fr"
 LANG_AR = "ar"
+LANG_DE = "de"
+LANG_JA = "ja"
+LANG_KO = "ko"
 
 # First-launch match uses the language code before the region (es_MX -> es).
 _LOCALE_PREFIX = (
@@ -13,7 +16,23 @@ _LOCALE_PREFIX = (
     ("es", LANG_ES),
     ("fr", LANG_FR),
     ("ar", LANG_AR),
+    ("de", LANG_DE),
+    ("ja", LANG_JA),
+    ("ko", LANG_KO),
     ("en", LANG_EN),
+)
+
+# Every language name is always shown in its own spelling (endonym),
+# whatever the interface language is.
+ENDONYMS = (
+    (LANG_ZH, "中文"),
+    (LANG_EN, "English"),
+    (LANG_ES, "Español"),
+    (LANG_FR, "Français"),
+    (LANG_AR, "العربية"),
+    (LANG_DE, "Deutsch"),
+    (LANG_JA, "日本語"),
+    (LANG_KO, "한국어"),
 )
 
 _EN = {
@@ -68,7 +87,6 @@ _EN = {
     "拖拽调整顺序（分隔线也可拖动）。确定后本地保存：":
         "Drag to reorder (separators too). Saved locally on OK:",
     "插入分隔线": "Insert separator",
-    "恢复默认": "Reset default",
     "—— 分隔线 ——": "— Separator —",
     "隐藏": "Hide",
     "显示": "Show",
@@ -197,14 +215,8 @@ _EN.update(
 
 
 def available_languages():
-    """Chinese msgids. The language menu translates each label."""
-    return (
-        (LANG_ZH, "中文"),
-        (LANG_EN, "英文"),
-        (LANG_ES, "西班牙文"),
-        (LANG_FR, "法文"),
-        (LANG_AR, "阿拉伯文"),
-    )
+    """(code, own-language name). Menu labels never translate."""
+    return ENDONYMS
 
 
 def known_languages():
@@ -214,8 +226,8 @@ def known_languages():
 def detect_initial_language(qgis_locale=None, system_locale=None):
     """Prefer QGIS locale, then the system locale.
 
-    A supported code (zh / en / es / fr / ar) is used as-is.
-    Any other non-empty locale, such as German, uses English.
+    A supported code (zh / en / es / fr / ar / de / ja / ko) is used as-is.
+    Any other non-empty locale, such as Italian, uses English.
     When both locales are empty, Chinese is the fallback.
     """
     saw = False

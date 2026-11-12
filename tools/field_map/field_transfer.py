@@ -20,7 +20,7 @@ LOG_TAG = "字段备注表"
 _FIELD_SEP_RE = re.compile(r"[\s_\-]+")
 
 
-def _log(message, level=Qgis.Info):
+def _log(message, level=Qgis.MessageLevel.Info):
     QgsMessageLog.logMessage(message, LOG_TAG, level)
 
 
@@ -134,7 +134,7 @@ def field_fill_stats(layer):
         return {}
     filled = [0] * len(names)
     total = 0
-    request = QgsFeatureRequest().setFlags(QgsFeatureRequest.NoGeometry)
+    request = QgsFeatureRequest().setFlags(QgsFeatureRequest.Flag.NoGeometry)
     request.setSubsetOfAttributes(list(range(len(names))))
     for feature in layer.getFeatures(request):
         total += 1

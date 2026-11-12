@@ -1,7 +1,6 @@
 # -*- coding: utf-8 -*-
 """Self-check: remap renamed layers/fields when opening field remarks."""
 
-from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
     QComboBox,
     QDialog,
@@ -16,6 +15,7 @@ from qgis.PyQt.QtWidgets import (
     QWidget,
 )
 from .i18n import localize_button_box, tr
+from .qt_compat import run_exec
 
 from qgis.core import QgsMapLayer, QgsProject
 
@@ -38,7 +38,7 @@ def project_vector_layers():
             ok = (
                 layer is not None
                 and hasattr(layer, "type")
-                and layer.type() == QgsMapLayer.VectorLayer
+                and layer.type() == QgsMapLayer.LayerType.VectorLayer
             )
         except Exception:
             ok = False
@@ -194,7 +194,7 @@ class RemapDialog(QDialog):
         root = QVBoxLayout(self)
         tip = QLabel(
             tr("名字相同的已自动对应。下面只列出对不上的项。"
-            "选「删除」才会丢掉这一份配置。")
+               "选「删除」才会丢掉这一份配置。")
         )
         tip.setWordWrap(True)
         root.addWidget(tip)
@@ -210,10 +210,10 @@ class RemapDialog(QDialog):
 
         self.copied = False
         self._session = None
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         localize_button_box(buttons)
-        buttons.button(QDialogButtonBox.Cancel).setText(tr("返回重新选择"))
-        btn_copy = buttons.addButton(tr("复制为新项目"), QDialogButtonBox.ActionRole)
+        buttons.button(QDialogButtonBox.StandardButton.Cancel).setText(tr("返回重新选择"))
+        btn_copy = buttons.addButton(tr("复制为新项目"), QDialogButtonBox.ButtonRole.ActionRole)
         btn_copy.clicked.connect(self._copy_as_new)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -450,7 +450,7 @@ def run_self_check(session, parent=None):
             "、".join(missing_layers),
         )
         ask = _MismatchAskDialog(tr("图层对不上"), msg, parent)
-        if ask.exec_() != QDialog.Accepted:
+        if run_exec(ask) != QDialog.DialogCode.Accepted:
             return RESET_DEFAULT
         if ask.choice == "copy":
             if copy_current_pack_drop_orphans(session, parent):
@@ -461,7 +461,7 @@ def run_self_check(session, parent=None):
 
     remap = RemapDialog(dict(session._layers()), qgis_layers, parent)
     remap.set_session(session)
-    if remap.exec_() != QDialog.Accepted:
+    if run_exec(remap) != QDialog.DialogCode.Accepted:
         return RESET_DEFAULT
     if getattr(remap, "copied", False):
         return True

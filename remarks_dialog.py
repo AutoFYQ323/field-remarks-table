@@ -7,8 +7,6 @@ from qgis.PyQt.QtCore import QEvent, QObject, Qt, pyqtSignal, QTimer
 from qgis.PyQt.QtGui import QColor, QFont, QIcon, QPalette, QPixmap
 from qgis.PyQt.QtWidgets import (
     QAbstractItemView,
-    QApplication,
-    QCheckBox,
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -27,30 +25,19 @@ from qgis.PyQt.QtWidgets import (
     QTreeWidgetItem,
     QSizePolicy,
     QSplitter,
+    QTextBrowser,
     QToolTip,
     QVBoxLayout,
     QWidget,
 )
-from .i18n import language_changed, localize_button_box, tr
+from .i18n import current_language, language_changed, localize_button_box, tr
+from .i18n.help_pages import pages_for
+from .qt_compat import event_global_pos, event_pos, run_exec
+from .wide_combo import WidePopupCombo
 
-from qgis.core import QgsLayerTree, QgsMapLayer, QgsProject, NULL
+from qgis.core import QgsLayerTree, QgsMapLayer
 
 from . import theme
-from .classify_assign import (
-    apply_assignments,
-    assignment_key,
-    category_keys_for_fids,
-    copy_geoms_and_assign,
-    count_category_keys,
-    format_assignments,
-    layer_categories,
-    layer_geom_kind,
-    layers_are_same,
-    notify_open_attribute_tables,
-    refresh_layer_after_assign,
-    refresh_legend_class_counts,
-    save_edits_via_qgis,
-)
 from .value_map import (
     field_index,
     is_value_map_field,
@@ -92,16 +79,16 @@ _QUICK_COMBO_QSS = (
 def _style_quick_combo(combo):
     combo.setStyleSheet(_QUICK_COMBO_QSS)
     pal = QPalette(combo.palette())
-    pal.setColor(QPalette.Text, QColor("#111111"))
-    pal.setColor(QPalette.WindowText, QColor("#111111"))
-    pal.setColor(QPalette.ButtonText, QColor("#111111"))
-    pal.setColor(QPalette.Base, QColor("#ffffff"))
-    pal.setColor(QPalette.Window, QColor("#ffffff"))
-    pal.setColor(QPalette.Button, QColor("#ffffff"))
-    pal.setColor(QPalette.HighlightedText, QColor("#111111"))
-    pal.setColor(QPalette.Highlight, QColor("#aed581"))
+    pal.setColor(QPalette.ColorRole.Text, QColor("#111111"))
+    pal.setColor(QPalette.ColorRole.WindowText, QColor("#111111"))
+    pal.setColor(QPalette.ColorRole.ButtonText, QColor("#111111"))
+    pal.setColor(QPalette.ColorRole.Base, QColor("#ffffff"))
+    pal.setColor(QPalette.ColorRole.Window, QColor("#ffffff"))
+    pal.setColor(QPalette.ColorRole.Button, QColor("#ffffff"))
+    pal.setColor(QPalette.ColorRole.HighlightedText, QColor("#111111"))
+    pal.setColor(QPalette.ColorRole.Highlight, QColor("#aed581"))
     try:
-        pal.setColor(QPalette.PlaceholderText, QColor("#555555"))
+        pal.setColor(QPalette.ColorRole.PlaceholderText, QColor("#555555"))
     except Exception:
         pass  # nosec B110
     combo.setPalette(pal)
@@ -138,10 +125,10 @@ def _mark_preview_mismatch(item):
 def _as_window(widget):
     widget.setModal(False)
     widget.setWindowFlags(
-        Qt.Window
-        | Qt.WindowMinimizeButtonHint
-        | Qt.WindowMaximizeButtonHint
-        | Qt.WindowCloseButtonHint
+        Qt.WindowType.Window
+        | Qt.WindowType.WindowMinimizeButtonHint
+        | Qt.WindowType.WindowMaximizeButtonHint
+        | Qt.WindowType.WindowCloseButtonHint
     )
     theme.register(widget)
 
@@ -158,8 +145,8 @@ class ExportPacksDialog(QDialog):
         for item_data in self._items:
             name = item_data[0] if item_data else ""
             item = QListWidgetItem(name)
-            item.setFlags(item.flags() | Qt.ItemIsUserCheckable)
-            item.setCheckState(Qt.Unchecked)
+            item.setFlags(item.flags() | Qt.ItemFlag.ItemIsUserCheckable)
+            item.setCheckState(Qt.CheckState.Unchecked)
             self.list.addItem(item)
         root.addWidget(self.list, 1)
         row = QHBoxLayout()
@@ -171,7 +158,7 @@ class ExportPacksDialog(QDialog):
         row.addWidget(btn_none)
         row.addStretch(1)
         root.addLayout(row)
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         localize_button_box(buttons)
         buttons.accepted.connect(self.accept)
         buttons.rejected.connect(self.reject)
@@ -179,16 +166,16 @@ class ExportPacksDialog(QDialog):
 
     def _check_all(self):
         for i in range(self.list.count()):
-            self.list.item(i).setCheckState(Qt.Checked)
+            self.list.item(i).setCheckState(Qt.CheckState.Checked)
 
     def _check_none(self):
         for i in range(self.list.count()):
-            self.list.item(i).setCheckState(Qt.Unchecked)
+            self.list.item(i).setCheckState(Qt.CheckState.Unchecked)
 
     def selected_items(self):
         picked = []
         for i in range(self.list.count()):
-            if self.list.item(i).checkState() == Qt.Checked:
+            if self.list.item(i).checkState() == Qt.CheckState.Checked:
                 picked.append(self._items[i])
         return picked
 
@@ -233,13 +220,13 @@ class LayerLegendTooltipFilter(QObject):
         self._view = None
 
     def eventFilter(self, obj, event):
-        if event.type() != QEvent.ToolTip:
+        if event.type() != QEvent.Type.ToolTip:
             return False
         view = self._view
         if view is None:
             return False
         try:
-            pos = event.pos()
+            pos = event_pos(event)
             index = view.indexAt(pos)
         except Exception:
             return False
@@ -252,7 +239,7 @@ class LayerLegendTooltipFilter(QObject):
         if not text:
             return False
         try:
-            QToolTip.showText(event.globalPos(), text, view.viewport())
+            QToolTip.showText(event_global_pos(event), text, view.viewport())
         except Exception:
             return False
         return True
@@ -277,7 +264,7 @@ class LayerLegendTooltipFilter(QObject):
             return None
         if layer is None or not hasattr(layer, "type"):
             return None
-        if layer.type() != QgsMapLayer.VectorLayer:
+        if layer.type() != QgsMapLayer.LayerType.VectorLayer:
             return None
         return layer
 
@@ -297,7 +284,7 @@ class QuickFillBar(QWidget):
         self._dialog = dialog
         self._combos = []
         self.setFixedHeight(28)
-        self.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.setAutoFillBackground(True)
         self.apply_theme()
 
@@ -320,7 +307,7 @@ class QuickFillBar(QWidget):
 
         self.table_host = QWidget()
         self.table_host.setFixedHeight(26)
-        self.table_host.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+        self.table_host.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.table_host.setMinimumWidth(0)
         lay.addWidget(self.table_host, 1)
 
@@ -343,7 +330,7 @@ class QuickFillBar(QWidget):
             combo = QComboBox(self.table_host)
             combo.setMaxVisibleItems(12)
             combo.setFixedHeight(24)
-            combo.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+            combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
             combo.setMinimumContentsLength(2)
             _style_quick_combo(combo)
             combo.activated.connect(
@@ -357,8 +344,8 @@ class QuickFillBar(QWidget):
         combo.blockSignals(True)
         combo.clear()
         combo.addItem(tr("插入…"), "")
-        combo.setItemData(0, QColor("#111111"), Qt.ForegroundRole)
-        combo.setItemData(0, QColor("#ffffff"), Qt.BackgroundRole)
+        combo.setItemData(0, QColor("#111111"), Qt.ItemDataRole.ForegroundRole)
+        combo.setItemData(0, QColor("#ffffff"), Qt.ItemDataRole.BackgroundRole)
         meanings = []
         model = self._dialog.model
         if model is not None and hasattr(model, "field_meanings"):
@@ -366,8 +353,8 @@ class QuickFillBar(QWidget):
         for item in meanings:
             payload = meaning_payload(item)
             combo.addItem(meaning_display(item) or str(item), payload)
-            combo.setItemData(combo.count() - 1, QColor("#111111"), Qt.ForegroundRole)
-            combo.setItemData(combo.count() - 1, QColor("#ffffff"), Qt.BackgroundRole)
+            combo.setItemData(combo.count() - 1, QColor("#111111"), Qt.ItemDataRole.ForegroundRole)
+            combo.setItemData(combo.count() - 1, QColor("#ffffff"), Qt.ItemDataRole.BackgroundRole)
         combo.setCurrentIndex(0)
         combo.blockSignals(False)
         combo.setEnabled(True)
@@ -546,10 +533,18 @@ class RemarksHubDialog(QDialog):
         row = QHBoxLayout()
         self.lbl_pack = QLabel(tr("当前项目："))
         row.addWidget(self.lbl_pack)
-        self.cmb_pack = QComboBox()
-        self.cmb_pack.setMinimumWidth(180)
+        self.cmb_pack = WidePopupCombo()
+        self.cmb_pack.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
+        self.cmb_pack.setMinimumContentsLength(16)
+        self.cmb_pack.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.cmb_pack.setMinimumWidth(220)
         self.cmb_pack.currentIndexChanged.connect(self._on_pack_changed)
         row.addWidget(self.cmb_pack, 1)
+        self.btn_pack_help = QPushButton(tr("帮助"))
+        self.btn_pack_help.setToolTip(tr("字段备注的使用说明，和帮助里的「字段备注」是同一页。"))
+        self._style_pack_help()
+        self.btn_pack_help.clicked.connect(self._show_remarks_help)
+        row.addWidget(self.btn_pack_help)
         root.addLayout(row)
 
         btns = QHBoxLayout()
@@ -601,7 +596,7 @@ class RemarksHubDialog(QDialog):
         self.lbl_layer.setStyleSheet("font-weight: bold;")
         root.addWidget(self.lbl_layer)
 
-        split = QSplitter(Qt.Horizontal)
+        split = QSplitter(Qt.Orientation.Horizontal)
         left = QWidget()
         left_lay = QVBoxLayout(left)
         left_lay.setContentsMargins(0, 0, 0, 0)
@@ -630,7 +625,7 @@ class RemarksHubDialog(QDialog):
         self.ed_notes = QPlainTextEdit()
         self.ed_notes.setPlaceholderText(tr("悬停时显示在中文名下面，不写入字段、不进插入下拉"))
         self.ed_notes.setTabChangesFocus(True)
-        self.ed_notes.setLineWrapMode(QPlainTextEdit.WidgetWidth)
+        self.ed_notes.setLineWrapMode(QPlainTextEdit.LineWrapMode.WidgetWidth)
         fm = self.ed_notes.fontMetrics()
         self._notes_field_height = max(fm.lineSpacing() * 4 + 14, 72)
         self.ed_notes.setFixedHeight(self._notes_field_height)
@@ -654,7 +649,7 @@ class RemarksHubDialog(QDialog):
         self.cmb_mean_kind.addItem("QGIS", "expr")
         self.cmb_mean_kind.setMinimumContentsLength(6)
         self.cmb_mean_kind.setMinimumWidth(88)
-        self.cmb_mean_kind.setSizeAdjustPolicy(QComboBox.AdjustToMinimumContentsLengthWithIcon)
+        self.cmb_mean_kind.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
         self.cmb_mean_kind.setToolTip(tr("常量写入固定值；QGIS 则右边粘贴表达式，赋值时按要素计算"))
         self.cmb_mean_kind.currentIndexChanged.connect(self._on_mean_kind_changed)
         self.ed_mean_code = QLineEdit()
@@ -674,7 +669,7 @@ class RemarksHubDialog(QDialog):
         mean_lay.addLayout(add_row)
 
         self.mean_list = QListWidget()
-        self.mean_list.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.mean_list.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.mean_list.itemDoubleClicked.connect(self._on_meaning_double_clicked)
         self.mean_list.currentItemChanged.connect(self._update_meaning_buttons)
         mean_lay.addWidget(self.mean_list, 1)
@@ -729,9 +724,41 @@ class RemarksHubDialog(QDialog):
         RemarksHubDialog._instance = None
         super().closeEvent(event)
 
+    def _show_remarks_help(self):
+        pages = pages_for(current_language())
+        if len(pages) < 2:
+            return
+        title, html = pages[1]
+        dlg = QDialog(self)
+        dlg.setWindowTitle(tr("帮助 — %s") % title)
+        dlg.resize(720, 560)
+        lay = QVBoxLayout(dlg)
+        browser = QTextBrowser()
+        browser.setOpenExternalLinks(False)
+        browser.setHtml(html)
+        lay.addWidget(browser, 1)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        localize_button_box(btns)
+        btns.rejected.connect(dlg.reject)
+        btns.clicked.connect(dlg.accept)
+        lay.addWidget(btns)
+        run_exec(dlg)
+
+    def _style_pack_help(self):
+        self.btn_pack_help.setStyleSheet(
+            "QPushButton { color: #b71c1c; font-weight: bold;"
+            " background: #ffebee; border: 1px solid #e57373;"
+            " border-radius: 3px; padding: 2px 10px; }"
+            "QPushButton:hover { background: #ffcdd2; }"
+        )
+
     def _apply_language(self, *_args):
         self.setWindowTitle(tr("字段备注"))
         self.lbl_pack.setText(tr("当前项目："))
+        if hasattr(self, "btn_pack_help"):
+            self.btn_pack_help.setText(tr("帮助"))
+            self.btn_pack_help.setToolTip(tr("字段备注的使用说明，和帮助里的「字段备注」是同一页。"))
+            self._style_pack_help()
         self.btn_packs.setText(tr("项目管理"))
         self.btn_packs.setToolTip(tr("选择：新建、删除或重命名当前备注项目"))
         self.btn_preview.setText(tr("预览配置"))
@@ -782,14 +809,14 @@ class RemarksHubDialog(QDialog):
             layer = None
         if layer is None or not hasattr(layer, "type"):
             return None
-        if layer.type() != QgsMapLayer.VectorLayer:
+        if layer.type() != QgsMapLayer.LayerType.VectorLayer:
             return None
         return layer
 
     def _on_qgis_layer_changed(self, layer):
         self._flush_current()
         if layer is not None and (
-            not hasattr(layer, "type") or layer.type() != QgsMapLayer.VectorLayer
+            not hasattr(layer, "type") or layer.type() != QgsMapLayer.LayerType.VectorLayer
         ):
             layer = None
         self._set_layer(layer)
@@ -845,7 +872,7 @@ class RemarksHubDialog(QDialog):
         super().changeEvent(event)
         if not getattr(self, "_ui_ready", False):
             return
-        if event.type() == QEvent.ActivationChange and self.isActiveWindow():
+        if event.type() == QEvent.Type.ActivationChange and self.isActiveWindow():
             if self.session.reload_from_disk():
                 self.adopt_shared_config()
 
@@ -885,7 +912,7 @@ class RemarksHubDialog(QDialog):
             placeholder = False
         act_del.setEnabled(not placeholder)
         act_rename.setEnabled(not placeholder)
-        menu.exec_(self.btn_packs.mapToGlobal(self.btn_packs.rect().bottomLeft()))
+        run_exec(menu, self.btn_packs.mapToGlobal(self.btn_packs.rect().bottomLeft()))
 
     def _open_io_menu(self):
         from qgis.PyQt.QtWidgets import QMenu
@@ -893,7 +920,7 @@ class RemarksHubDialog(QDialog):
         menu = QMenu(self)
         menu.addAction(tr("导入"), self._import_pack)
         menu.addAction(tr("导出"), self._export_pack)
-        menu.exec_(self.btn_io.mapToGlobal(self.btn_io.rect().bottomLeft()))
+        run_exec(menu, self.btn_io.mapToGlobal(self.btn_io.rect().bottomLeft()))
 
     def _add_pack(self):
         name, ok = QInputDialog.getText(self, tr("新建项目"), tr("项目名称："), text=tr("未命名"))
@@ -919,7 +946,7 @@ class RemarksHubDialog(QDialog):
         name = self.session.current_name()
         if (
             QMessageBox.question(self, tr("删除项目"), tr("确定删除项目「%s」？") % name)
-            != QMessageBox.Yes
+            != QMessageBox.StandardButton.Yes
         ):
             return
         self._flush_current()
@@ -938,7 +965,7 @@ class RemarksHubDialog(QDialog):
         lay = QVBoxLayout(dlg)
         tip = QLabel(
             tr("只读预览。红色=当前工程对不上。"
-            "默认只显示不匹配项：图层对不上只列图层；字段对不上会带上所属图层。")
+               "默认只显示不匹配项：图层对不上只列图层；字段对不上会带上所属图层。")
         )
         tip.setWordWrap(True)
         lay.addWidget(tip)
@@ -1071,13 +1098,13 @@ class RemarksHubDialog(QDialog):
         btn_row.addWidget(btn_mismatch)
         btn_row.addWidget(btn_all)
         btn_row.addStretch(1)
-        buttons = QDialogButtonBox(QDialogButtonBox.Close)
-        buttons.button(QDialogButtonBox.Close).setText(tr("关闭"))
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText(tr("关闭"))
         buttons.rejected.connect(dlg.reject)
         buttons.accepted.connect(dlg.accept)
         btn_row.addWidget(buttons)
         lay.addLayout(btn_row)
-        dlg.exec_()
+        run_exec(dlg)
 
     def _rename_pack(self):
         if self.session.is_placeholder():
@@ -1158,7 +1185,7 @@ class RemarksHubDialog(QDialog):
             return
         self._flush_current()
         dlg = VariablesDialog(self.session, self)
-        dlg.exec_()
+        run_exec(dlg)
         self.remarksChanged.emit()
         if self._current_field and self._current_field != LAYER_ITEM_KEY:
             for i in range(self.mean_list.count()):
@@ -1217,7 +1244,7 @@ class RemarksHubDialog(QDialog):
             QMessageBox.information(self, tr("导出"), tr("还没有可导出的项目。请先新建并配置。"))
             return
         picker = ExportPacksDialog(items, self)
-        if picker.exec_() != QDialog.Accepted:
+        if run_exec(picker) != QDialog.DialogCode.Accepted:
             return
         selected = picker.selected_items()
         if not selected:
@@ -1272,11 +1299,11 @@ class RemarksHubDialog(QDialog):
             box = QMessageBox(self)
             box.setWindowTitle(tr("导入"))
             box.setText(tr("已有同名项目：%s") % "、".join(conflicts))
-            btn_over = box.addButton(tr("覆盖同名"), QMessageBox.DestructiveRole)
-            btn_new = box.addButton(tr("全部换名"), QMessageBox.ActionRole)
-            box.addButton(tr("取消"), QMessageBox.RejectRole)
+            btn_over = box.addButton(tr("覆盖同名"), QMessageBox.ButtonRole.DestructiveRole)
+            btn_new = box.addButton(tr("全部换名"), QMessageBox.ButtonRole.ActionRole)
+            box.addButton(tr("取消"), QMessageBox.ButtonRole.RejectRole)
             box.setDefaultButton(btn_new)
-            box.exec_()
+            run_exec(box)
             clicked = box.clickedButton()
             if clicked is None or clicked not in (btn_over, btn_new):
                 return
@@ -1326,19 +1353,19 @@ class RemarksHubDialog(QDialog):
         for name in self._field_names():
             entry = normalize_field(fields_map.get(name) or empty_field())
             item = QListWidgetItem(self._field_list_text(name, entry))
-            item.setData(Qt.UserRole, name)
+            item.setData(Qt.ItemDataRole.UserRole, name)
             self._style_field_item(item, name)
             self.list.addItem(item)
         if self._layer is not None:
             layer_item = QListWidgetItem(tr("%s (图层)") % self._layer.name())
-            layer_item.setData(Qt.UserRole, LAYER_ITEM_KEY)
+            layer_item.setData(Qt.ItemDataRole.UserRole, LAYER_ITEM_KEY)
             layer_item.setToolTip(tr("图层备注：图例悬停显示中文名和悬停说明，不用于赋值"))
             self.list.addItem(layer_item)
         target = 0
         found = False
         if keep:
             for i in range(self.list.count()):
-                if self.list.item(i).data(Qt.UserRole) == keep:
+                if self.list.item(i).data(Qt.ItemDataRole.UserRole) == keep:
                     target = i
                     found = True
                     break
@@ -1346,7 +1373,7 @@ class RemarksHubDialog(QDialog):
             self.list.setCurrentRow(target if found or keep is None else 0)
         self.list.blockSignals(False)
         item = self.list.currentItem()
-        self._load_field_form(item.data(Qt.UserRole) if item else None)
+        self._load_field_form(item.data(Qt.ItemDataRole.UserRole) if item else None)
 
     def _field_list_text(self, name, entry=None):
         if entry is None:
@@ -1373,7 +1400,7 @@ class RemarksHubDialog(QDialog):
             text = self._field_list_text(name, entry)
         for i in range(self.list.count()):
             item = self.list.item(i)
-            if item.data(Qt.UserRole) == name:
+            if item.data(Qt.ItemDataRole.UserRole) == name:
                 item.setText(text)
                 self._style_field_item(item, name)
                 return
@@ -1388,7 +1415,7 @@ class RemarksHubDialog(QDialog):
         if not field_name:
             return
         for i in range(self.list.count()):
-            if self.list.item(i).data(Qt.UserRole) == field_name:
+            if self.list.item(i).data(Qt.ItemDataRole.UserRole) == field_name:
                 self.list.setCurrentRow(i)
                 return
 
@@ -1420,11 +1447,11 @@ class RemarksHubDialog(QDialog):
         if stretch:
             self.ed_notes.setMinimumHeight(getattr(self, "_notes_field_height", 72))
             self.ed_notes.setMaximumHeight(16777215)
-            self.ed_notes.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+            self.ed_notes.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         else:
             height = getattr(self, "_notes_field_height", 72)
             self.ed_notes.setFixedHeight(height)
-            self.ed_notes.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Fixed)
+            self.ed_notes.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         if hasattr(self, "_right_lay"):
             self._right_lay.setStretchFactor(self.ed_notes, 1 if stretch else 0)
             if hasattr(self, "mean_panel"):
@@ -1468,7 +1495,7 @@ class RemarksHubDialog(QDialog):
             return out
         for i in range(self.mean_list.count()):
             item = self.mean_list.item(i)
-            data = item.data(Qt.UserRole)
+            data = item.data(Qt.ItemDataRole.UserRole)
             meaning = normalize_meaning(data if data is not None else item.text())
             if meaning:
                 out.append(meaning)
@@ -1479,8 +1506,8 @@ class RemarksHubDialog(QDialog):
         if defaults is None:
             defaults = self._qgis_value_map_defaults()
         item = QListWidgetItem(self._meaning_list_text(data, defaults))
-        item.setData(Qt.UserRole, data)
-        item.setFlags(Qt.ItemIsEnabled | Qt.ItemIsSelectable)
+        item.setData(Qt.ItemDataRole.UserRole, data)
+        item.setFlags(Qt.ItemFlag.ItemIsEnabled | Qt.ItemFlag.ItemIsSelectable)
         self._style_meaning_item(item, defaults)
         return item
 
@@ -1547,7 +1574,7 @@ class RemarksHubDialog(QDialog):
     def _style_meaning_item(self, item, defaults=None):
         if item is None or self._current_field == LAYER_ITEM_KEY:
             return
-        meaning = normalize_meaning(item.data(Qt.UserRole) or item.text())
+        meaning = normalize_meaning(item.data(Qt.ItemDataRole.UserRole) or item.text())
         if defaults is None:
             defaults = self._qgis_value_map_defaults()
         if meaning:
@@ -1568,7 +1595,7 @@ class RemarksHubDialog(QDialog):
         item = self.mean_list.currentItem()
         meaning = None
         if item is not None:
-            meaning = normalize_meaning(item.data(Qt.UserRole) or item.text())
+            meaning = normalize_meaning(item.data(Qt.ItemDataRole.UserRole) or item.text())
         is_vm = self._is_value_map_meaning(meaning)
         if hasattr(self, "btn_mean_restore"):
             self.btn_mean_restore.setEnabled(form_on and is_vm)
@@ -1577,7 +1604,7 @@ class RemarksHubDialog(QDialog):
         if self._mean_edit_row >= 0:
             edit_item = self.mean_list.item(self._mean_edit_row)
             edit_meaning = (
-                normalize_meaning(edit_item.data(Qt.UserRole) or edit_item.text())
+                normalize_meaning(edit_item.data(Qt.ItemDataRole.UserRole) or edit_item.text())
                 if edit_item is not None
                 else None
             )
@@ -1592,7 +1619,7 @@ class RemarksHubDialog(QDialog):
         if item is None:
             QMessageBox.information(self, tr("含义说明"), tr("请先选中一行。"))
             return
-        meaning = normalize_meaning(item.data(Qt.UserRole) or item.text())
+        meaning = normalize_meaning(item.data(Qt.ItemDataRole.UserRole) or item.text())
         defaults = self._qgis_value_map_defaults()
         key = value_key(meaning.get("value") if meaning else None)
         if not meaning or meaning.get("kind") != "const" or key not in defaults:
@@ -1606,7 +1633,7 @@ class RemarksHubDialog(QDialog):
             }
         )
         self.mean_list.blockSignals(True)
-        item.setData(Qt.UserRole, data)
+        item.setData(Qt.ItemDataRole.UserRole, data)
         self._style_meaning_item(item, defaults)
         self.mean_list.blockSignals(False)
         self._reset_meaning_edit()
@@ -1674,7 +1701,7 @@ class RemarksHubDialog(QDialog):
         if row < 0:
             return
         text = (self.mean_list.item(row).text() or "").strip()
-        data = self.mean_list.item(row).data(Qt.UserRole)
+        data = self.mean_list.item(row).data(Qt.ItemDataRole.UserRole)
         meaning = normalize_meaning(data if data is not None else text)
         if meaning is None:
             left, right, kind = parse_meaning_full(text)
@@ -1759,7 +1786,7 @@ class RemarksHubDialog(QDialog):
 
     def _on_field_changed(self, current, _previous):
         self._flush_current()
-        name = current.data(Qt.UserRole) if current else None
+        name = current.data(Qt.ItemDataRole.UserRole) if current else None
         self._load_field_form(name)
 
     def _add_meaning(self):
@@ -1782,7 +1809,7 @@ class RemarksHubDialog(QDialog):
         meaning = normalize_meaning({"cn": left or right, "value": right or left, "kind": kind})
         replace_row = self._mean_edit_row
         if 0 <= replace_row < self.mean_list.count():
-            old = normalize_meaning(self.mean_list.item(replace_row).data(Qt.UserRole))
+            old = normalize_meaning(self.mean_list.item(replace_row).data(Qt.ItemDataRole.UserRole))
             if self._is_value_map_meaning(old):
                 meaning = normalize_meaning(
                     {
@@ -1797,14 +1824,14 @@ class RemarksHubDialog(QDialog):
             if i == replace_row:
                 continue
             item = self.mean_list.item(i)
-            existing.append(meaning_display(item.data(Qt.UserRole) or item.text()))
+            existing.append(meaning_display(item.data(Qt.ItemDataRole.UserRole) or item.text()))
         if display in existing:
             QMessageBox.information(self, tr("含义说明"), tr("该含义已存在。"))
             return
         self.mean_list.blockSignals(True)
         if 0 <= replace_row < self.mean_list.count():
             item = self.mean_list.item(replace_row)
-            item.setData(Qt.UserRole, meaning)
+            item.setData(Qt.ItemDataRole.UserRole, meaning)
             self._style_meaning_item(item)
         else:
             self.mean_list.addItem(self._new_meaning_item(meaning))
@@ -1826,7 +1853,7 @@ class RemarksHubDialog(QDialog):
             return
         item = self.mean_list.item(row)
         meaning = normalize_meaning(
-            (item.data(Qt.UserRole) or item.text()) if item is not None else None
+            (item.data(Qt.ItemDataRole.UserRole) or item.text()) if item is not None else None
         )
         if self._is_value_map_meaning(meaning):
             QMessageBox.information(self, tr("含义说明"), tr("值映射项不能删除。"))
@@ -1924,7 +1951,7 @@ class RemarksHubDialog(QDialog):
         if self._mean_edit_row >= 0 and hasattr(self, "mean_list"):
             edit_item = self.mean_list.item(self._mean_edit_row)
             edit_meaning = (
-                normalize_meaning(edit_item.data(Qt.UserRole) or edit_item.text())
+                normalize_meaning(edit_item.data(Qt.ItemDataRole.UserRole) or edit_item.text())
                 if edit_item is not None
                 else None
             )
@@ -1955,8 +1982,9 @@ class RemarksHubDialog(QDialog):
             text = "%s = %s" % (title, value) if value else title
             act = menu.addAction(text)
             act.setData(title)
-        chosen = menu.exec_(
-            self.btn_mean_var.mapToGlobal(self.btn_mean_var.rect().bottomLeft())
+        chosen = run_exec(
+            menu,
+            self.btn_mean_var.mapToGlobal(self.btn_mean_var.rect().bottomLeft()),
         )
         if chosen is None:
             return
@@ -1989,7 +2017,7 @@ class VariablesDialog(QDialog):
         root = QVBoxLayout(self)
         tip = QLabel(
             tr("变量跟当前项目走，不是全 QGIS 共用。"
-            "标题给人看，内容才是写入值。含义里插入 {{标题}}，点插入时再替换成当前内容。")
+               "标题给人看，内容才是写入值。含义里插入 {{标题}}，点插入时再替换成当前内容。")
         )
         tip.setWordWrap(True)
         root.addWidget(tip)
@@ -2007,7 +2035,7 @@ class VariablesDialog(QDialog):
         row.addWidget(self.btn_add)
         root.addLayout(row)
         self.list = QListWidget()
-        self.list.setEditTriggers(QAbstractItemView.NoEditTriggers)
+        self.list.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
         self.list.itemDoubleClicked.connect(self._on_double_clicked)
         self.list.currentItemChanged.connect(self._update_buttons)
         root.addWidget(self.list, 1)
@@ -2016,8 +2044,8 @@ class VariablesDialog(QDialog):
         self.btn_del.clicked.connect(self._del)
         btns.addWidget(self.btn_del)
         btns.addStretch(1)
-        buttons = QDialogButtonBox(QDialogButtonBox.Close)
-        buttons.button(QDialogButtonBox.Close).setText(tr("关闭"))
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
+        buttons.button(QDialogButtonBox.StandardButton.Close).setText(tr("关闭"))
         buttons.rejected.connect(self.reject)
         buttons.accepted.connect(self.accept)
         btns.addWidget(buttons)
@@ -2035,7 +2063,7 @@ class VariablesDialog(QDialog):
             title = item.get("title") or ""
             value = item.get("value") or ""
             row = QListWidgetItem("%s = %s" % (title, value) if value else title)
-            row.setData(Qt.UserRole, item)
+            row.setData(Qt.ItemDataRole.UserRole, item)
             self.list.addItem(row)
         self.list.blockSignals(False)
 
@@ -2048,7 +2076,7 @@ class VariablesDialog(QDialog):
     def _on_double_clicked(self, item):
         if item is None:
             return
-        data = item.data(Qt.UserRole) or {}
+        data = item.data(Qt.ItemDataRole.UserRole) or {}
         self.ed_title.setText(data.get("title") or "")
         self.ed_value.setText(data.get("value") or "")
         self._edit_row = self.list.row(item)
@@ -2083,7 +2111,7 @@ class VariablesDialog(QDialog):
                         tr("含义里还引用着「%s」。改标题后，那些含义插入时会提示找不到。继续？")
                         % old,
                     )
-                    != QMessageBox.Yes
+                    != QMessageBox.StandardButton.Yes
                 ):
                     return
             items[replace] = {"title": title, "value": value}
@@ -2113,7 +2141,7 @@ class VariablesDialog(QDialog):
                     tr("变量配置"),
                     tr("含义里还引用着「%s」，删除后插入会提示找不到。确定删除？") % title,
                 )
-                != QMessageBox.Yes
+                != QMessageBox.StandardButton.Yes
             ):
                 return
         del items[row]
@@ -2137,548 +2165,6 @@ class VariablesDialog(QDialog):
 
     def _update_buttons(self, *_args):
         self.btn_del.setEnabled(self.list.currentRow() >= 0)
-
-
-class QuickNameDialog(QDialog):
-    """Mini window: click a symbology class to assign its rule to selected features."""
-
-    _instance = None
-    _AUTOSAVE_CHOICES = (
-        (0, "不自动保存"),
-        (1000, "1秒后保存"),
-        (2000, "2秒后保存"),
-        (3000, "3秒后保存"),
-        (4000, "4秒后保存"),
-        (5000, "5秒后保存"),
-        (10000, "10秒后保存"),
-    )
-
-    @classmethod
-    def open_for(cls, iface, parent=None):
-        dlg = cls._instance
-        try:
-            if dlg is not None:
-                dlg.windowTitle()
-        except Exception:
-            dlg = None
-            cls._instance = None
-        if dlg is None:
-            dlg = cls(iface, parent=parent)
-            cls._instance = dlg
-        dlg.show()
-        dlg.raise_()
-        dlg.activateWindow()
-        return dlg
-
-    def __init__(self, iface, parent=None):
-        super().__init__(parent)
-        self.iface = iface
-        self._layer = None
-        self._reloading = False
-        _as_window(self)
-        self.setWindowTitle(tr("快速命名"))
-        self.resize(300, 380)
-
-        root = QVBoxLayout(self)
-        self.lbl_layer = QLabel(tr("请选择矢量图层"))
-        self.lbl_layer.setWordWrap(True)
-        self.on_theme_changed()
-        root.addWidget(self.lbl_layer)
-
-        self.list = QListWidget()
-        self.list.itemClicked.connect(self._on_item_clicked)
-        root.addWidget(self.list, 1)
-
-        pin_row = QHBoxLayout()
-        self.chk_pin = QCheckBox(tr("钉住图层"))
-        self.chk_pin.setChecked(False)
-        self.chk_pin.setToolTip(
-            tr("钉住当前分类图层。在本层选中要素再点分类：只改属性、不复制。"
-            "在其他层选中再点分类：把几何复制进钉住层，再按该类规则赋值。"
-            "来源图层不改；钉住层不增加来源字段。")
-        )
-        self.chk_pin.toggled.connect(self._on_pin_toggled)
-        self.cmb_autosave = QComboBox()
-        for ms, label in self._AUTOSAVE_CHOICES:
-            self.cmb_autosave.addItem(tr(label), ms)
-        self.cmb_autosave.setCurrentIndex(0)
-        self.cmb_autosave.setSizeAdjustPolicy(QComboBox.AdjustToContents)
-        self.cmb_autosave.setToolTip(
-            tr("默认「不自动保存」：还能撤销/回滚，QGIS 图例数量不会马上变。"
-            "选「N秒后保存」：先只写入，等 N 秒再点一次 QGIS 自带的「保存图层编辑」。"
-            "连续命名会按当前秒数重新计时，只存一次。中途改成不自动保存则取消这次预约。"
-            "图例由 QGIS 自己刷。会保存该层当前所有未保存修改，这次不能再撤销。"
-            "关掉窗口会立刻补存。3 秒已验证能跟上图例；1 秒可能仍偏赶。")
-        )
-        self.cmb_autosave.currentIndexChanged.connect(self._on_autosave_mode_changed)
-        pin_row.addWidget(self.chk_pin)
-        pin_row.addWidget(self.cmb_autosave)
-        pin_row.addStretch(1)
-        root.addLayout(pin_row)
-
-        self.chk_skip_confirm = QCheckBox(tr("勾选后点分类不再确认，直接赋值"))
-        self.chk_skip_confirm.setChecked(False)
-        self.chk_skip_confirm.setToolTip(tr("默认不勾选：会弹出确认。勾选后直接写入。"))
-        root.addWidget(self.chk_skip_confirm)
-
-        self.btn_legend_count = QPushButton(tr("刷新图例计数"))
-        self.btn_legend_count.clicked.connect(self._on_refresh_legend_counts)
-        root.addWidget(self.btn_legend_count)
-
-        self._pinned_layer = None
-        self._saving = False
-        self._touching_legend = False
-        self._autosave_layer = None
-        self._cat_items = []
-        self._counts = {}
-        self._other_count = 0
-        self._reload_timer = QTimer(self)
-        self._reload_timer.setSingleShot(True)
-        self._reload_timer.timeout.connect(self.reload)
-        self._autosave_timer = QTimer(self)
-        self._autosave_timer.setSingleShot(True)
-        self._autosave_timer.timeout.connect(self._flush_autosave)
-
-        try:
-            self.iface.currentLayerChanged.connect(self._on_qgis_layer_changed)
-        except Exception:
-            pass  # nosec B110
-        try:
-            QgsProject.instance().layersWillBeRemoved.connect(self._on_layers_removed)
-        except Exception:
-            pass  # nosec B110
-        self._bind_layer(self._qgis_vector_layer())
-        self._reload_timer.start(0)
-        try:
-            language_changed().connect(self._apply_language)
-        except Exception:
-            pass  # nosec B110
-
-    def on_theme_changed(self):
-        lbl = getattr(self, "lbl_layer", None)
-        if lbl is None:
-            return
-        lbl.setStyleSheet(
-            "QLabel { font-size: 16px; font-weight: bold; color: %s; }" % theme.color("title")
-        )
-
-    def closeEvent(self, event):
-        self._reload_timer.stop()
-        if self._autosave_timer.isActive():
-            self._autosave_timer.stop()
-            self._flush_autosave()
-        self._bind_layer(None)
-        try:
-            self.iface.currentLayerChanged.disconnect(self._on_qgis_layer_changed)
-        except Exception:
-            pass  # nosec B110
-        try:
-            QgsProject.instance().layersWillBeRemoved.disconnect(self._on_layers_removed)
-        except Exception:
-            pass  # nosec B110
-        try:
-            language_changed().disconnect(self._apply_language)
-        except Exception:
-            pass  # nosec B110
-        QuickNameDialog._instance = None
-        super().closeEvent(event)
-
-    def _apply_language(self, *_args):
-        self.setWindowTitle(tr("快速命名"))
-        self.chk_pin.setText(tr("钉住图层"))
-        self.chk_pin.setToolTip(
-            tr("钉住当前分类图层。在本层选中要素再点分类：只改属性、不复制。"
-            "在其他层选中再点分类：把几何复制进钉住层，再按该类规则赋值。"
-            "来源图层不改；钉住层不增加来源字段。")
-        )
-        self.chk_skip_confirm.setText(tr("勾选后点分类不再确认，直接赋值"))
-        self.chk_skip_confirm.setToolTip(tr("默认不勾选：会弹出确认。勾选后直接写入。"))
-        self.btn_legend_count.setText(tr("刷新图例计数"))
-        self.cmb_autosave.blockSignals(True)
-        current = self.cmb_autosave.currentData()
-        for i, (ms, label) in enumerate(self._AUTOSAVE_CHOICES):
-            if self.cmb_autosave.itemData(i) == ms:
-                self.cmb_autosave.setItemText(i, tr(label))
-        idx = self.cmb_autosave.findData(current)
-        if idx >= 0:
-            self.cmb_autosave.setCurrentIndex(idx)
-        self.cmb_autosave.blockSignals(False)
-        self.cmb_autosave.setToolTip(
-            tr("默认「不自动保存」：还能撤销/回滚，QGIS 图例数量不会马上变。"
-            "选「N秒后保存」：先只写入，等 N 秒再点一次 QGIS 自带的「保存图层编辑」。"
-            "连续命名会按当前秒数重新计时，只存一次。中途改成不自动保存则取消这次预约。"
-            "图例由 QGIS 自己刷。会保存该层当前所有未保存修改，这次不能再撤销。"
-            "关掉窗口会立刻补存。3 秒已验证能跟上图例；1 秒可能仍偏赶。")
-        )
-        self._refresh_layer_caption()
-        self.reload()
-
-    @staticmethod
-    def _layer_in(layer, layer_ids):
-        if layer is None:
-            return False
-        try:
-            return layer.id() in layer_ids
-        except RuntimeError:
-            return True
-
-    def _on_layers_removed(self, layer_ids):
-        ids = set(layer_ids or [])
-        if self._layer_in(self._autosave_layer, ids):
-            self._autosave_timer.stop()
-            self._flush_autosave()
-            self._autosave_layer = None
-        pinned_gone = self._layer_in(self._pinned_layer, ids)
-        if pinned_gone:
-            self._pinned_layer = None
-            self.chk_pin.blockSignals(True)
-            self.chk_pin.setChecked(False)
-            self.chk_pin.blockSignals(False)
-        if self._layer_in(self._layer, ids):
-            self._bind_layer(None)
-            self._layer = None
-        if pinned_gone or self._layer is None:
-            active = self._qgis_vector_layer()
-            if self._layer_in(active, ids):
-                active = None
-            self._bind_layer(active)
-            self._schedule_reload()
-
-    def _as_vector(self, layer):
-        if layer is None or not hasattr(layer, "type"):
-            return None
-        if layer.type() != QgsMapLayer.VectorLayer:
-            return None
-        return layer
-
-    def _qgis_vector_layer(self):
-        layer = None
-        try:
-            layer = self.iface.activeLayer()
-        except Exception:
-            layer = None
-        return self._as_vector(layer)
-
-    def _on_pin_toggled(self, checked):
-        if checked:
-            self._pinned_layer = self._layer
-            self._refresh_layer_caption()
-            return
-        self._pinned_layer = None
-        self._bind_layer(self._qgis_vector_layer())
-        self._schedule_reload()
-
-    def _dest_layer(self):
-        if self.chk_pin.isChecked() and self._pinned_layer is not None:
-            return self._pinned_layer
-        return self._layer
-
-    def _selected_fids(self, layer):
-        if layer is None:
-            return []
-        try:
-            return [int(fid) for fid in layer.selectedFeatureIds()]
-        except Exception:
-            return []
-
-    def _pick_source_layer(self, dest):
-        active = self._qgis_vector_layer()
-        if dest is None:
-            return active
-        if active is not None and not layers_are_same(active, dest) and self._selected_fids(active):
-            return active
-        if self._selected_fids(dest):
-            return dest
-        if self.chk_pin.isChecked():
-            try:
-                layers = QgsProject.instance().mapLayers().values()
-            except Exception:
-                layers = []
-            for lyr in layers:
-                lyr = self._as_vector(lyr)
-                if lyr is None or layers_are_same(lyr, dest):
-                    continue  # nosec B112
-                if self._selected_fids(lyr) and layer_geom_kind(lyr) == layer_geom_kind(dest):
-                    return lyr
-        return dest if dest is not None else active
-
-    def _autosave_delay_ms(self):
-        try:
-            return int(self.cmb_autosave.currentData() or 0)
-        except (TypeError, ValueError):
-            return 0
-
-    def _on_autosave_mode_changed(self, _index):
-        delay = self._autosave_delay_ms()
-        if delay <= 0:
-            self._autosave_timer.stop()
-            self._autosave_layer = None
-            return
-        if self._autosave_layer is not None:
-            self._autosave_timer.start(delay)
-
-    def _schedule_autosave(self, dest):
-        delay = self._autosave_delay_ms()
-        if dest is None or delay <= 0:
-            return
-        pending = self._autosave_layer
-        if pending is not None and not layers_are_same(pending, dest):
-            self._autosave_timer.stop()
-            self._flush_autosave()
-        self._autosave_layer = dest
-        self._autosave_timer.start(delay)
-
-    def _flush_autosave(self):
-        dest = self._autosave_layer
-        self._autosave_layer = None
-        if dest is None:
-            return
-        try:
-            if not dest.isEditable() or not dest.isModified():
-                return
-        except Exception:
-            return
-        self._saving = True
-        try:
-            save_err = save_edits_via_qgis(dest, self.iface)
-        finally:
-            self._saving = False
-        if save_err:
-            QMessageBox.information(self, tr("快速命名"), tr("已写入，但 QGIS 保存失败：%s") % save_err)
-
-    def _on_qgis_layer_changed(self, layer):
-        if getattr(self, "_saving", False):
-            return
-        layer = self._as_vector(layer)
-        if self.chk_pin.isChecked() and self._pinned_layer is not None:
-            return
-        self._bind_layer(layer)
-        self._schedule_reload()
-
-    def _schedule_reload(self):
-        if self._reloading or getattr(self, "_touching_legend", False):
-            return
-        self._reload_timer.start(80)
-
-    def _on_refresh_legend_counts(self):
-        dest = self._dest_layer()
-        if dest is None:
-            QMessageBox.information(self, tr("快速命名"), tr("请先选择一个矢量图层。"))
-            return
-        self._touching_legend = True
-        try:
-            err = refresh_legend_class_counts(dest)
-        finally:
-            self._touching_legend = False
-        if err:
-            QMessageBox.information(self, tr("快速命名"), err)
-
-    def _bind_layer(self, layer):
-        old = self._layer
-        if old is not None:
-            for signal, slot in (
-                (getattr(old, "rendererChanged", None), self._schedule_reload),
-            ):
-                if signal is None:
-                    continue
-                try:
-                    signal.disconnect(slot)
-                except Exception:
-                    pass  # nosec B110
-        self._layer = layer
-        if layer is None:
-            return
-        try:
-            layer.rendererChanged.connect(self._schedule_reload)
-        except Exception:
-            pass  # nosec B110
-
-    def _displayed_total(self):
-        total = 0
-        for i in range(self.list.count()):
-            try:
-                total += int(self.list.item(i).data(Qt.UserRole + 4) or 0)
-            except (TypeError, ValueError):
-                pass  # nosec B110
-        return total
-
-    def _refresh_layer_caption(self):
-        dest = self._dest_layer()
-        if dest is None:
-            self.lbl_layer.setText(tr("请在 QGIS 中选择一个矢量图层"))
-            return
-        name = dest.name()
-        if self.chk_pin.isChecked():
-            text = tr("钉住：%s") % name
-        else:
-            text = name
-        if self.list.count():
-            text = "%s（%s）" % (text, self._displayed_total())
-        self.lbl_layer.setText(text)
-
-    def reload(self):
-        if self._reloading:
-            return
-        self._reloading = True
-        layer = self._dest_layer()
-        self.list.clear()
-        self._cat_items = []
-        self._counts = {}
-        self._other_count = 0
-        try:
-            self._refresh_layer_caption()
-            if layer is None:
-                return
-            try:
-                items, _err = layer_categories(layer)
-            except Exception:
-                items = []
-            self._cat_items = items
-            if items:
-                QApplication.setOverrideCursor(Qt.WaitCursor)
-                try:
-                    self._counts, self._other_count = count_category_keys(layer, items)
-                except Exception:
-                    self._counts, self._other_count = {}, 0
-                finally:
-                    QApplication.restoreOverrideCursor()
-            other_used = False
-            for info in items:
-                label = info.get("label") or tr("(未命名)")
-                hint = tr(info.get("hint") or "")
-                text = label
-                if hint and hint != label:
-                    text = "%s  [%s]" % (label, hint)
-                key = assignment_key(info.get("assignments") or {})
-                if key is None:
-                    count = self._other_count if not other_used else 0
-                    other_used = True
-                else:
-                    count = int(self._counts.get(key, 0))
-                item = QListWidgetItem(_color_icon(info.get("color")), "%s  (%s)" % (text, count))
-                item.setData(Qt.UserRole, info.get("assignments") or {})
-                item.setData(Qt.UserRole + 1, bool(info.get("assignable")))
-                item.setData(Qt.UserRole + 2, key)
-                item.setData(Qt.UserRole + 3, text)
-                item.setData(Qt.UserRole + 4, count)
-                item.setToolTip(hint or label)
-                if not info.get("assignable") or info.get("legend_on") is False:
-                    item.setForeground(QColor("#888888"))
-                self.list.addItem(item)
-            self._refresh_layer_caption()
-        finally:
-            self._reloading = False
-
-    def _adjust_item_count(self, key, delta):
-        if not delta:
-            return
-        if key is None:
-            self._other_count = max(0, self._other_count + delta)
-        else:
-            self._counts[key] = max(0, int(self._counts.get(key, 0)) + delta)
-        other_used = False
-        for i in range(self.list.count()):
-            item = self.list.item(i)
-            item_key = item.data(Qt.UserRole + 2)
-            if item_key is None:
-                if other_used:
-                    continue
-                other_used = True
-                n = self._other_count
-            elif item_key == key:
-                n = int(self._counts.get(item_key, 0))
-            else:
-                continue
-            base = item.data(Qt.UserRole + 3) or item.text()
-            item.setData(Qt.UserRole + 4, n)
-            item.setText("%s  (%s)" % (base, n))
-        self._refresh_layer_caption()
-
-    def _on_item_clicked(self, item):
-        if item is None:
-            return
-        dest = self._dest_layer()
-        if dest is None:
-            return
-        assignable = bool(item.data(Qt.UserRole + 1))
-        assignments = item.data(Qt.UserRole) or {}
-        if not assignable or not assignments:
-            QMessageBox.information(self, tr("快速命名"), tr("这个分类无法从符号化规则反推出要写的字段值。"))
-            return
-        source = self._pick_source_layer(dest)
-        fids = self._selected_fids(source)
-        if not fids:
-            QMessageBox.information(self, tr("快速命名"), tr("请先在地图或属性表中选中要素。"))
-            return
-        cat = item.data(Qt.UserRole + 3) or (item.text() or "").split("  (")[0]
-        writes = format_assignments(assignments)
-        same = layers_are_same(source, dest)
-        if not self.chk_skip_confirm.isChecked():
-            if same:
-                msg = tr("已选中 %s 个要素。\n将归属到分类「%s」。\n写入：%s\n继续？") % (
-                    len(fids),
-                    cat,
-                    writes,
-                )
-            else:
-                msg = tr(
-                    "将把 %s 个要素从「%s」复制到「%s」，并归属分类「%s」。\n"
-                    "来源图层不改。写入：%s\n继续？"
-                ) % (len(fids), source.name(), dest.name(), cat, writes)
-            reply = QMessageBox.question(self, tr("快速命名"), msg)
-            if reply != QMessageBox.Yes:
-                return
-        old_keys = {}
-        if same:
-            try:
-                old_keys = category_keys_for_fids(dest, self._cat_items, fids)
-            except Exception:
-                old_keys = {}
-        updated, err, changed = self._apply_with_busy_ui(source, dest, assignments, fids)
-        if err:
-            QMessageBox.information(self, tr("快速命名"), err)
-            return
-        if updated:
-            new_key = assignment_key(assignments)
-            if changed is None:
-                self._adjust_item_count(new_key, int(updated))
-            else:
-                delta = {}
-                for fid in changed:
-                    old = old_keys.get(int(fid))
-                    delta[old] = delta.get(old, 0) - 1
-                    delta[new_key] = delta.get(new_key, 0) + 1
-                for key, n in delta.items():
-                    self._adjust_item_count(key, n)
-            refresh_layer_after_assign(dest, self.iface)
-            if self._autosave_delay_ms() > 0:
-                self._schedule_autosave(dest)
-            notify_open_attribute_tables(
-                dest, list(assignments.keys()), force_reload=not same
-            )
-
-    def _apply_with_busy_ui(self, source, dest, assignments, fids):
-        canvas = None
-        frozen = False
-        QApplication.setOverrideCursor(Qt.WaitCursor)
-        try:
-            try:
-                canvas = self.iface.mapCanvas()
-                if canvas is not None and not canvas.isFrozen():
-                    canvas.freeze(True)
-                    frozen = True
-            except Exception:
-                frozen = False
-            if layers_are_same(source, dest):
-                return apply_assignments(dest, assignments, fids)
-            return copy_geoms_and_assign(source, dest, fids, assignments)
-        finally:
-            if frozen and canvas is not None:
-                try:
-                    canvas.freeze(False)
-                except Exception:
-                    pass  # nosec B110
-            QApplication.restoreOverrideCursor()
 
 
 def _color_icon(color_name, size=16):

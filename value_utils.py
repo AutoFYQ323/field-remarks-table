@@ -100,7 +100,7 @@ def _parse_date(text):
         d = QDate.fromString(text, fmt)
         if d.isValid():
             return d
-    d = QDate.fromString(text, Qt.ISODate)
+    d = QDate.fromString(text, Qt.DateFormat.ISODate)
     if d.isValid():
         return d
     dt = _parse_datetime(text, allow_date=False)
@@ -110,7 +110,7 @@ def _parse_date(text):
 
 
 def _parse_datetime(text, allow_date=True):
-    dt = QDateTime.fromString(text, Qt.ISODate)
+    dt = QDateTime.fromString(text, Qt.DateFormat.ISODate)
     if dt.isValid():
         return dt
     for fmt in (

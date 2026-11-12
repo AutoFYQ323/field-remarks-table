@@ -10,6 +10,7 @@ from .ntal_graph import (
     ROLE_USER,
 )
 
+from ...i18n import tr
 from .ntal_scheme import topology_of
 
 ROLE_NAME = {
@@ -25,8 +26,8 @@ def _pair(role_a, role_b):
 
 
 def _role_names(role_a, role_b):
-    left = ROLE_NAME.get(role_a) or "空"
-    right = ROLE_NAME.get(role_b) or "空"
+    left = tr(ROLE_NAME.get(role_a) or "空")
+    right = tr(ROLE_NAME.get(role_b) or "空")
     return left, right
 
 
@@ -38,9 +39,9 @@ def classify_cable_pair(role_a, role_b, scheme=None):
     severity: None / hard / warn
     """
     if not role_a and not role_b:
-        return None, "warn", "both_open", "两端都空"
+        return None, "warn", "both_open", tr("两端都空")
     if not role_a or not role_b:
-        return None, "hard", "dangling", "一端空"
+        return None, "hard", "dangling", tr("一端空")
     pair = _pair(role_a, role_b)
     topo = topology_of(scheme)
     if pair in topo["trunk_pairs"]:
@@ -48,24 +49,24 @@ def classify_cable_pair(role_a, role_b, scheme=None):
     if pair in topo["dist_pairs"]:
         return ROLE_DIST, None, None, ""
     left, right = _role_names(role_a, role_b)
-    return None, "hard", "bad_role", "{}接到{}".format(left, right)
+    return None, "hard", "bad_role", tr("{}接到{}").format(left, right)
 
 
 def classify_drop_pair(role_a, role_b, scheme=None):
     """皮线。一头空 / 两头空都是软错误。合法两端对由组网方案决定。"""
     if not role_a and not role_b:
-        return None, "warn", "both_open", "两端都空"
+        return None, "warn", "both_open", tr("两端都空")
     if not role_a or not role_b:
-        return None, "warn", "dangling", "一端空"
+        return None, "warn", "dangling", tr("一端空")
     pair = _pair(role_a, role_b)
     if pair in topology_of(scheme)["drop_pairs"]:
         return ROLE_DROP, None, None, ""
     left, right = _role_names(role_a, role_b)
     if pair == frozenset((ROLE_FAT,)):
-        return None, "warn", "drop_both_fat", "两端都是分纤盒"
+        return None, "warn", "drop_both_fat", tr("两端都是分纤盒")
     if pair == frozenset((ROLE_USER,)):
-        return None, "warn", "drop_both_user", "两端都是用户"
-    return None, "warn", "bad_role", "{}接到{}".format(left, right)
+        return None, "warn", "drop_both_user", tr("两端都是用户")
+    return None, "warn", "bad_role", tr("{}接到{}").format(left, right)
 
 
 def apply_role_label(edge, role, role_label):
@@ -96,7 +97,7 @@ def snap_and_classify_cables(cable_rows, node_rows, tolerance, hard, warn, role_
             if amb:
                 hard.append({
                     "kind": "snap_ambig",
-                    "message": "光缆{}同时靠近多个点：{}".format(side, edge["label"]),
+                    "message": tr("光缆{}同时靠近多个点：{}").format(tr(side), edge["label"]),
                     "refs": [("edge", edge["id"])] + [("node", nid) for nid in amb],
                 })
         ra = (node_map.get(a) or {}).get("role") if a else None
@@ -113,13 +114,13 @@ def snap_and_classify_cables(cable_rows, node_rows, tolerance, hard, warn, role_
         if severity:
             hard.append({
                 "kind": kind,
-                "message": "{}：{}".format(tail, bound["label"]),
+                "message": tr("{}：{}").format(tail, bound["label"]),
                 "refs": [("edge", edge["id"])]
                 + ([("node", a)] if a else [])
                 + ([("node", b)] if b else []),
             }) if severity == "hard" else warn.append({
                 "kind": kind,
-                "message": "{}：{}".format(tail, bound["label"]),
+                "message": tr("{}：{}").format(tail, bound["label"]),
                 "refs": [("edge", edge["id"])]
                 + ([("node", a)] if a else [])
                 + ([("node", b)] if b else []),

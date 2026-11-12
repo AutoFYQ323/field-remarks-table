@@ -2,6 +2,7 @@
 """Field management: add (provider nativeTypes), rename, delete. No field calculator."""
 
 from qgis.PyQt.QtCore import Qt, QVariant
+from .qt_compat import make_qgs_field, run_exec
 from qgis.PyQt.QtWidgets import (
     QDialog,
     QVBoxLayout,
@@ -20,7 +21,7 @@ from qgis.PyQt.QtWidgets import (
 )
 from .i18n import localize_button_box, tr
 
-from qgis.core import QgsField, QgsVectorDataProvider
+from qgis.core import QgsVectorDataProvider
 
 from .remarks_store import field_is_empty
 
@@ -103,7 +104,7 @@ class _NewFieldDialog(QDialog):
         form.addRow(tr("类型："), self.cmb_type)
         form.addRow(tr("长度："), self.spn_len)
         form.addRow(tr("精度："), self.spn_prec)
-        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        btns = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         localize_button_box(btns)
         btns.accepted.connect(self.accept)
         btns.rejected.connect(self.reject)
@@ -152,10 +153,10 @@ class _NewFieldDialog(QDialog):
         prec = self.spn_prec.value() if self.spn_prec.isEnabled() else 0
         if isinstance(nt, tuple):
             type_name, qtype, _l, _p = nt
-            return QgsField(name, qtype, type_name, length, prec)
+            return make_qgs_field(name, qtype, type_name, length, prec)
         qtype = _native_qvariant(nt)
         type_name = _native_type_name(nt)
-        return QgsField(name, qtype, type_name, length, prec)
+        return make_qgs_field(name, qtype, type_name, length, prec)
 
 
 class FieldsManagerDialog(QDialog):
@@ -179,18 +180,15 @@ class FieldsManagerDialog(QDialog):
         self.btn_add = QPushButton(tr("新建字段"))
         self.btn_rename = QPushButton(tr("重命名"))
         self.btn_delete = QPushButton(tr("删除字段"))
-        self.btn_remarks = QPushButton(tr("字段备注"))
         self.btn_add.clicked.connect(self._add_field)
         self.btn_rename.clicked.connect(self._rename_field)
         self.btn_delete.clicked.connect(self._delete_field)
-        self.btn_remarks.clicked.connect(self._edit_remarks)
         row.addWidget(self.btn_add)
         row.addWidget(self.btn_rename)
         row.addWidget(self.btn_delete)
-        row.addWidget(self.btn_remarks)
         layout.addLayout(row)
 
-        close_btn = QDialogButtonBox(QDialogButtonBox.Close)
+        close_btn = QDialogButtonBox(QDialogButtonBox.StandardButton.Close)
         localize_button_box(close_btn)
         close_btn.rejected.connect(self.reject)
         layout.addWidget(close_btn)
@@ -203,18 +201,6 @@ class FieldsManagerDialog(QDialog):
 
     def remarks_changed(self):
         return self._remarks_changed
-
-    def _edit_remarks(self):
-        parent = self.parent()
-        if parent is not None and hasattr(parent, "_open_layer_remarks"):
-            parent._open_layer_remarks(focus_field=self._selected_name())
-            self._remarks_changed = True
-            return
-        if parent is not None and hasattr(parent, "_open_remarks_hub"):
-            parent._open_remarks_hub()
-            if getattr(parent, "_remarks_hub", None) is not None:
-                parent._remarks_hub.focus_field(self._selected_name())
-            self._remarks_changed = True
 
     def _reload(self):
         self.list.clear()
@@ -229,12 +215,12 @@ class FieldsManagerDialog(QDialog):
             if display and display != f.name():
                 label = f"{f.name()} ({display}) — {f.typeName()}"
             item = QListWidgetItem(label)
-            item.setData(Qt.UserRole, f.name())
+            item.setData(Qt.ItemDataRole.UserRole, f.name())
             self.list.addItem(item)
 
     def _selected_name(self):
         item = self.list.currentItem()
-        return item.data(Qt.UserRole) if item else None
+        return item.data(Qt.ItemDataRole.UserRole) if item else None
 
     def _provider_caps(self):
         p = self.layer.dataProvider()
@@ -243,14 +229,12 @@ class FieldsManagerDialog(QDialog):
     def _update_buttons(self):
         editing = self.layer.isEditable()
         caps = self._provider_caps()
-        can_add = bool(caps & QgsVectorDataProvider.AddAttributes)
-        can_del = bool(caps & QgsVectorDataProvider.DeleteAttributes)
-        can_rename = bool(caps & QgsVectorDataProvider.RenameAttributes)
+        can_add = bool(caps & QgsVectorDataProvider.Capability.AddAttributes)
+        can_del = bool(caps & QgsVectorDataProvider.Capability.DeleteAttributes)
+        can_rename = bool(caps & QgsVectorDataProvider.Capability.RenameAttributes)
         self.btn_add.setEnabled(editing and can_add)
         self.btn_delete.setEnabled(editing and can_del)
         self.btn_rename.setEnabled(editing and can_rename)
-        if hasattr(self, "btn_remarks"):
-            self.btn_remarks.setEnabled(self.layer is not None and self._remarks is not None)
         tips = []
         if not editing:
             tips.append(tr("请先切换到编辑模式"))
@@ -273,7 +257,7 @@ class FieldsManagerDialog(QDialog):
         if not self._ensure_editing():
             return
         dlg = _NewFieldDialog(self.layer, self)
-        if dlg.exec_() != QDialog.Accepted:
+        if run_exec(dlg) != QDialog.DialogCode.Accepted:
             return
         field = dlg.field()
         if not field.name():
@@ -293,12 +277,12 @@ class FieldsManagerDialog(QDialog):
         if not self._ensure_editing():
             return
         caps = self._provider_caps()
-        if not (caps & QgsVectorDataProvider.RenameAttributes):
+        if not (caps & QgsVectorDataProvider.Capability.RenameAttributes):
             QMessageBox.warning(
                 self,
                 tr("重命名"),
                 tr("当前数据源不支持直接重命名字段。\n"
-                "（例如部分 Shapefile / 只读层。可换用 GeoPackage 等格式。）"),
+                   "（例如部分 Shapefile / 只读层。可换用 GeoPackage 等格式。）"),
             )
             return
         old = self._selected_name()
@@ -349,7 +333,7 @@ class FieldsManagerDialog(QDialog):
             return
         if (
             QMessageBox.question(self, tr("删除字段"), tr("确定删除字段「%s」？") % name)
-            != QMessageBox.Yes
+            != QMessageBox.StandardButton.Yes
         ):
             return
         idx = self.layer.fields().indexFromName(name)
@@ -380,9 +364,9 @@ class FieldsManagerDialog(QDialog):
                 self,
                 tr("删除字段"),
                 tr("字段「%s」在当前备注项目里还有中文名/说明/含义。\n"
-                "一并删掉这条备注吗？（选「否」则保留，以后再建同名字段仍会套用）") % name,
+                   "一并删掉这条备注吗？（选「否」则保留，以后再建同名字段仍会套用）") % name,
             )
-            != QMessageBox.Yes
+            != QMessageBox.StandardButton.Yes
         ):
             return
         fields = self._remarks.fields_map(lname)

@@ -1,45 +1,35 @@
 # -*- coding: utf-8 -*-
-"""Reorder toolbar actions and persist locally."""
+"""Toolbar order page: drag to reorder, checkbox to show/hide each button."""
 
 from qgis.PyQt.QtCore import Qt
 from qgis.PyQt.QtWidgets import (
-    QCheckBox,
-    QDialog,
-    QVBoxLayout,
     QLabel,
     QListWidget,
     QListWidgetItem,
-    QDialogButtonBox,
     QAbstractItemView,
     QHBoxLayout,
     QPushButton,
+    QVBoxLayout,
+    QWidget,
 )
-from .i18n import localize_button_box, tr
+from .i18n import tr
 
 
-class ToolbarOrderDialog(QDialog):
+class ToolbarOrderPage(QWidget):
     def __init__(self, items, current_order, parent=None):
         """
         items: list of (id, label) for reorderable tools (no separators / customize)
         current_order: list of ids including 'sep' markers
         """
         super().__init__(parent)
-        self.setWindowTitle(tr("工具栏按钮顺序"))
-        self.resize(420, 480)
         self._items = {i: lab for i, lab in items}
         self._hidden = set()
         layout = QVBoxLayout(self)
+        layout.setContentsMargins(0, 0, 0, 0)
         layout.addWidget(QLabel(tr("拖拽调整顺序（分隔线也可拖动）。确定后本地保存：")))
         layout.addWidget(QLabel(tr("勾选表示在工具栏显示。取消勾选则隐藏，顺序仍保留。")))
-        self.chk_quick_name = QCheckBox(tr("工具栏显示快速命名"))
-        self.chk_quick_name.setToolTip(
-            tr("只决定属性表工具栏要不要多一个「快速命名」图标。"
-            "快速命名是独立功能，与字段备注启用无关。")
-        )
-        self.chk_quick_name.setChecked(True)
-        layout.addWidget(self.chk_quick_name)
         self.list = QListWidget()
-        self.list.setDragDropMode(QAbstractItemView.InternalMove)
+        self.list.setDragDropMode(QAbstractItemView.DragDropMode.InternalMove)
         layout.addWidget(self.list, 1)
 
         seen = set()
@@ -67,27 +57,22 @@ class ToolbarOrderDialog(QDialog):
         layout.addLayout(row)
 
         self._default_order = list(current_order)
-        btns = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
-        localize_button_box(btns)
-        btns.accepted.connect(self.accept)
-        btns.rejected.connect(self.reject)
-        layout.addWidget(btns)
 
     def _add_sep(self, tid):
         item = QListWidgetItem(tr("—— 分隔线 ——"))
-        item.setData(Qt.UserRole, tid)
+        item.setData(Qt.ItemDataRole.UserRole, tid)
         self.list.addItem(item)
 
     def _add_tool(self, tid, label, visible):
         item = QListWidgetItem(label)
-        item.setData(Qt.UserRole, tid)
+        item.setData(Qt.ItemDataRole.UserRole, tid)
         item.setFlags(
-            Qt.ItemIsEnabled
-            | Qt.ItemIsSelectable
-            | Qt.ItemIsDragEnabled
-            | Qt.ItemIsUserCheckable
+            Qt.ItemFlag.ItemIsEnabled
+            | Qt.ItemFlag.ItemIsSelectable
+            | Qt.ItemFlag.ItemIsDragEnabled
+            | Qt.ItemFlag.ItemIsUserCheckable
         )
-        item.setCheckState(Qt.Checked if visible else Qt.Unchecked)
+        item.setCheckState(Qt.CheckState.Checked if visible else Qt.CheckState.Unchecked)
         self.list.addItem(item)
 
     def set_default_order(self, order):
@@ -97,30 +82,21 @@ class ToolbarOrderDialog(QDialog):
         self._hidden = set(hidden or [])
         for i in range(self.list.count()):
             item = self.list.item(i)
-            tid = item.data(Qt.UserRole)
+            tid = item.data(Qt.ItemDataRole.UserRole)
             if not tid or str(tid).startswith("sep"):
                 continue
-            item.setCheckState(Qt.Unchecked if tid in self._hidden else Qt.Checked)
-
-    def set_show_quick_name(self, on):
-        if hasattr(self, "chk_quick_name"):
-            self.chk_quick_name.setChecked(bool(on))
-
-    def show_quick_name(self):
-        if hasattr(self, "chk_quick_name"):
-            return bool(self.chk_quick_name.isChecked())
-        return False
+            item.setCheckState(Qt.CheckState.Unchecked if tid in self._hidden else Qt.CheckState.Checked)
 
     def _insert_sep(self):
         n = 1
         existing = {
-            self.list.item(i).data(Qt.UserRole)
+            self.list.item(i).data(Qt.ItemDataRole.UserRole)
             for i in range(self.list.count())
         }
         while f"sep{n}" in existing:
             n += 1
         item = QListWidgetItem(tr("—— 分隔线 ——"))
-        item.setData(Qt.UserRole, f"sep{n}")
+        item.setData(Qt.ItemDataRole.UserRole, f"sep{n}")
         row = self.list.currentRow()
         if row < 0:
             self.list.addItem(item)
@@ -128,7 +104,6 @@ class ToolbarOrderDialog(QDialog):
             self.list.insertItem(row + 1, item)
 
     def _reset_default(self):
-        self.set_show_quick_name(True)
         self._hidden = set()
         self.list.clear()
         for tid in self._default_order:
@@ -142,7 +117,7 @@ class ToolbarOrderDialog(QDialog):
     def result_order(self):
         order = []
         for i in range(self.list.count()):
-            tid = self.list.item(i).data(Qt.UserRole)
+            tid = self.list.item(i).data(Qt.ItemDataRole.UserRole)
             if tid:
                 order.append(tid)
         order.append("customize")
@@ -152,9 +127,9 @@ class ToolbarOrderDialog(QDialog):
         hidden = []
         for i in range(self.list.count()):
             item = self.list.item(i)
-            tid = item.data(Qt.UserRole)
+            tid = item.data(Qt.ItemDataRole.UserRole)
             if not tid or str(tid).startswith("sep") or tid == "customize":
                 continue
-            if item.checkState() != Qt.Checked:
+            if item.checkState() != Qt.CheckState.Checked:
                 hidden.append(tid)
         return hidden

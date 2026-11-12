@@ -237,7 +237,7 @@ def template_parts(text):
     pos = 0
     for match in VAR_TOKEN_RE.finditer(text):
         if match.start() > pos:
-            parts.append(("text", text[pos : match.start()]))
+            parts.append(("text", text[pos:match.start()]))
         title = (match.group(1) or "").strip()
         if title:
             parts.append(("var", title))
@@ -322,10 +322,10 @@ def parse_meaning_full(text):
         left, right = text, text
     if right.upper().startswith(QGIS_MEANING_PREFIX):
         kind = "expr"
-        right = right[len(QGIS_MEANING_PREFIX) :].strip()
+        right = right[len(QGIS_MEANING_PREFIX):].strip()
     elif left.upper().startswith(QGIS_MEANING_PREFIX) and "=" not in text:
         kind = "expr"
-        left = left[len(QGIS_MEANING_PREFIX) :].strip()
+        left = left[len(QGIS_MEANING_PREFIX):].strip()
         right = left
     return left, right, kind
 
@@ -338,7 +338,7 @@ def normalize_meaning(item):
         if kind not in ("const", "expr"):
             kind = "const"
         if kind == "expr" and value.upper().startswith(QGIS_MEANING_PREFIX):
-            value = value[len(QGIS_MEANING_PREFIX) :].strip()
+            value = value[len(QGIS_MEANING_PREFIX):].strip()
         if not cn and not value:
             return None
         return {"cn": cn or value, "value": value or cn, "kind": kind}
@@ -788,7 +788,7 @@ def notify_user(message, level="warning"):
     try:
         from qgis.core import Qgis, QgsMessageLog
 
-        QgsMessageLog.logMessage(message, tr("属性表 Plus"), Qgis.Warning)
+        QgsMessageLog.logMessage(message, tr("属性表 Plus"), Qgis.MessageLevel.Warning)
     except Exception:
         pass  # nosec B110
     try:
@@ -1523,4 +1523,3 @@ class RemarksSession:
 
     def meanings(self, layer_name, field_name):
         return list(self.field_entry(layer_name, field_name).get("meanings") or [])
-

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from ...i18n import tr
+from ...qt_compat import make_qgs_field
 import math
 import random
 import re
@@ -9,7 +10,6 @@ from qgis.core import (
     QgsCoordinateReferenceSystem,
     QgsCoordinateTransform,
     QgsFeature,
-    QgsField,
     QgsFields,
     QgsGeometry,
     QgsMarkerSymbol,
@@ -75,6 +75,8 @@ WARN_KINDS = {
     "multi_fat_assign",
     "splice_no_out",
     "fat_no_drop",
+    "pseudo_cycle",
+    "dir_ambiguous",
 }
 KIND_SOURCE_TITLES = {
     "drop": "皮线赋值",
@@ -113,6 +115,7 @@ KIND_LAYER_TITLES = {
     "splice_no_out": "接头无配线",
     "line_reversed": "线方向反了",
     "pseudo_cycle": "伪成环",
+    "dir_ambiguous": "方向无法判断",
     "dir_conflict": "方向冲突",
     "bad_role": "角色异常",
     "fat_hh_zero": "分纤盒户数为0",
@@ -143,6 +146,7 @@ LINE_ISSUE_KINDS = {
     "self_loop",
     "line_reversed",
     "pseudo_cycle",
+    "dir_ambiguous",
     "dir_conflict",
     "bad_role",
     "link_tie",
@@ -349,7 +353,7 @@ def working_crs_from_layers(layers):
 def _point_xy(geom):
     if geom is None or geom.isEmpty():
         return None
-    if geom.type() != QgsWkbTypes.PointGeometry:
+    if geom.type() != QgsWkbTypes.GeometryType.PointGeometry:
         pt = geom.centroid().asPoint()
         return (pt.x(), pt.y())
     if geom.isMultipart():
@@ -364,7 +368,7 @@ def _point_xy(geom):
 def _straight_line(geom):
     if geom is None or geom.isEmpty():
         return None
-    if geom.type() != QgsWkbTypes.LineGeometry:
+    if geom.type() != QgsWkbTypes.GeometryType.LineGeometry:
         return None
     try:
         if QgsWkbTypes.isCurvedType(geom.wkbType()):
@@ -415,7 +419,7 @@ def _longest_line_geom(geom):
     best = None
     best_len = -1.0
     for part in _geom_parts(straight):
-        if part.type() != QgsWkbTypes.LineGeometry:
+        if part.type() != QgsWkbTypes.GeometryType.LineGeometry:
             continue
         try:
             length = float(part.length())
@@ -620,7 +624,10 @@ def _feature_label(feat, layer_name, fallback_prefix, name_field=None):
     return "{}#{}".format(fallback_prefix or layer_name, feat.id())
 
 
-def collect_points(layers, filters, role, work_crs, hh_field=None, old_field=None, name_field=None, on_step=None, include_unchecked=False):
+def collect_points(
+    layers, filters, role, work_crs, hh_field=None, old_field=None,
+    name_field=None, on_step=None, include_unchecked=False,
+):
     rows = []
     stats = {}
     for layer in layers:
@@ -855,11 +862,11 @@ def run_analysis(occ_layers, splice_layers, fat_layers, cable_layers,
     hard = []
     warn = []
     if not occ_rows:
-        hard.append({"kind": "config", "message": "光交图层筛选后没有可用点。", "refs": []})
+        hard.append({"kind": "config", "message": tr("光交图层筛选后没有可用点。"), "refs": []})
     if not fat_rows:
-        hard.append({"kind": "config", "message": "分纤盒图层筛选后没有可用点。", "refs": []})
+        hard.append({"kind": "config", "message": tr("分纤盒图层筛选后没有可用点。"), "refs": []})
     if not cable_rows:
-        hard.append({"kind": "config", "message": "光缆图层筛选后没有可用线。", "refs": []})
+        hard.append({"kind": "config", "message": tr("光缆图层筛选后没有可用线。"), "refs": []})
 
     trunk_rows, dist_rows, bindings, _classified = snap_and_classify_cables(
         cable_rows, nodes, tolerance, hard, warn, ROLE_LABEL, spec
@@ -896,7 +903,7 @@ def run_analysis(occ_layers, splice_layers, fat_layers, cable_layers,
         if hh_is_zero_or_empty(fat):
             hard.append({
                 "kind": "fat_hh_zero",
-                "message": "分纤盒户数为 0 或空：{}".format(fat["label"]),
+                "message": tr("分纤盒户数为 0 或空：{}").format(fat["label"]),
                 "refs": [("node", fat["id"])],
             })
 
@@ -946,16 +953,16 @@ def run_analysis(occ_layers, splice_layers, fat_layers, cable_layers,
         if extracted <= 0:
             warn.append({
                 "kind": "layer_empty",
-                "message": "配置图层筛选后无要素：{}（{}）".format(
-                    stat["layer"].name(), ROLE_LABEL.get(stat["role"], stat["role"])
+                "message": tr("配置图层筛选后无要素：{}（{}）").format(
+                    stat["layer"].name(), tr(ROLE_LABEL.get(stat["role"], stat["role"]) or "")
                 ),
                 "refs": [],
             })
         elif used <= 0:
             warn.append({
                 "kind": "layer_idle",
-                "message": "配置图层未有效参与：{}（{}，筛选 {} 个）".format(
-                    stat["layer"].name(), ROLE_LABEL.get(stat["role"], stat["role"]), extracted
+                "message": tr("配置图层未有效参与：{}（{}，筛选 {} 个）").format(
+                    stat["layer"].name(), tr(ROLE_LABEL.get(stat["role"], stat["role"]) or ""), extracted
                 ),
                 "refs": [],
             })
@@ -1023,7 +1030,7 @@ def _build_tree_text(occ_rows, node_map, edge_map, result):
             walk_dest(to, next_prefix, True)
 
     if not occ_rows:
-        return "没有光交。"
+        return tr("没有光交。")
     for i, occ in enumerate(occ_rows):
         if i:
             lines.append("")
@@ -1085,7 +1092,7 @@ def field_write_problems(writes):
             if field.type() != QVariant.String:
                 problems.append({
                     "kind": "field_bad",
-                    "message": "字段「{}」（图层 {}）不是文本类型，写不进 CODE。".format(field_name, layer.name()),
+                    "message": tr("字段「{}」（图层 {}）不是文本类型，写不进 CODE。").format(field_name, layer.name()),
                     "refs": [],
                 })
                 continue
@@ -1094,7 +1101,7 @@ def field_write_problems(writes):
             if limit > 0 and longest > limit:
                 problems.append({
                     "kind": "field_bad",
-                    "message": "字段「{}」（图层 {}）长度 {}，CODE 最长 {} 个字符，保存时会被截断。请先加宽字段。".format(
+                    "message": tr("字段「{}」（图层 {}）长度 {}，CODE 最长 {} 个字符，保存时会被截断。请先加宽字段。").format(
                         field_name, layer.name(), limit, longest
                     ),
                     "refs": [],
@@ -1116,7 +1123,7 @@ def code_conflicts_with_layer(writes, ref_kind, title):
         existing = {}
         request = QgsFeatureRequest()
         try:
-            request.setFlags(QgsFeatureRequest.NoGeometry)
+            request.setFlags(QgsFeatureRequest.Flag.NoGeometry)
         except AttributeError:
             request.setFlags(QgsFeatureRequest.Flag.NoGeometry)
         request.setSubsetOfAttributes([idx])
@@ -1133,7 +1140,7 @@ def code_conflicts_with_layer(writes, ref_kind, title):
                 continue
             problems.append({
                 "kind": "code_conflict",
-                "message": "{} CODE {} 已被图层 {} 里未重写的要素 #{} 占用：{}".format(
+                "message": tr("{} CODE {} 已被图层 {} 里未重写的要素 #{} 占用：{}").format(
                     title, code, layer.name(), other, row.get("label") or ""
                 ),
                 "refs": [(ref_kind, "{}:{}".format(layer.id(), row["fid"]))],
@@ -1280,11 +1287,11 @@ def run_fat_analysis(fat_layers, user_layers, drop_layers,
     warn = []
     hard = []
     if not fat_rows:
-        hard.append({"kind": "config", "message": "分纤盒图层筛选后没有可用点。", "refs": []})
+        hard.append({"kind": "config", "message": tr("分纤盒图层筛选后没有可用点。"), "refs": []})
     if not user_rows:
-        hard.append({"kind": "config", "message": "用户图层筛选后没有可用点。", "refs": []})
+        hard.append({"kind": "config", "message": tr("用户图层筛选后没有可用点。"), "refs": []})
     if not drop_rows:
-        hard.append({"kind": "config", "message": "皮线图层筛选后没有可用线。", "refs": []})
+        hard.append({"kind": "config", "message": tr("皮线图层筛选后没有可用线。"), "refs": []})
 
     from .ntal_roles import classify_drop_pair
 
@@ -1309,13 +1316,13 @@ def run_fat_analysis(fat_layers, user_layers, drop_layers,
             if amb:
                 warn.append({
                     "kind": "snap_ambig",
-                    "message": "皮线{}同时靠近多个点：{}".format(side, drop["label"]),
+                    "message": tr("皮线{}同时靠近多个点：{}").format(tr(side), drop["label"]),
                     "refs": [("edge", drop["id"])] + [("node", nid) for nid in amb],
                 })
         if end_a and end_a == end_b:
             warn.append({
                 "kind": "self_loop",
-                "message": "皮线两端接到同一点：{}".format(drop["label"]),
+                "message": tr("皮线两端接到同一点：{}").format(drop["label"]),
                 "refs": [("edge", drop["id"]), ("node", end_a)],
             })
             continue
@@ -1336,14 +1343,14 @@ def run_fat_analysis(fat_layers, user_layers, drop_layers,
             used_users.add(user_id)
             continue
         if kind == "drop_both_fat":
-            message = "皮线两端都是分纤盒：{}"
+            message = tr("皮线两端都是分纤盒：{}")
         elif kind == "drop_both_user":
-            message = "皮线两端都是用户：{}"
+            message = tr("皮线两端都是用户：{}")
         elif kind == "dangling":
-            message = "皮线一端空：{}"
+            message = tr("皮线一端空：{}")
         else:
             kind = "both_open"
-            message = "皮线两端都空：{}"
+            message = tr("皮线两端都空：{}")
         warn.append({
             "kind": kind,
             "message": message.format(drop["label"]),
@@ -1357,7 +1364,7 @@ def run_fat_analysis(fat_layers, user_layers, drop_layers,
             fat = fat_map.get(row["fat_id"]) or {}
             hard.append({
                 "kind": "dup_drop",
-                "message": "同一分纤盒到同一用户有 {} 条皮线，已剔除：{} ← {}".format(
+                "message": tr("同一分纤盒到同一用户有 {} 条皮线，已剔除：{} ← {}").format(
                     row["drop_count"], user.get("label") or row["user_id"], fat.get("label") or row["fat_id"]
                 ),
                 "refs": [("node", row["user_id"]), ("node", row["fat_id"])]
@@ -1367,9 +1374,9 @@ def run_fat_analysis(fat_layers, user_layers, drop_layers,
             user = user_map.get(row["user_id"]) or {}
             fat_names = "、".join((fat_map.get(fid) or {}).get("label") or fid for fid in row["fat_ids"])
             if drop_multi == "write":
-                message = "用户被 {} 个分纤盒覆盖，仍各写一条：{}（{}）"
+                message = tr("用户被 {} 个分纤盒覆盖，仍各写一条：{}（{}）")
             else:
-                message = "用户被 {} 个分纤盒覆盖，不赋值：{}（{}）"
+                message = tr("用户被 {} 个分纤盒覆盖，不赋值：{}（{}）")
             warn.append({
                 "kind": "multi_fat",
                 "message": message.format(
@@ -1424,21 +1431,21 @@ def run_fat_analysis(fat_layers, user_layers, drop_layers,
         totals_match = abs(user_hh_total - drop_hh_total) < 1e-6
         attributed_match = abs(attributed_hh - drop_hh_total) < 1e-6
         if not totals_match:
-            msg = "用户点总户数 {} 与皮线字段总户数 {} 不一致，请先检查皮线值。".format(
+            msg = tr("用户点总户数 {} 与皮线字段总户数 {} 不一致，请先检查皮线值。").format(
                 format_num(user_hh_total), format_num(drop_hh_total)
             )
-            item = {"kind": "hh_mismatch", "message": msg + ("未写入。" if fat_check != "none" else ""), "refs": []}
+            item = {"kind": "hh_mismatch", "message": msg + (tr("未写入。") if fat_check != "none" else ""), "refs": []}
             if fat_check == "none":
                 warn.append(item)
             else:
                 hard.append(item)
         elif not attributed_match:
-            msg = "皮线字段总户数 {} 里有 {} 没有归到唯一分纤盒。".format(
+            msg = tr("皮线字段总户数 {} 里有 {} 没有归到唯一分纤盒。").format(
                 format_num(drop_hh_total), format_num(drop_hh_total - attributed_hh)
             )
             item = {
                 "kind": "hh_unassigned",
-                "message": msg + ("不赋值。请先检查皮线。" if fat_check != "none" else ""),
+                "message": msg + (tr("不赋值。请先检查皮线。") if fat_check != "none" else ""),
                 "refs": [],
             }
             if fat_check == "none":
@@ -1495,16 +1502,16 @@ def run_fat_analysis(fat_layers, user_layers, drop_layers,
         if extracted <= 0:
             warn.append({
                 "kind": "layer_empty",
-                "message": "配置图层筛选后无要素：{}（{}）".format(
-                    stat["layer"].name(), ROLE_LABEL.get(stat["role"], stat["role"])
+                "message": tr("配置图层筛选后无要素：{}（{}）").format(
+                    stat["layer"].name(), tr(ROLE_LABEL.get(stat["role"], stat["role"]) or "")
                 ),
                 "refs": [],
             })
         elif used <= 0:
             warn.append({
                 "kind": "layer_idle",
-                "message": "配置图层未有效参与：{}（{}，筛选 {} 个）".format(
-                    stat["layer"].name(), ROLE_LABEL.get(stat["role"], stat["role"]), extracted
+                "message": tr("配置图层未有效参与：{}（{}，筛选 {} 个）").format(
+                    stat["layer"].name(), tr(ROLE_LABEL.get(stat["role"], stat["role"]) or ""), extracted
                 ),
                 "refs": [],
             })
@@ -1550,27 +1557,27 @@ def run_fat_analysis(fat_layers, user_layers, drop_layers,
 
     if mode == "drop":
         if drop_value == "one":
-            tree_head = "皮线户数（每条写 1"
+            tree_head = tr("皮线户数（每条写 1")
         else:
-            tree_head = "皮线户数（抄用户户数"
+            tree_head = tr("皮线户数（抄用户户数")
         if drop_multi == "write":
-            tree_head += "；多盒覆盖也写 / 重复皮线跳过）"
+            tree_head += tr("；多盒覆盖也写 / 重复皮线跳过）")
         else:
-            tree_head += "；已跳过多分纤盒覆盖 / 重复皮线）"
+            tree_head += tr("；已跳过多分纤盒覆盖 / 重复皮线）")
         tree_lines = [tree_head]
         for row in writes:
             tree_lines.append("  {} = {}".format(row["label"], format_num(row["value"])))
     else:
         if fat_value == "count_drop":
-            tree_lines = ["分纤盒户数（按所出皮线条数）"]
+            tree_lines = [tr("分纤盒户数（按所出皮线条数）")]
         else:
-            tree_lines = ["分纤盒户数（按所出皮线字段合计）"]
-        tree_lines.append("用户点总户数 {}，皮线字段总户数 {}。".format(
+            tree_lines = [tr("分纤盒户数（按所出皮线字段合计）")]
+        tree_lines.append(tr("用户点总户数 {}，皮线字段总户数 {}。").format(
             format_num(user_hh_total), format_num(drop_hh_total)
         ))
         for row in writes:
             tree_lines.append(
-                "  {} = {}（皮线 {} 条）".format(
+                tr("  {} = {}（皮线 {} 条）").format(
                     row["label"], format_num(row["value"]), row.get("user_count") or 0
                 )
             )
@@ -1620,16 +1627,69 @@ def run_fat_analysis(fat_layers, user_layers, drop_layers,
 def _is_group_node(node):
     try:
         from qgis.core import QgsLayerTreeNode
-        return node.nodeType() == QgsLayerTreeNode.NodeGroup
+        return node.nodeType() == QgsLayerTreeNode.NodeType.NodeGroup
     except Exception:
         return hasattr(node, "insertGroup")
 
 
+_NAME_PROP = "ntal/name_key"
+_GROUP_KEY = "ntal/group_key"
+_WHOLE_LAYER_NAMES = ("通用线方向_起点终点",)
+
+
+def legend_text(text):
+    """Current plugin language. Chinese stays the source string."""
+    text = "" if text is None else str(text)
+    if not text:
+        return ""
+    try:
+        return tr(text)
+    except Exception:
+        return text
+
+
+def legend_layer_name(canonical):
+    """Translate a temp-layer name. A catalog hit wins; otherwise each _ part."""
+    text = "" if canonical is None else str(canonical)
+    if not text:
+        return ""
+    whole = legend_text(text)
+    if whole != text or text in _WHOLE_LAYER_NAMES:
+        return whole
+    parts = text.split("_")
+    if len(parts) <= 1:
+        return whole
+    return "_".join(legend_text(part) for part in parts)
+
+
 def _child_group(parent, name):
+    canonical = "" if name is None else str(name)
+    shown = legend_text(canonical)
     for child in parent.children():
-        if _is_group_node(child) and child.name() == name:
+        if not _is_group_node(child):
+            continue
+        key = ""
+        try:
+            key = child.customProperty(_GROUP_KEY) or ""
+        except Exception:
+            key = ""
+        if key == canonical or child.name() in (canonical, shown):
+            if shown and child.name() != shown:
+                try:
+                    child.setName(shown)
+                except Exception:
+                    pass  # nosec B110
+            try:
+                child.setCustomProperty(_GROUP_KEY, canonical)
+            except Exception:
+                pass  # nosec B110
             return child
-    return parent.insertGroup(0, name)
+    node = parent.insertGroup(0, shown or canonical)
+    try:
+        node.setCustomProperty(_GROUP_KEY, canonical)
+    except Exception:
+        pass  # nosec B110
+    return node
 
 
 def _ensure_group_path(names):
@@ -1641,6 +1701,75 @@ def _ensure_group_path(names):
 
 def _ensure_result_group():
     return _ensure_group_path([TEMP_GROUP_NAME])
+
+
+def retitle_temp_legend():
+    """Rename result groups and temp layers into the current plugin language."""
+    try:
+        project = QgsProject.instance()
+        root = project.layerTreeRoot()
+    except Exception:
+        return
+
+    def walk(node):
+        for child in list(node.children()):
+            if not _is_group_node(child):
+                continue
+            key = ""
+            try:
+                key = child.customProperty(_GROUP_KEY) or ""
+            except Exception:
+                key = ""
+            if not key:
+                try:
+                    current = child.name() or ""
+                except Exception:
+                    current = ""
+                if current in _RESULT_GROUP_NAMES:
+                    key = current
+            if key in _RESULT_GROUP_NAMES:
+                shown = legend_text(key)
+                if shown and child.name() != shown:
+                    try:
+                        child.setName(shown)
+                    except Exception:
+                        pass  # nosec B110
+                try:
+                    child.setCustomProperty(_GROUP_KEY, key)
+                except Exception:
+                    pass  # nosec B110
+            walk(child)
+
+    walk(root)
+    parts = set(LEVEL_LABELS.values())
+    parts.update(KIND_LAYER_TITLES.values())
+    parts.update(KIND_SOURCE_TITLES.values())
+    parts.update(_RESULT_GROUP_NAMES)
+    for layer in list(project.mapLayers().values()):
+        if not _is_ntal_temp(layer):
+            continue
+        key = ""
+        try:
+            key = layer.customProperty(_NAME_PROP) or ""
+        except Exception:
+            key = ""
+        if not key:
+            current = layer.name() or ""
+            chunks = current.split("_") if current else []
+            if current in _WHOLE_LAYER_NAMES or (chunks and all(chunk in parts for chunk in chunks)):
+                key = current
+        if not key:
+            continue
+        shown = legend_layer_name(key)
+        if shown and layer.name() != shown:
+            try:
+                layer.setName(shown)
+            except Exception:
+                pass  # nosec B110
+        try:
+            layer.setCustomProperty(_NAME_PROP, key)
+        except Exception:
+            pass  # nosec B110
 
 
 TEMP_PROP = "ntal/temp_source"
@@ -1659,15 +1788,46 @@ def _is_ntal_temp(layer):
             return False
         node = QgsProject.instance().layerTreeRoot().findLayer(layer.id())
         parent = node.parent() if node is not None else None
-        return parent is not None and parent.name() in _RESULT_GROUP_NAMES
+        return _parent_is_result_group(parent)
     except Exception:
         return False
 
 
+def _parent_is_result_group(parent):
+    if parent is None:
+        return False
+    try:
+        key = parent.customProperty(_GROUP_KEY) or ""
+    except Exception:
+        key = ""
+    if key in _RESULT_GROUP_NAMES:
+        return True
+    try:
+        name = parent.name() or ""
+    except Exception:
+        name = ""
+    if name in _RESULT_GROUP_NAMES:
+        return True
+    for canonical in _RESULT_GROUP_NAMES:
+        if name and name == legend_text(canonical):
+            return True
+    return False
+
+
 def _remove_layer_by_name(name):
+    canonical = "" if name is None else str(name)
+    display = legend_layer_name(canonical)
     project = QgsProject.instance()
     for layer in list(project.mapLayers().values()):
-        if layer.name() == name and _is_ntal_temp(layer):
+        if not _is_ntal_temp(layer):
+            continue
+        key = ""
+        try:
+            key = layer.customProperty(_NAME_PROP) or ""
+        except Exception:
+            key = ""
+        current = layer.name() or ""
+        if key == canonical or current in (canonical, display):
             try:
                 project.removeMapLayer(layer.id())
             except Exception:
@@ -1688,25 +1848,64 @@ def clear_temp_layers(sources):
             source = layer.customProperty(TEMP_PROP) or ""
         except Exception:
             source = ""
+        aliases = set(wanted)
+        for item in list(wanted):
+            aliases.add(legend_text(item))
         if not source:
             name = layer.name() or ""
-            source = next((item for item in wanted if name.endswith("_" + item)), "")
-        if source in wanted:
+            source = next((item for item in aliases if item and name.endswith("_" + item)), "")
+        if source in aliases:
             try:
                 project.removeMapLayer(layer.id())
             except Exception:
                 pass  # nosec B110
 
 
+def _set_node_checked(node, checked):
+    if node is None:
+        return
+    try:
+        node.setItemVisibilityChecked(bool(checked))
+    except Exception:
+        pass  # nosec B110
+
+
+def _pin_layer_checked(layer, checked):
+    """Re-apply the legend check after the layer is in the tree.
+
+    addLayer's own default is not enough: a saved layer-switch scheme can
+    put this temp layer back to its previous off state about a second later.
+    """
+    if layer is None:
+        return
+    layer_id = layer.id()
+    want = bool(checked)
+
+    def _apply():
+        try:
+            node = QgsProject.instance().layerTreeRoot().findLayer(layer_id)
+        except Exception:
+            return
+        _set_node_checked(node, want)
+
+    _apply()
+    if not want:
+        return
+    try:
+        from qgis.PyQt.QtCore import QTimer
+        QTimer.singleShot(0, _apply)
+        QTimer.singleShot(1800, _apply)
+    except Exception:
+        pass  # nosec B110
+
+
 def _add_layer_to_result_group(layer, checked=True, group_path=None):
     group = _ensure_group_path(group_path) if group_path else _ensure_result_group()
     QgsProject.instance().addMapLayer(layer, False)
     node = group.addLayer(layer)
-    if node is not None and not checked:
-        try:
-            node.setItemVisibilityChecked(False)
-        except Exception:
-            pass  # nosec B110
+    _set_node_checked(node, checked)
+    if checked:
+        _pin_layer_checked(layer, True)
     return node
 
 
@@ -1748,7 +1947,7 @@ def _apply_marker_renderer(layer, rows, color):
     if len(shapes) <= 1:
         layer.setRenderer(QgsSingleSymbolRenderer(_outline_symbol(color, shapes[0] if shapes else "circle")))
         return
-    titles = {"diamond": "线", "circle": "点"}
+    titles = {"diamond": tr("线"), "circle": tr("点")}
     categories = []
     for shape in shapes:
         categories.append(QgsRendererCategory(
@@ -1762,7 +1961,7 @@ def _label_layer(layer, field_name, color):
     settings.fieldName = field_name
     settings.enabled = True
     try:
-        settings.placement = QgsPalLayerSettings.OverPoint
+        settings.placement = QgsPalLayerSettings.PredefinedPointPosition.OverPoint
     except Exception:
         pass  # nosec B110
     fmt = QgsTextFormat()
@@ -1785,8 +1984,10 @@ def _add_temp_points(name, rows, color, fields_spec, fallback_crs=None, checked=
         return None
     project_crs = _project_crs()
     uri = "Point?crs={}".format(project_crs.authid() or "EPSG:4326")
-    layer = QgsVectorLayer(uri, name, "memory")
+    display = legend_layer_name(name)
+    layer = QgsVectorLayer(uri, display or name, "memory")
     layer.setCustomProperty(TEMP_PROP, source or name)
+    layer.setCustomProperty(_NAME_PROP, name)
     if project_crs is not None and project_crs.isValid():
         try:
             layer.setCrs(project_crs)
@@ -1795,7 +1996,7 @@ def _add_temp_points(name, rows, color, fields_spec, fallback_crs=None, checked=
     provider = layer.dataProvider()
     qfields = QgsFields()
     for fname, ftype in fields_spec:
-        qfields.append(QgsField(fname, ftype))
+        qfields.append(make_qgs_field(fname, ftype))
     provider.addAttributes(qfields.toList())
     layer.updateFields()
     feats = []
@@ -1854,7 +2055,7 @@ def _issue_layer_name(kind, severity, source=""):
 
 
 def _issue_feature_label(temp_name, rec, extra_parts=None):
-    parts = [temp_name]
+    parts = [legend_layer_name(temp_name)]
     layer_name = ((rec or {}).get("layer_name") or "").strip()
     if layer_name:
         parts.append(layer_name)
@@ -1868,9 +2069,14 @@ def _issue_feature_label(temp_name, rec, extra_parts=None):
     return "_".join(parts)
 
 
-def _role_text(rec):
+def _role_source(rec):
     role = (rec or {}).get("role")
     return ROLE_LABEL.get(role) or ""
+
+
+def _role_text(rec):
+    raw = _role_source(rec)
+    return tr(raw) if raw else ""
 
 
 def _name_after_role(label, role_text):
@@ -1889,11 +2095,11 @@ def _record_name(rec):
     name = (rec.get("name") or "").strip()
     if name and not _FID_TAIL.search(name):
         return name
-    return _name_after_role(rec.get("label") or "", _role_text(rec))
+    return _name_after_role(rec.get("label") or "", _role_source(rec))
 
 
 def _end_phrase(node):
-    role = _role_text(node) or "点"
+    role = _role_text(node) or tr("点")
     name = _record_name(node)
     if name:
         return role + name
@@ -1949,20 +2155,19 @@ def _line_hint_parts(kind, edge, nodes, tolerance):
         and start_node.get("id") and start_node.get("id") == end_node.get("id")
     )
     if same:
-        parts.append("两端接到" + _end_phrase(start_node))
+        parts.append(tr("两端接到{}").format(_end_phrase(start_node)))
         return parts
-    gap_word = "歧义" if kind == "snap_ambig" else "空"
     if start_node and not end_node:
-        parts.append("终点" + gap_word)
-        parts.append("另一头是" + _end_phrase(start_node))
+        parts.append(tr("终点歧义") if kind == "snap_ambig" else tr("终点空"))
+        parts.append(tr("另一头是{}").format(_end_phrase(start_node)))
     elif end_node and not start_node:
-        parts.append("起点" + gap_word)
-        parts.append("另一头是" + _end_phrase(end_node))
+        parts.append(tr("起点歧义") if kind == "snap_ambig" else tr("起点空"))
+        parts.append(tr("另一头是{}").format(_end_phrase(end_node)))
     elif not start_node and not end_node:
-        parts.append("两端歧义" if kind == "snap_ambig" else "两端都空")
+        parts.append(tr("两端歧义") if kind == "snap_ambig" else tr("两端都空"))
     else:
-        parts.append("起点是" + _end_phrase(start_node))
-        parts.append("终点是" + _end_phrase(end_node))
+        parts.append(tr("起点是{}").format(_end_phrase(start_node)))
+        parts.append(tr("终点是{}").format(_end_phrase(end_node)))
     return parts
 
 
@@ -1978,7 +2183,7 @@ def _point_hint_parts(node):
 
 
 def _temp_user_parts(row):
-    parts = ["用户"]
+    parts = [tr("用户")]
     name = _name_after_role(row.get("user_label") or "", "用户")
     if name:
         parts.append(name)
@@ -1990,14 +2195,14 @@ def _temp_user_parts(row):
             if not piece:
                 continue
             fat_name = _name_after_role(piece, "分纤盒")
-            bits.append("分纤盒" + fat_name if fat_name else "分纤盒")
+            bits.append(tr("分纤盒{}").format(fat_name) if fat_name else tr("分纤盒"))
         if bits:
-            parts.append("另一头是" + "、".join(bits))
+            parts.append(tr("另一头是{}").format(tr("、").join(bits)))
         return parts
     fat = (row.get("fat_label") or "").strip()
     if fat:
         fat_name = _name_after_role(fat, "分纤盒")
-        parts.append("另一头是分纤盒" + fat_name if fat_name else "另一头是分纤盒")
+        parts.append(tr("另一头是分纤盒{}").format(fat_name) if fat_name else tr("另一头是分纤盒"))
     return parts
 
 
@@ -2232,6 +2437,7 @@ def _issue_short(kind):
     shorts = {
         "line_reversed": "反了",
         "pseudo_cycle": "伪成环",
+        "dir_ambiguous": "方向无法判断",
         "cycle": "成环",
         "self_loop": "自环",
         "dangling": "一端空",
@@ -2261,7 +2467,7 @@ def _same_spot_distance(crs):
     except Exception:
         unit = None
     try:
-        degrees = QgsUnitTypes.DistanceDegrees
+        degrees = QgsUnitTypes.DistanceUnit.DistanceDegrees
     except Exception:
         degrees = None
     if degrees is not None and unit == degrees:

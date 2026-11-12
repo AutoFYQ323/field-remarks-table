@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-from ...i18n import tr
 """Single local config for field-mapping copy."""
 
 import json

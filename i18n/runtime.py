@@ -122,12 +122,12 @@ def localize_button_box(box):
     except Exception:
         return box
     mapping = (
-        (QDialogButtonBox.Ok, "确定"),
-        (QDialogButtonBox.Cancel, "取消"),
-        (QDialogButtonBox.Yes, "是"),
-        (QDialogButtonBox.No, "否"),
-        (QDialogButtonBox.Close, "关闭"),
-        (QDialogButtonBox.Save, "保存"),
+        (QDialogButtonBox.StandardButton.Ok, "确定"),
+        (QDialogButtonBox.StandardButton.Cancel, "取消"),
+        (QDialogButtonBox.StandardButton.Yes, "是"),
+        (QDialogButtonBox.StandardButton.No, "否"),
+        (QDialogButtonBox.StandardButton.Close, "关闭"),
+        (QDialogButtonBox.StandardButton.Save, "保存"),
     )
     for flag, msgid in mapping:
         try:

@@ -1,5 +1,6 @@
 # -*- coding: utf-8 -*-
 from ...i18n import tr
+from ...qt_compat import run_exec
 """Field mapping copy UI (full version)."""
 import html
 from collections import Counter
@@ -39,6 +40,7 @@ from .layer_utils import (
     FILTER_LABELS,
     list_vector_layers,
     layer_display_label,
+    layer_matches_filter,
     field_type_label,
 )
 from .layer_source import (
@@ -48,6 +50,12 @@ from .layer_source import (
     load_vector_layer,
     add_layer_to_project,
 )
+from .clipboard_source import (
+    read_clipboard_text,
+    ask_clipboard_crs,
+    prepare_clipboard_features,
+    build_clipboard_layer,
+)
 from .field_transfer import (
     transfer_features,
     geometry_types_compatible,
@@ -56,8 +64,11 @@ from .field_transfer import (
 )
 from .mapping_store import load_mapping_config, save_mapping_config
 
+
 def skip_label():
     return tr("（不映射）")
+
+
 DUP_COMBO_STYLE = (
     "QComboBox { background: #ffebee; color: #c62828; font-weight: bold;"
     " border: 1px solid #e57373; }"
@@ -86,7 +97,7 @@ class SublayerPickDialog(QDialog):
         self.list_widget.setCurrentRow(0)
         layout.addWidget(self.list_widget)
 
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         buttons.accepted.connect(self._accept)
         buttons.rejected.connect(self.reject)
         layout.addWidget(buttons)
@@ -109,6 +120,10 @@ class TransferTab(QWidget):
         self._fill_stats = {}
         self._fill_stats_layer_id = None
         self._saved = load_mapping_config()
+        # Clipboard source layer: kept out of the project on purpose so no
+        # 「剪贴板要素」layer shows up in the legend; it only appears in the
+        # source list while this window lives.
+        self._clip_layer = None
         self._init_ui()
         self._apply_saved_filter()
         self._apply_saved_options()
@@ -132,6 +147,12 @@ class TransferTab(QWidget):
         source_row.addWidget(self.source_combo, 1)
         self.load_file_btn = QPushButton(tr("从文件加载…"))
         source_row.addWidget(self.load_file_btn)
+        self.load_clip_btn = QPushButton(tr("从剪贴板加载"))
+        self.load_clip_btn.setToolTip(
+            tr('读取 QGIS「复制要素」的剪贴板（WKT/WKB 表格、GeoJSON 或纯 WKT），'
+               '询问源坐标系后建成临时图层并自动选为源图层。')
+        )
+        source_row.addWidget(self.load_clip_btn)
 
         target_row = QHBoxLayout()
         target_row.addWidget(self.target_filter)
@@ -145,8 +166,8 @@ class TransferTab(QWidget):
 
         self.lbl_unused = QLabel(tr("未匹配源字段："))
         self.lbl_unused.setWordWrap(True)
-        self.lbl_unused.setTextFormat(Qt.RichText)
-        self.lbl_unused.setAlignment(Qt.AlignTop | Qt.AlignLeft)
+        self.lbl_unused.setTextFormat(Qt.TextFormat.RichText)
+        self.lbl_unused.setAlignment(Qt.AlignmentFlag.AlignTop | Qt.AlignmentFlag.AlignLeft)
         self.lbl_unused.setStyleSheet(
             "background:#fafafa; border: none; padding: 2px 6px; color:#37474f;"
         )
@@ -154,9 +175,9 @@ class TransferTab(QWidget):
         unused_box.setWidget(self.lbl_unused)
         unused_box.setWidgetResizable(True)
         unused_box.setMaximumHeight(40)
-        unused_box.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Maximum)
-        unused_box.setFrameShape(QFrame.StyledPanel)
-        unused_box.setHorizontalScrollBarPolicy(Qt.ScrollBarAlwaysOff)
+        unused_box.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Maximum)
+        unused_box.setFrameShape(QFrame.Shape.StyledPanel)
+        unused_box.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         unused_box.setStyleSheet(
             "QScrollArea { background:#fafafa; border: 1px solid #cfd8dc; border-radius: 4px; }"
         )
@@ -193,13 +214,13 @@ class TransferTab(QWidget):
         self.mapping_table.setHorizontalHeaderLabels(
             [tr("目标字段"), tr("目标类型"), tr("目标别名"), tr("源字段")]
         )
-        self.mapping_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.Stretch)
-        self.mapping_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
-        self.mapping_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
-        self.mapping_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
-        self.mapping_table.setSelectionBehavior(QAbstractItemView.SelectRows)
-        self.mapping_table.setEditTriggers(QAbstractItemView.NoEditTriggers)
-        self.mapping_table.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.mapping_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeMode.Stretch)
+        self.mapping_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeMode.ResizeToContents)
+        self.mapping_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeMode.Stretch)
+        self.mapping_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeMode.Stretch)
+        self.mapping_table.setSelectionBehavior(QAbstractItemView.SelectionBehavior.SelectRows)
+        self.mapping_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.mapping_table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.mapping_table.setMinimumSize(0, 0)
         layout.addWidget(self.mapping_table, 1)
 
@@ -224,6 +245,7 @@ class TransferTab(QWidget):
         self.refresh_btn.clicked.connect(self.refresh_layers)
         self.save_btn.clicked.connect(self._save_clicked)
         self.load_file_btn.clicked.connect(self._load_from_file)
+        self.load_clip_btn.clicked.connect(self._load_from_clipboard)
         self.transfer_btn.clicked.connect(self._run_transfer)
 
     def apply_language(self):
@@ -231,6 +253,11 @@ class TransferTab(QWidget):
         self.lbl_source_row.setText(tr("源图层"))
         self.lbl_target_row.setText(tr("目标图层"))
         self.load_file_btn.setText(tr("从文件加载…"))
+        self.load_clip_btn.setText(tr("从剪贴板加载"))
+        self.load_clip_btn.setToolTip(
+            tr('读取 QGIS「复制要素」的剪贴板（WKT/WKB 表格、GeoJSON 或纯 WKT），'
+               '询问源坐标系后建成临时图层并自动选为源图层。')
+        )
         self.chk_fuzzy.setText(tr("模糊匹配"))
         self.chk_fuzzy.setToolTip(
             tr('用于「按名称自动匹配」：去掉空格/下划线后仍唯一，或一方名称包含另一方且只能唯一配对时才自动填入。')
@@ -325,6 +352,11 @@ class TransferTab(QWidget):
         filter_mode = self._filter_mode(self.source_filter)
         for layer in list_vector_layers(filter_mode):
             self.source_combo.addItem(layer_display_label(layer), layer.id())
+        # The clipboard layer is not in the project: add it to the source list
+        # only, so users can map from it without a stray legend layer.
+        clip = self._clip_layer
+        if clip is not None and layer_matches_filter(clip, filter_mode):
+            self.source_combo.addItem(layer_display_label(clip), clip.id())
         for layer in list_vector_layers(filter_mode):
             self.target_combo.addItem(layer_display_label(layer), layer.id())
 
@@ -358,8 +390,12 @@ class TransferTab(QWidget):
         if self._restore_combo(combo, layer_id):
             return True
         if layer_name:
+            clip = self._clip_layer
             for i in range(combo.count()):
-                layer = QgsProject.instance().mapLayer(combo.itemData(i))
+                item_id = combo.itemData(i)
+                layer = QgsProject.instance().mapLayer(item_id)
+                if layer is None and clip is not None and item_id == clip.id():
+                    layer = clip
                 if layer is not None and layer.name() == layer_name:
                     combo.setCurrentIndex(i)
                     return True
@@ -370,6 +406,9 @@ class TransferTab(QWidget):
         layer_id = combo.currentData()
         if not layer_id:
             return None
+        clip = self._clip_layer
+        if clip is not None and layer_id == clip.id():
+            return clip
         return QgsProject.instance().mapLayer(layer_id)
 
     def _on_layer_changed(self):
@@ -619,7 +658,7 @@ class TransferTab(QWidget):
         sublayer = sublayers[0]
         if len(sublayers) > 1:
             dlg = SublayerPickDialog(path, sublayers, self)
-            if dlg.exec_() != QDialog.Accepted:
+            if run_exec(dlg) != QDialog.DialogCode.Accepted:
                 return
             sublayer = dlg.selected
 
@@ -634,6 +673,58 @@ class TransferTab(QWidget):
         if idx >= 0:
             self.source_combo.setCurrentIndex(idx)
         QMessageBox.information(self, tr("字段映射复制"), tr("已加载图层：{}").format(layer.name()))
+
+    def _select_loaded_source(self, layer):
+        """Put a freshly loaded layer into the source combo, relaxing the filter."""
+        if not layer_matches_filter(layer, self._filter_mode(self.source_filter)):
+            idx = self.source_filter.findData(FILTER_ALL)
+            if idx >= 0 and idx != self.source_filter.currentIndex():
+                self.source_filter.setCurrentIndex(idx)
+            else:
+                self.refresh_layers()
+        else:
+            self.refresh_layers()
+        idx = self.source_combo.findData(layer.id())
+        if idx >= 0:
+            self.source_combo.setCurrentIndex(idx)
+
+    def _load_from_clipboard(self):
+        """Build an in-memory source layer from the QGIS Copy-Features clipboard."""
+        prepared, error = prepare_clipboard_features(read_clipboard_text())
+        if error:
+            QMessageBox.warning(self, tr("字段映射复制"), error)
+            return
+
+        crs = ask_clipboard_crs(self)
+        if crs is None:
+            return
+        if not crs.isValid():
+            QMessageBox.warning(self, tr("字段映射复制"), tr("请指定有效的坐标系。"))
+            return
+
+        layer, info, error = build_clipboard_layer(prepared, crs)
+        if error or layer is None:
+            QMessageBox.critical(
+                self, tr("字段映射复制"), error or tr("无法创建临时图层。")
+            )
+            return
+
+        # Deliberately NOT added to the project: no 「剪贴板要素」 layer in the
+        # legend. It lives only in this window's source list until it closes.
+        self._clip_layer = layer
+        self._select_loaded_source(layer)
+
+        lines = [
+            tr("已从剪贴板加载 {} 条要素，已作为源图层（不放进图层列表）。").format(info["added"]),
+            tr("坐标系：{}。").format(info["crs_text"] or tr("未指定")),
+        ]
+        if info["skipped_empty"]:
+            lines.append(tr("跳过空几何 {} 条。").format(info["skipped_empty"]))
+        if info["skipped_invalid"]:
+            lines.append(tr("跳过无法识别的几何 {} 条。").format(info["skipped_invalid"]))
+        if info["skipped_other"]:
+            lines.append(tr("跳过几何类型不同的要素 {} 条。").format(info["skipped_other"]))
+        QMessageBox.information(self, tr("字段映射复制"), "\n".join(lines))
 
     def _run_transfer(self):
         self._persist_config(silent=True)
@@ -651,18 +742,18 @@ class TransferTab(QWidget):
         if not geometry_types_compatible(source_layer, target_layer):
             reply = QMessageBox.question(
                 self, tr("字段映射复制"), tr("源与目标几何类型不同，仍要继续吗？"),
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
             )
-            if reply != QMessageBox.Yes:
+            if reply != QMessageBox.StandardButton.Yes:
                 return
 
         mapping = self._collect_mapping()
         if not mapping:
             reply = QMessageBox.question(
                 self, tr("字段映射复制"), tr("未配置字段映射，将只复制几何。是否继续？"),
-                QMessageBox.Yes | QMessageBox.No, QMessageBox.No,
+                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, QMessageBox.StandardButton.No,
             )
-            if reply != QMessageBox.Yes:
+            if reply != QMessageBox.StandardButton.Yes:
                 return
 
         result = transfer_features(
@@ -679,4 +770,3 @@ class TransferTab(QWidget):
             QMessageBox.information(self, tr("字段映射复制"), msg)
         else:
             QMessageBox.critical(self, tr("字段映射复制"), tr("复制失败：\n") + "\n".join(result["errors"]))
-

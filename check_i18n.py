@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
-LANGS = ("es", "fr", "ar")
+LANGS = ("es", "fr", "ar", "de", "ja", "ko")
 SKIP_PARTS = {"__pycache__", "locales"}
 SKIP_FILES = {
     "messages_en.py",
@@ -25,6 +25,9 @@ SKIP_FILES = {
     "help_es.py",
     "help_fr.py",
     "help_ar.py",
+    "help_de.py",
+    "help_ja.py",
+    "help_ko.py",
     "check_i18n.py",
 }
 _PCT = re.compile(r"%(?!%)(?:\([^)]+\))?[#0\- +]*\d*(?:\.\d+)?[diouxXeEfFgGcrs]")
@@ -114,6 +117,9 @@ def check_help():
         ("es", "help_es.py"),
         ("fr", "help_fr.py"),
         ("ar", "help_ar.py"),
+        ("de", "help_de.py"),
+        ("ja", "help_ja.py"),
+        ("ko", "help_ko.py"),
     ):
         path = ROOT / "i18n" / filename
         if not path.is_file():
@@ -174,7 +180,7 @@ def main():
         else:
             sys.stdout.write("\n")
         return 1
-    sys.stdout.write("i18n check ok: %s strings, es/fr/ar, 5 help pages\n" % len(keys))
+    sys.stdout.write("i18n check ok: %s strings, es/fr/ar/de/ja/ko, 5 help pages\n" % len(keys))
     return 0
 
 

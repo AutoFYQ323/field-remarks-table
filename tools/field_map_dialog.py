@@ -38,7 +38,7 @@ class FieldMapDialog(QDialog):
                 host = None
         super().__init__(host)
         self.iface = iface
-        self.setAttribute(Qt.WA_DeleteOnClose, True)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self.setWindowTitle(tr("字段映射复制"))
         self.resize(980, 700)
         self.setSizeGripEnabled(True)

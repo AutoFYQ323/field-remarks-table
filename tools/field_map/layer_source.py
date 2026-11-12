@@ -7,14 +7,17 @@ import tempfile
 import zipfile
 
 from qgis.core import (
+    QgsLayerTreeNode,
     QgsMapLayerType,
     QgsProject,
     QgsProviderRegistry,
     QgsVectorLayer,
 )
 
-VECTOR_OPEN_FILTER = (
-    tr('矢量文件 (*.kml *.kmz *.shp *.gpkg *.geojson *.json *.gpx *.dxf *.tab);;KML/KMZ (*.kml *.kmz);;GeoPackage (*.gpkg);;Shapefile (*.shp);;GeoJSON (*.geojson *.json);;所有文件 (*.*)')
+VECTOR_OPEN_FILTER = tr(
+    "矢量文件 (*.kml *.kmz *.shp *.gpkg *.geojson *.json *.gpx *.dxf *.tab);;"
+    "KML/KMZ (*.kml *.kmz);;GeoPackage (*.gpkg);;Shapefile (*.shp);;"
+    "GeoJSON (*.geojson *.json);;所有文件 (*.*)"
 )
 
 _TEMP_KMZ_DIRS = []
@@ -264,14 +267,53 @@ def load_vector_layer(path, sublayer=None, layer_name=None):
     )
 
 
-def add_layer_to_project(layer, group_name="字段映射"):
+_FIELD_MAP_GROUP = "字段映射"
+
+
+def _find_field_map_group(root):
+    shown = tr(_FIELD_MAP_GROUP)
+    for child in root.children():
+        try:
+            if child.nodeType() != QgsLayerTreeNode.NodeType.NodeGroup:
+                continue
+            name = child.name() or ""
+        except Exception:
+            continue  # nosec B112
+        if name in (_FIELD_MAP_GROUP, shown):
+            if shown and name != shown:
+                try:
+                    child.setName(shown)
+                except Exception:
+                    pass  # nosec B110
+            return child
+    return None
+
+
+def _field_map_group(root):
+    found = _find_field_map_group(root)
+    if found is not None:
+        return found
+    return root.insertGroup(0, tr(_FIELD_MAP_GROUP))
+
+
+def retitle_field_map_group():
+    try:
+        root = QgsProject.instance().layerTreeRoot()
+    except Exception:
+        return
+    _find_field_map_group(root)
+
+
+def add_layer_to_project(layer, group_name=None):
     """Add layer to project under a named group."""
     project = QgsProject.instance()
     root = project.layerTreeRoot()
-
-    group = root.findGroup(group_name)
-    if group is None:
-        group = root.insertGroup(0, group_name)
+    if not group_name or group_name == _FIELD_MAP_GROUP:
+        group = _field_map_group(root)
+    else:
+        group = root.findGroup(group_name)
+        if group is None:
+            group = root.insertGroup(0, group_name)
 
     project.addMapLayer(layer, False)
     group.addLayer(layer)

@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """One dictionary per language. Keys are the Simplified Chinese source text."""
 
-from ..catalog import LANG_AR, LANG_ES, LANG_FR
+from ..catalog import LANG_AR, LANG_DE, LANG_ES, LANG_FR, LANG_JA, LANG_KO
 
 
 def load_text(lang):
@@ -17,4 +17,16 @@ def load_text(lang):
         from . import ar
 
         return ar.TEXT
+    if lang == LANG_DE:
+        from . import de
+
+        return de.TEXT
+    if lang == LANG_JA:
+        from . import ja
+
+        return ja.TEXT
+    if lang == LANG_KO:
+        from . import ko
+
+        return ko.TEXT
     return {}

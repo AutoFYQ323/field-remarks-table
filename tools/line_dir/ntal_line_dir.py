@@ -161,7 +161,7 @@ class _CheckProgress(object):
         self.dlg.show()
         register_tool_window(self.dlg)
         try:
-            flag = QEventLoop.ExcludeUserInputEvents
+            flag = QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents
         except AttributeError:
             flag = QEventLoop.ProcessEventsFlag.ExcludeUserInputEvents
         QApplication.processEvents(flag)
@@ -263,11 +263,17 @@ def run_line_dir_analysis(
         work_crs = working_crs_from_layers(all_layers)
         point_tick = _make_tick(
             progress, 0.02, 0.46,
-            _feat_total(list(occ_layers or []) + list(splice_layers or []) + list(fat_layers or []) + list(user_layers or [])),
+            _feat_total(
+                list(occ_layers or []) + list(splice_layers or [])
+                + list(fat_layers or []) + list(user_layers or [])
+            ),
             tr("正在读取点"),
         )
         occ_rows, occ_stats = collect_points(occ_layers or [], occ_filters, ROLE_OCC, work_crs, on_step=point_tick)
-        splice_rows, splice_stats = collect_points(splice_layers or [], splice_filters, ROLE_SPLICE, work_crs, on_step=point_tick)
+        splice_rows, splice_stats = collect_points(
+            splice_layers or [], splice_filters, ROLE_SPLICE, work_crs,
+            on_step=point_tick,
+        )
         fat_rows, fat_stats = collect_points(fat_layers or [], fat_filters, ROLE_FAT, work_crs, on_step=point_tick)
         user_rows, user_stats = collect_points(user_layers or [], user_filters, ROLE_USER, work_crs, on_step=point_tick)
         line_tick = _make_tick(
@@ -275,10 +281,15 @@ def run_line_dir_analysis(
             _feat_total(list(cable_layers or []) + list(drop_layers or [])),
             tr("正在读取线"),
         )
-        cable_rows, cable_stats = collect_lines(cable_layers or [], cable_filters, ROLE_CABLE, work_crs, "", on_step=line_tick)
-        drop_rows, drop_stats = collect_lines(drop_layers or [], drop_filters, ROLE_DROP, work_crs, "", on_step=line_tick)
+        cable_rows, cable_stats = collect_lines(
+            cable_layers or [], cable_filters, ROLE_CABLE, work_crs, "",
+            on_step=line_tick,
+        )
+        drop_rows, drop_stats = collect_lines(
+            drop_layers or [], drop_filters, ROLE_DROP, work_crs, "",
+            on_step=line_tick,
+        )
     trunk_rows, dist_rows = [], []
-    trunk_stats, dist_stats = {}, {}
 
     hard = []
     warn = []
@@ -331,7 +342,7 @@ def run_line_dir_analysis(
         if severity and kind not in ("dangling", "both_open"):
             item = {
                 "kind": kind,
-                "message": "{}：{}".format(tail, edge["label"]),
+                "message": tr("{}：{}").format(tail, edge["label"]),
                 "refs": [("edge", edge["id"])]
                 + ([("node", a)] if a else [])
                 + ([("node", b)] if b else []),
@@ -395,7 +406,6 @@ def run_line_dir_analysis(
         eid = edge["id"]
         pair = oriented.get(eid)
         role = edge.get("role") or ""
-        title = ROLE_LABEL.get(role, role)
         if pair is None:
             continue
         fr, to = pair
@@ -641,7 +651,7 @@ class LineDirDialog(QDialog):
             pass  # nosec B110
         root = QVBoxLayout(self)
         if self._free:
-            hint_text = tr("不挡地图，窗口置顶。打勾的翻转，不打勾的不动。方向反了默认打勾，伪成环默认不勾。")
+            hint_text = tr("不挡地图，窗口置顶。打勾的翻转，不打勾的不动。方向反了默认打勾，伪成环和方向无法判断默认不勾。")
         elif (result or {}).get("kind") == "audit":
             hint_text = tr("不挡地图，窗口置顶。检查页是这次的硬错误、软错误和警告；可修复页是方向反了的线。全部翻转=这些线一次翻；翻转勾选=只翻表里打勾的。")
         else:
@@ -692,7 +702,7 @@ class LineDirDialog(QDialog):
         self.btn_close = buttons.addButton(tr("关闭"), reject_role)
         self.btn_pick.setEnabled(bool(reversible))
         if self._free:
-            self.btn_pick.setToolTip(tr("只翻转打勾的线。方向反了默认打勾，伪成环默认不勾。"))
+            self.btn_pick.setToolTip(tr("只翻转打勾的线。方向反了默认打勾，伪成环和方向无法判断默认不勾。"))
         else:
             self.btn_pick.setToolTip(tr("只翻转「可修复」表里打勾的线，可先对照地图去掉不确定的。"))
         self.btn_pick.clicked.connect(self._do_pick)
@@ -715,29 +725,42 @@ class LineDirDialog(QDialog):
                 html.append('<div style="color:#c62828;">· {}</div>'.format(_esc(msg)))
         for line in result.get("summary_lines") or []:
             html.append("<div>{}</div>".format(_esc(line)))
-        hard, soft, warn = split_issue_levels(result)
-        html.append(tr('<br><span style="color:#c62828; font-weight:700;">硬错误：{}</span>').format(len(hard)))
-        if hard:
-            for item in hard:
-                html.append('<div style="color:#c62828;">· {}</div>'.format(_esc(item.get("message") or "")))
+        if self._free:
+            # 1.18.8: free line direction reports ONE error kind only —
+            # lines no start can reach. No hard/soft/warning sections.
+            errors = list(result.get("warn") or [])
+            html.append(tr('<span style="color:#c62828; font-weight:700;">错误（未到达起点）：{}</span>').format(len(errors)))
+            if errors:
+                for item in errors[:40]:
+                    html.append('<div style="color:#c62828;">· {}</div>'.format(_esc(item.get("message") or "")))
+                if len(errors) > 40:
+                    html.append(tr("<div>… 还有 {} 条</div>").format(len(errors) - 40))
+            else:
+                html.append(tr("<div>（无）</div>"))
         else:
-            html.append(tr("<div>（无）</div>"))
-        html.append(tr('<span style="color:#ef6c00; font-weight:700;">软错误：{}</span>').format(len(soft)))
-        if soft:
-            for item in soft[:40]:
-                html.append('<div style="color:#ef6c00;">· {}</div>'.format(_esc(item.get("message") or "")))
-            if len(soft) > 40:
-                html.append(tr("<div>… 还有 {} 条</div>").format(len(soft) - 40))
-        else:
-            html.append(tr("<div>（无）</div>"))
-        html.append(tr('<span style="color:#f9a825; font-weight:700;">警告：{}</span>').format(len(warn)))
-        if warn:
-            for item in warn[:40]:
-                html.append('<div style="color:#f9a825;">· {}</div>'.format(_esc(item.get("message") or "")))
-            if len(warn) > 40:
-                html.append(tr("<div>… 还有 {} 条</div>").format(len(warn) - 40))
-        else:
-            html.append(tr("<div>（无）</div>"))
+            hard, soft, warn = split_issue_levels(result)
+            html.append(tr('<br><span style="color:#c62828; font-weight:700;">硬错误：{}</span>').format(len(hard)))
+            if hard:
+                for item in hard:
+                    html.append('<div style="color:#c62828;">· {}</div>'.format(_esc(item.get("message") or "")))
+            else:
+                html.append(tr("<div>（无）</div>"))
+            html.append(tr('<span style="color:#ef6c00; font-weight:700;">软错误：{}</span>').format(len(soft)))
+            if soft:
+                for item in soft[:40]:
+                    html.append('<div style="color:#ef6c00;">· {}</div>'.format(_esc(item.get("message") or "")))
+                if len(soft) > 40:
+                    html.append(tr("<div>… 还有 {} 条</div>").format(len(soft) - 40))
+            else:
+                html.append(tr("<div>（无）</div>"))
+            html.append(tr('<span style="color:#f9a825; font-weight:700;">警告：{}</span>').format(len(warn)))
+            if warn:
+                for item in warn[:40]:
+                    html.append('<div style="color:#f9a825;">· {}</div>'.format(_esc(item.get("message") or "")))
+                if len(warn) > 40:
+                    html.append(tr("<div>… 还有 {} 条</div>").format(len(warn) - 40))
+            else:
+                html.append(tr("<div>（无）</div>"))
         html.append(tr("<b>图层参与</b>（走到 / 筛出）"))
         for row in result.get("participation") or []:
             role_name = ROLE_LABEL.get(row["role"], row["role"])
@@ -759,7 +782,7 @@ class LineDirDialog(QDialog):
         for i, row in enumerate(rows):
             chk = QTableWidgetItem()
             chk.setFlags(ITEM_USER_CHECKABLE | ITEM_ENABLED | ITEM_SELECTABLE)
-            if self._free and row.get("issue") == "pseudo_cycle":
+            if self._free and row.get("issue") in ("pseudo_cycle", "dir_ambiguous"):
                 chk.setCheckState(UNCHECKED)
             else:
                 chk.setCheckState(CHECKED)
@@ -887,8 +910,8 @@ class LineDirDialog(QDialog):
     def _apply_language(self, *_args):
         if self._free:
             self.setWindowTitle(tr("线方向检查"))
-            self.hint.setText(tr("不挡地图，窗口置顶。打勾的翻转，不打勾的不动。方向反了默认打勾，伪成环默认不勾。"))
-            self.btn_pick.setToolTip(tr("只翻转打勾的线。方向反了默认打勾，伪成环默认不勾。"))
+            self.hint.setText(tr("不挡地图，窗口置顶。打勾的翻转，不打勾的不动。方向反了默认打勾，伪成环和方向无法判断默认不勾。"))
+            self.btn_pick.setToolTip(tr("只翻转打勾的线。方向反了默认打勾，伪成环和方向无法判断默认不勾。"))
         elif (self.result or {}).get("kind") == "audit":
             self.setWindowTitle(tr("NTAL 全面检测"))
             self.hint.setText(tr("不挡地图，窗口置顶。检查页是这次的硬错误、软错误和警告；可修复页是方向反了的线。全部翻转=这些线一次翻；翻转勾选=只翻表里打勾的。"))

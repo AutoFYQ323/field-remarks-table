@@ -21,7 +21,7 @@ if QgsValueMapFieldFormatter is not None:
     except Exception:
         pass  # nosec B110
 
-EMPTY_FLAG_ROLE = Qt.UserRole + 21
+EMPTY_FLAG_ROLE = Qt.ItemDataRole.UserRole + 21
 
 
 def value_key(value):
@@ -291,7 +291,7 @@ class ValueMapDelegate(QStyledItemDelegate):
         combo.setItemData(0, True, EMPTY_FLAG_ROLE)
         for _label, stored, display in items:
             combo.addItem(display or _label, stored)
-            combo.setItemData(combo.count() - 1, tr("值：%s") % stored, Qt.ToolTipRole)
+            combo.setItemData(combo.count() - 1, tr("值：%s") % stored, Qt.ItemDataRole.ToolTipRole)
         return combo
 
     def _uses_text_editor(self, index):
@@ -308,12 +308,12 @@ class ValueMapDelegate(QStyledItemDelegate):
 
     def setEditorData(self, editor, index):
         if isinstance(editor, QLineEdit) and self._uses_text_editor(index):
-            editor.setText(value_text(index.data(Qt.EditRole)))
+            editor.setText(value_text(index.data(Qt.ItemDataRole.EditRole)))
             editor.selectAll()
             return
         if not isinstance(editor, QComboBox):
             return super().setEditorData(editor, index)
-        raw = index.data(Qt.EditRole)
+        raw = index.data(Qt.ItemDataRole.EditRole)
         if raw is None or raw == NULL:
             editor.setCurrentIndex(0)
             return
@@ -329,13 +329,13 @@ class ValueMapDelegate(QStyledItemDelegate):
 
     def setModelData(self, editor, model, index):
         if isinstance(editor, QLineEdit) and self._uses_text_editor(index):
-            model.setData(index, editor.text(), Qt.EditRole)
+            model.setData(index, editor.text(), Qt.ItemDataRole.EditRole)
             return
         if not isinstance(editor, QComboBox):
             return super().setModelData(editor, model, index)
         row = editor.currentIndex()
         if row < 0 or editor.itemData(row, EMPTY_FLAG_ROLE):
-            model.setData(index, NULL, Qt.EditRole)
+            model.setData(index, NULL, Qt.ItemDataRole.EditRole)
             return
         stored = editor.itemData(row)
         layer = self._model.layer() if self._model is not None else None
@@ -348,7 +348,7 @@ class ValueMapDelegate(QStyledItemDelegate):
                     stored = coerce_value_for_field(layer.fields().at(field_idx), stored)
             except Exception:
                 pass  # nosec B110
-        model.setData(index, stored, Qt.EditRole)
+        model.setData(index, stored, Qt.ItemDataRole.EditRole)
 
     def _choices(self, index):
         if self._model is None or not index.isValid():

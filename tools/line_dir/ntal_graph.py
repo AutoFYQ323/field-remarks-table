@@ -1,4 +1,5 @@
 # -*- coding: utf-8 -*-
+from ...i18n import tr
 import sys
 from collections import defaultdict
 from contextlib import contextmanager
@@ -83,7 +84,7 @@ def analyze_graph(nodes, edges, occ_ids, accumulate=True, scheme=None):
         if nid in stack:
             issues.append(_issue(
                 HARD_CYCLE,
-                "成环：{}".format(nodes[nid].get("label") or nid),
+                tr("成环：{}").format(nodes[nid].get("label") or nid),
                 [("node", nid)],
             ))
             return
@@ -99,14 +100,14 @@ def analyze_graph(nodes, edges, occ_ids, accumulate=True, scheme=None):
             if other is None:
                 issues.append(_issue(
                     WARN_DANGLING,
-                    "一端空：{}".format(label),
+                    tr("一端空：{}").format(label),
                     [("edge", eid), ("node", nid)],
                 ))
                 continue
             if other == nid:
                 issues.append(_issue(
                     HARD_SELF_LOOP,
-                    "线两端接到同一点：{}".format(label),
+                    tr("线两端接到同一点：{}").format(label),
                     [("edge", eid), ("node", nid)],
                 ))
                 continue
@@ -115,7 +116,7 @@ def analyze_graph(nodes, edges, occ_ids, accumulate=True, scheme=None):
                 if other != parent:
                     issues.append(_issue(
                         HARD_CYCLE,
-                        "成环：{} ↔ {}".format(nodes[nid].get("label") or nid, label),
+                        tr("成环：{} ↔ {}").format(nodes[nid].get("label") or nid, label),
                         [("edge", eid), ("node", nid), ("node", other)],
                     ))
                 continue
@@ -152,34 +153,34 @@ def analyze_graph(nodes, edges, occ_ids, accumulate=True, scheme=None):
             refs = [("node", nid)] + [("edge", eid) for eid in incoming[nid]]
             issues.append(_issue(
                 HARD_FAT_MULTI_IN,
-                "分纤盒进入 {} 条线：{}".format(len(incoming[nid]), label),
+                tr("分纤盒进入 {} 条线：{}").format(len(incoming[nid]), label),
                 refs,
             ))
         if role == ROLE_FAT and fat_max_out is not None and len(outgoing[nid]) > fat_max_out:
             refs = [("node", nid)] + [("edge", eid) for eid in outgoing[nid]]
             issues.append(_issue(
                 HARD_FAT_BRANCH,
-                "分纤盒分叉（出 {} 条线）：{}".format(len(outgoing[nid]), label),
+                tr("分纤盒分叉（出 {} 条线）：{}").format(len(outgoing[nid]), label),
                 refs,
             ))
         if role == ROLE_SPLICE and splice_max_in is not None and len(incoming[nid]) > splice_max_in:
             refs = [("node", nid)] + [("edge", eid) for eid in incoming[nid]]
             issues.append(_issue(
                 HARD_SPLICE_MULTI_IN,
-                "接头进入 {} 条线：{}".format(len(incoming[nid]), label),
+                tr("接头进入 {} 条线：{}").format(len(incoming[nid]), label),
                 refs,
             ))
         if role == ROLE_OCC and incoming[nid] and topo.get("occ_in_hard", True):
             refs = [("node", nid)] + [("edge", eid) for eid in incoming[nid]]
             issues.append(_issue(
                 HARD_OCC_IN,
-                "光交被当作下游：{}".format(label),
+                tr("光交被当作下游：{}").format(label),
                 refs,
             ))
         if role == ROLE_OCC and not outgoing[nid]:
             issues.append(_issue(
                 WARN_OCC_NO_OUT,
-                "光交没有出线：{}".format(label),
+                tr("光交没有出线：{}").format(label),
                 [("node", nid)],
             ))
 
@@ -191,19 +192,19 @@ def analyze_graph(nodes, edges, occ_ids, accumulate=True, scheme=None):
         if not a and not b:
             issues.append(_issue(
                 WARN_BOTH_OPEN,
-                "两端都空：{}".format(label),
+                tr("两端都空：{}").format(label),
                 [("edge", eid)],
             ))
         elif a and b:
             issues.append(_issue(
                 WARN_UNREACHED_EDGE,
-                "未挂上（未从光交通到）：{}".format(label),
+                tr("未挂上（未从光交通到）：{}").format(label),
                 [("edge", eid)],
             ))
         elif a or b:
             issues.append(_issue(
                 WARN_DANGLING,
-                "一端空：{}".format(label),
+                tr("一端空：{}").format(label),
                 [("edge", eid)],
             ))
 
@@ -219,7 +220,7 @@ def analyze_graph(nodes, edges, occ_ids, accumulate=True, scheme=None):
             continue
         issues.append(_issue(
             WARN_UNREACHED_NODE,
-            "未挂上：{}".format(node.get("label") or nid),
+            tr("未挂上：{}").format(node.get("label") or nid),
             [("node", nid)],
         ))
 
